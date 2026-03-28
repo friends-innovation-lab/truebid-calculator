@@ -2,7 +2,7 @@
 'use client'
 
 import React, { useState, useMemo } from 'react'
-import { useApp } from '@/contexts/app-context'
+import { useAppContext } from '@/contexts/app-context'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -171,7 +171,7 @@ interface TaskDecompositionProps {
 }
 
 export default function TaskDecomposition({ epic, onClose, onApplyTasks }: TaskDecompositionProps) {
-  const { teamRoles } = useApp()
+  const { teamRoles } = useAppContext()
   
   // Detect epic type and get initial tasks
   const epicType = detectEpicType(epic)

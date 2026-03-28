@@ -41,7 +41,6 @@ import {
 import { useAppContext } from '@/contexts/app-context'
 
 // Tab components
-import { UploadTab } from '@/components/tabs/upload-tab'
 import { EstimateTab } from '@/components/tabs/estimate-tab'
 import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
