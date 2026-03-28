@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ============================================================================
 // EXPORT UTILITIES - TrueBid Cost Proposal Document Generation
 // Google-Quality Modern Design
@@ -25,26 +24,37 @@ import {
   convertInchesToTwip
 } from 'docx'
 
-// pdfmake is loaded dynamically to avoid SSR issues
-let pdfMake: any = null
+import type { TDocumentDefinitions, Content, ContentTable, TableCell as PdfTableCell } from 'pdfmake/interfaces'
+import type { TCreatedPdf } from 'pdfmake/build/pdfmake'
 
-async function loadPdfMake() {
+// pdfmake is loaded dynamically to avoid SSR issues
+interface PdfMakeInstance {
+  vfs: { [file: string]: string }
+  createPdf(docDefinition: TDocumentDefinitions): TCreatedPdf
+}
+
+let pdfMake: PdfMakeInstance | null = null
+
+async function loadPdfMake(): Promise<PdfMakeInstance> {
   if (pdfMake) return pdfMake
-  
+
   const pdfMakeModule = await import('pdfmake/build/pdfmake')
   const pdfFontsModule = await import('pdfmake/build/vfs_fonts')
-  
-  pdfMake = pdfMakeModule.default || pdfMakeModule
+
+  const instance = (pdfMakeModule.default || pdfMakeModule) as unknown as PdfMakeInstance
   const pdfFonts = pdfFontsModule.default || pdfFontsModule
-  
-  // Handle different module structures
-  if (pdfFonts.pdfMake?.vfs) {
-    pdfMake.vfs = pdfFonts.pdfMake.vfs
+
+  // Handle different module structures for font VFS
+  const fontsRecord = pdfFonts as Record<string, unknown>
+  const nestedVfs = (fontsRecord.pdfMake as Record<string, unknown> | undefined)?.vfs as { [file: string]: string } | undefined
+  if (nestedVfs) {
+    instance.vfs = nestedVfs
   } else if (pdfFonts.vfs) {
-    pdfMake.vfs = pdfFonts.vfs
+    instance.vfs = pdfFonts.vfs
   }
-  
-  return pdfMake
+
+  pdfMake = instance
+  return instance
 }
 
 // ============================================================================
@@ -1094,7 +1104,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
     'backend engineer': "Bachelor's in Computer Science",
   }
 
-  const content: any[] = []
+  const content: Content[] = []
 
   // ===== COVER PAGE =====
   content.push({ text: '\n\n\n\n' })
@@ -1208,7 +1218,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
     })
 
     // Build rate table
-    const rateHeaders = [
+    const rateHeaders: PdfTableCell[] = [
       { text: 'LABOR CATEGORY', style: 'tableHeader' },
       { text: 'LEVEL', style: 'tableHeader', alignment: 'center' },
     ]
@@ -1216,10 +1226,10 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
       rateHeaders.push({ text: yearLabel(y).toUpperCase(), style: 'tableHeader', alignment: 'right' })
     }
 
-    const rateBody = [rateHeaders]
+    const rateBody: PdfTableCell[][] = [rateHeaders]
     data.roles.forEach(role => {
       const baseRate = data.calculateRate(role.baseSalary, data.rateCardType !== 'ffp')
-      const row: any[] = [
+      const row: PdfTableCell[] = [
         { text: role.title || role.name || '', bold: true },
         { text: role.icLevel || '', alignment: 'center', color: PDF_COLORS.secondary },
       ]
@@ -1230,13 +1240,13 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
       rateBody.push(row)
     })
 
-    const rateWidths = ['*', 50]
+    const rateWidths: (string | number)[] = ['*', 50]
     for (let y = 1; y <= data.yearsToInclude; y++) rateWidths.push(80)
 
     content.push({
       table: { headerRows: 1, widths: rateWidths, body: rateBody },
       layout: {
-        hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
+        hLineWidth: (i: number, node: ContentTable) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
         vLineWidth: () => 0,
         hLineColor: () => PDF_COLORS.border,
         fillColor: (i: number) => i === 0 ? PDF_COLORS.headerBg : null,
@@ -1267,7 +1277,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
 
     content.push({ text: 'WBS Summary', style: 'h2' })
 
-    const wbsBody = [[
+    const wbsBody: PdfTableCell[][] = [[
       { text: 'WBS', style: 'tableHeader' },
       { text: 'ELEMENT', style: 'tableHeader' },
       { text: 'METHOD', style: 'tableHeader', alignment: 'center' },
@@ -1294,7 +1304,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
     content.push({
       table: { headerRows: 1, widths: [40, '*', 70, 70, 60], body: wbsBody },
       layout: {
-        hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
+        hLineWidth: (i: number, node: ContentTable) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
         vLineWidth: () => 0,
         hLineColor: () => PDF_COLORS.border,
         fillColor: (i: number) => i === 0 ? PDF_COLORS.headerBg : null,
@@ -1319,7 +1329,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
       }
 
       if (el.laborBreakdown && el.laborBreakdown.length > 0) {
-        const laborBody = [[
+        const laborBody: PdfTableCell[][] = [[
           { text: 'ROLE', style: 'tableHeader' },
           { text: 'HOURS', style: 'tableHeader', alignment: 'right' },
           { text: 'RATIONALE', style: 'tableHeader' },
@@ -1334,7 +1344,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
         content.push({
           table: { headerRows: 1, widths: [120, 60, '*'], body: laborBody },
           layout: {
-            hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
+            hLineWidth: (i: number, node: ContentTable) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
             vLineWidth: () => 0,
             hLineColor: () => PDF_COLORS.border,
             fillColor: (i: number) => i === 0 ? PDF_COLORS.headerBg : null,
@@ -1400,7 +1410,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
           ]
         },
         layout: {
-          hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
+          hLineWidth: (i: number, node: ContentTable) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
           vLineWidth: () => 0,
           hLineColor: () => PDF_COLORS.border,
           fillColor: (i: number) => i === 0 ? PDF_COLORS.headerBg : null,
@@ -1448,7 +1458,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
 
     content.push({ text: 'Rate Buildup by Category', style: 'h2' })
 
-    const buildupBody = [[
+    const buildupBody: PdfTableCell[][] = [[
       { text: 'LABOR CATEGORY', style: 'tableHeader' },
       { text: 'DIRECT', style: 'tableHeader', alignment: 'right' },
       { text: '+FRINGE', style: 'tableHeader', alignment: 'right' },
@@ -1477,7 +1487,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
     content.push({
       table: { headerRows: 1, widths: ['*', 55, 55, 55, 55, 60], body: buildupBody },
       layout: {
-        hLineWidth: (i: number, node: any) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
+        hLineWidth: (i: number, node: ContentTable) => (i === 0 || i === 1 || i === node.table.body.length) ? 1 : 0.5,
         vLineWidth: () => 0,
         hLineColor: () => PDF_COLORS.border,
         fillColor: (i: number) => i === 0 ? PDF_COLORS.headerBg : null,
@@ -1512,9 +1522,9 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
   }
 
   // Document definition
-  const docDefinition = {
+  const docDefinition: TDocumentDefinitions = {
     pageSize: 'LETTER',
-    pageMargins: [72, 72, 72, 72], // 1 inch margins
+    pageMargins: [72, 72, 72, 72] as [number, number, number, number],
     header: (currentPage: number) => currentPage > 1 ? {
       text: `${data.companyName}  |  ${data.solicitation || 'Cost Proposal'}`,
       alignment: 'right',
@@ -1552,7 +1562,7 @@ function generatePdfDocument(data: ExportData, options: ExportOptions): Promise<
   return new Promise(async (resolve, reject) => {
     try {
       const pdfMakeInstance = await loadPdfMake()
-      const pdfDocGenerator = pdfMakeInstance.createPdf(docDefinition as any)
+      const pdfDocGenerator = pdfMakeInstance.createPdf(docDefinition)
       pdfDocGenerator.getBlob((blob: Blob) => {
         resolve(blob)
       })
@@ -1639,7 +1649,7 @@ export async function generateWordDocument(data: ExportData, options: ExportOpti
   })
   
   const buffer = await Packer.toBuffer(doc)
-  return new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
+  return new Blob([new Uint8Array(buffer)], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })
 }
 
 export async function generateExport(data: ExportData, options: ExportOptions, format: 'xlsx' | 'pdf' | 'docx'): Promise<Blob> {
