@@ -135,8 +135,6 @@ The Supabase `proposals` table has these columns:
 ## Known Tech Debt
 
 Files with `@ts-nocheck` (need gradual type fixing):
-- `lib/boe-export.ts`
-- `lib/export-utils.ts`
 - `components/task-decomposition.tsx`
 - `components/tabs/upload-tab.tsx`
 - `components/tabs/export-tab.tsx`
