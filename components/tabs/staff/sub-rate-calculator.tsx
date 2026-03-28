@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react'
 import Link from 'next/link'
 import { useAppContext } from '@/contexts/app-context'
-import { settingsApi, rolesApi } from '@/lib/api'
+import { settingsApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -29,10 +29,8 @@ import {
   Copy,
   ChevronDown,
   ExternalLink,
-  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { ErrorAlert } from '@/components/ui/error-alert'
 
 // ===== TYPES =====
 
@@ -42,28 +40,11 @@ interface SalaryLevel {
   steps: Array<{ step: number; salary: number }>
 }
 
-interface CompanyRoleFromAPI {
-  id: string
-  title: string
-  labor_category?: string
-  salary_levels?: SalaryLevel[]
-}
-
 interface CompanyRole {
   id: string
   title: string
   laborCategory?: string
   levels?: SalaryLevel[]
-}
-
-// Transform API response to internal format
-function transformRole(apiRole: CompanyRoleFromAPI): CompanyRole {
-  return {
-    id: apiRole.id,
-    title: apiRole.title,
-    laborCategory: apiRole.labor_category,
-    levels: apiRole.salary_levels,
-  }
 }
 
 // Extract salary from role (first level, first step)
@@ -80,7 +61,7 @@ function getRoleSalary(role: CompanyRole): number | null {
 // ===== COMPONENT =====
 
 export function SubRateCalculator() {
-  const { indirectRates, companyPolicy } = useAppContext()
+  const { indirectRates, companyPolicy, companyRoles: contextRoles } = useAppContext()
 
   // Form state
   const [roleName, setRoleName] = useState('')
@@ -97,11 +78,16 @@ export function SubRateCalculator() {
   const [showScenarios, setShowScenarios] = useState(false)
 
   // Data loading state
-  const [companyRoles, setCompanyRoles] = useState<CompanyRole[]>([])
   const [isLoadingPage, setIsLoadingPage] = useState(true)
-  const [isLoadingRoles, setIsLoadingRoles] = useState(true)
-  const [rolesError, setRolesError] = useState<string | null>(null)
   const [billableHoursPerYear, setBillableHoursPerYear] = useState(1920)
+
+  // Transform context roles to local format (context uses 'levels' already)
+  const companyRoles: CompanyRole[] = contextRoles.map(r => ({
+    id: r.id,
+    title: r.title,
+    laborCategory: r.laborCategory,
+    levels: r.levels,
+  }))
 
   // Load settings on mount
   useEffect(() => {
@@ -132,30 +118,6 @@ export function SubRateCalculator() {
     loadSettings()
   }, [indirectRates, companyPolicy])
 
-  // Load roles on mount (separate from settings)
-  useEffect(() => {
-    async function loadRoles() {
-      setIsLoadingRoles(true)
-      setRolesError(null)
-      try {
-        const rolesResponse = await rolesApi.list() as { roles: CompanyRoleFromAPI[] }
-        console.log('[SubRateCalculator] rolesApi.list() response:', rolesResponse)
-        if (rolesResponse.roles && rolesResponse.roles.length > 0) {
-          const transformedRoles = rolesResponse.roles.map(transformRole)
-          console.log('[SubRateCalculator] transformed roles:', transformedRoles)
-          setCompanyRoles(transformedRoles)
-        } else {
-          console.log('[SubRateCalculator] No roles returned or empty array')
-        }
-      } catch (err) {
-        console.error('[SubRateCalculator] Error loading roles:', err)
-        setRolesError('Could not load roles — enter manually')
-      } finally {
-        setIsLoadingRoles(false)
-      }
-    }
-    loadRoles()
-  }, [])
 
   // Handle role selection
   const handleRoleSelect = (roleId: string) => {
@@ -290,15 +252,7 @@ export function SubRateCalculator() {
             {/* Role Name / Dropdown */}
             <div className="space-y-2">
               <Label htmlFor="role-name">Role</Label>
-              {rolesError && (
-                <ErrorAlert variant="inline" message={rolesError} />
-              )}
-              {isLoadingRoles ? (
-                <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted/50">
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Loading roles...</span>
-                </div>
-              ) : companyRoles.length > 0 && !rolesError ? (
+              {companyRoles.length > 0 ? (
                 <Select value={selectedRoleId || ''} onValueChange={handleRoleSelect}>
                   <SelectTrigger id="role-name">
                     <SelectValue placeholder="Select a role..." />
