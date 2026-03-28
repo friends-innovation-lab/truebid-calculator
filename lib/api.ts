@@ -259,3 +259,40 @@ export const publicBoeApi = {
   get: (token: string) =>
     fetch(`${API_BASE}/boe/${token}`).then(handleResponse),
 }
+
+// Compliance Matrix
+export const complianceApi = {
+  list: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/compliance`).then(handleResponse),
+
+  generate: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/compliance/generate`, {
+      method: 'POST',
+    }).then(handleResponse),
+
+  regenerate: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/compliance/regenerate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ confirm: true }),
+    }).then(handleResponse),
+
+  create: (proposalId: string, data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/compliance`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  update: (proposalId: string, itemId: string, data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/compliance/${itemId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  delete: (proposalId: string, itemId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/compliance/${itemId}`, {
+      method: 'DELETE',
+    }).then(handleResponse),
+}

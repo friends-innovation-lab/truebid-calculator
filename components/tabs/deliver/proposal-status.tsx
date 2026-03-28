@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
-import { collabApi, proposalsApi } from '@/lib/api'
+import { collabApi, complianceApi, proposalsApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { CheckCircle2, Circle, AlertCircle, Clock } from 'lucide-react'
 
@@ -28,6 +28,10 @@ export function ProposalStatus() {
   // Strategy status
   const [strategyStatus, setStrategyStatus] = useState<'none' | 'pending' | 'complete'>('none')
   const [strategyDescription, setStrategyDescription] = useState('No strategy captured')
+
+  // Compliance matrix status
+  const [complianceStatus, setComplianceStatus] = useState<'none' | 'pending' | 'complete'>('none')
+  const [complianceDescription, setComplianceDescription] = useState('No compliance matrix generated')
 
   // Collab session status
   const [collabStatus, setCollabStatus] = useState<'none' | 'pending' | 'complete'>('none')
@@ -69,6 +73,39 @@ export function ProposalStatus() {
       }
     }
     checkStrategy()
+  }, [proposalId])
+
+  // Load compliance matrix status
+  useEffect(() => {
+    if (!proposalId) return
+    async function checkCompliance() {
+      try {
+        const response = await complianceApi.list(proposalId) as {
+          items: { compliance_status: string }[]
+          stats: { total: number; compliant: number; partial: number; exception: number }
+        }
+        const items = response.items || []
+        const stats = response.stats
+
+        if (items.length === 0) {
+          setComplianceStatus('none')
+          setComplianceDescription('No compliance matrix generated')
+        } else {
+          const allCompliant = stats.exception === 0 && stats.partial === 0
+          if (allCompliant) {
+            setComplianceStatus('complete')
+            setComplianceDescription(`${stats.total} items, all compliant`)
+          } else {
+            setComplianceStatus('pending')
+            const issues = stats.exception + stats.partial
+            setComplianceDescription(`${stats.total} items, ${issues} need${issues === 1 ? 's' : ''} attention`)
+          }
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    checkCompliance()
   }, [proposalId])
 
   useEffect(() => {
@@ -125,6 +162,12 @@ export function ProposalStatus() {
         ? `${extractedRequirements.length} requirements extracted`
         : 'Extract requirements from your RFP',
       complete: extractedRequirements.length > 0,
+    },
+    {
+      label: 'Compliance matrix reviewed',
+      description: complianceDescription,
+      complete: complianceStatus === 'complete',
+      pending: complianceStatus === 'pending',
     },
     {
       label: 'WBS elements complete',

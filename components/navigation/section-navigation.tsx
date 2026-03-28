@@ -27,6 +27,7 @@ import {
   Trash2,
   Calendar,
   Target,
+  ListChecks,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -54,6 +55,7 @@ import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StrategyTab } from '@/components/tabs/scope/strategy-tab'
 import { SolicitationSummary } from '@/components/tabs/scope/solicitation-summary'
+import { ComplianceMatrix } from '@/components/tabs/scope/compliance-matrix'
 
 // ==================== TYPES ====================
 
@@ -64,6 +66,7 @@ type ViewId =
   | 'strategy'
   | 'solicitation-summary'
   | 'requirements'
+  | 'compliance-matrix'
   // Staff
   | 'wbs-elements'
   | 'labor-matrix'
@@ -109,6 +112,7 @@ const SECTIONS: SectionConfig[] = [
           { id: 'strategy', label: 'Strategy', icon: Target },
           { id: 'solicitation-summary', label: 'Solicitation Summary', icon: FileText },
           { id: 'requirements', label: 'Requirements', icon: Search },
+          { id: 'compliance-matrix', label: 'Compliance Matrix', icon: ListChecks },
         ],
       },
     ],
@@ -495,6 +499,9 @@ export function SectionNavigation() {
               )}
               {activeView === 'requirements' && activeSection === 'scope' && (
                 <EstimateTab />
+              )}
+              {activeView === 'compliance-matrix' && activeSection === 'scope' && (
+                <ComplianceMatrix />
               )}
 
               {/* STAFF views */}
