@@ -48,11 +48,24 @@ export async function GET(
     description: el.why || el.what || el.description || '',
   }))
 
-  // Extract role names from the proposal's selected roles
+  // Extract role names — try selectedRoles first, then WBS labor estimates, then company roles
   const selectedRoles = (workingData.selectedRoles || []) as { name: string; id: string }[]
-  const roleNames = selectedRoles.map(r => r.name).filter(Boolean)
+  let roleNames = [...new Set(selectedRoles.map(r => r.name).filter(Boolean))]
 
-  // Fallback: fetch company roles if no selected roles in working_data
+  // Fallback: extract unique role names from WBS labor estimates
+  if (roleNames.length === 0) {
+    const allWbsFull = (workingData.estimateWbsElements || []) as
+      { laborEstimates?: { roleName: string }[] }[]
+    const laborRoles = new Set<string>()
+    allWbsFull.forEach(el => {
+      el.laborEstimates?.forEach(le => {
+        if (le.roleName) laborRoles.add(le.roleName)
+      })
+    })
+    roleNames = Array.from(laborRoles)
+  }
+
+  // Fallback: fetch company roles from database
   let companyRoleNames: string[] = []
   if (roleNames.length === 0) {
     // Find company via proposal
