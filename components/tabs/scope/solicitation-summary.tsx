@@ -368,7 +368,7 @@ function SummaryDisplay({ summary, onRegenerate, winThemesChanged, formatDate }:
         {/* Key challenges */}
         <SummarySection title="Key challenges">
           <div className="flex flex-wrap gap-2">
-            {summary.key_challenges.map((challenge, index) => (
+            {(summary.key_challenges || []).map((challenge, index) => (
               <span
                 key={index}
                 className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-800 border border-amber-200"
