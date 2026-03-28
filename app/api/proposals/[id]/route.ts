@@ -30,6 +30,7 @@ function transformProposal(p: Record<string, unknown>) {
     contractType: p.contract_type || 'tm',
     periodOfPerformance,
     workingData: p.working_data || {},
+    strategy: p.strategy || {},
     requirements: p.requirements,
     wbsElements: p.wbs_elements,
   }
@@ -120,6 +121,7 @@ export async function PUT(
   if (body.description !== undefined) updateData.description = body.description
   if (body.working_data !== undefined) updateData.working_data = body.working_data
   if (body.workingData !== undefined) updateData.working_data = body.workingData
+  if (body.strategy !== undefined) updateData.strategy = body.strategy
 
   console.log('[PUT /api/proposals] Updating proposal:', id)
   console.log('[PUT /api/proposals] Update data:', JSON.stringify(updateData, null, 2))

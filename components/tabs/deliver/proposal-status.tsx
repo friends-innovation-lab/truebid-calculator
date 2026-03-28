@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
-import { collabApi } from '@/lib/api'
+import { collabApi, proposalsApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { CheckCircle2, Circle, AlertCircle, Clock } from 'lucide-react'
 
@@ -25,9 +25,51 @@ export function ProposalStatus() {
     extractedRequirements,
   } = useAppContext()
 
+  // Strategy status
+  const [strategyStatus, setStrategyStatus] = useState<'none' | 'pending' | 'complete'>('none')
+  const [strategyDescription, setStrategyDescription] = useState('No strategy captured')
+
   // Collab session status
   const [collabStatus, setCollabStatus] = useState<'none' | 'pending' | 'complete'>('none')
   const [collabDescription, setCollabDescription] = useState('No director reviews created')
+
+  // Load strategy data
+  useEffect(() => {
+    if (!proposalId) return
+    async function checkStrategy() {
+      try {
+        const response = await proposalsApi.get(proposalId) as {
+          proposal: {
+            strategy?: {
+              decision: string | null
+              winThemes: string[]
+              pastPerformanceStrength: string | null
+            }
+          }
+        }
+        const strategy = response.proposal?.strategy
+        if (!strategy || !strategy.decision) {
+          setStrategyStatus('none')
+          setStrategyDescription('No strategy captured')
+        } else {
+          const hasWinThemes = strategy.winThemes?.some((t: string) => t.trim().length > 0)
+          const hasPastPerformance = Boolean(strategy.pastPerformanceStrength)
+
+          if (hasWinThemes && hasPastPerformance) {
+            setStrategyStatus('complete')
+            const decisionLabel = strategy.decision === 'bid' ? 'Bid' : strategy.decision === 'no-bid' ? 'No Bid' : 'Undecided'
+            setStrategyDescription(`Decision: ${decisionLabel}`)
+          } else {
+            setStrategyStatus('pending')
+            setStrategyDescription('Decision set, complete win themes and past performance')
+          }
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    checkStrategy()
+  }, [proposalId])
 
   useEffect(() => {
     if (!proposalId) return
@@ -66,6 +108,12 @@ export function ProposalStatus() {
   }, 0)
 
   const items: ChecklistItem[] = [
+    {
+      label: 'Strategy captured',
+      description: strategyDescription,
+      complete: strategyStatus === 'complete',
+      pending: strategyStatus === 'pending',
+    },
     {
       label: 'Solicitation analyzed',
       description: solicitation.title ? `"${solicitation.title}"` : 'Upload and analyze an RFP document',

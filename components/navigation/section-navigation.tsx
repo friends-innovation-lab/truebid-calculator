@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Trash2,
   Calendar,
+  Target,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -52,6 +53,7 @@ import { CollabManager } from '@/components/tabs/staff/collab-manager'
 import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
 import { EmptyState } from '@/components/ui/empty-state'
+import { StrategyTab } from '@/components/tabs/scope/strategy-tab'
 
 // ==================== TYPES ====================
 
@@ -59,6 +61,7 @@ type SectionId = 'scope' | 'staff' | 'deliver'
 
 type ViewId =
   // Scope
+  | 'strategy'
   | 'solicitation-summary'
   | 'requirements'
   // Staff
@@ -103,6 +106,7 @@ const SECTIONS: SectionConfig[] = [
       {
         label: 'Documents',
         items: [
+          { id: 'strategy', label: 'Strategy', icon: Target },
           { id: 'solicitation-summary', label: 'Solicitation Summary', icon: FileText },
           { id: 'requirements', label: 'Requirements', icon: Search },
         ],
@@ -178,7 +182,7 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
 
 export function SectionNavigation() {
   const [activeSection, setActiveSection] = useState<SectionId>('scope')
-  const [activeView, setActiveView] = useState<ViewId>('solicitation-summary')
+  const [activeView, setActiveView] = useState<ViewId>('strategy')
   const [rateJustificationOpen, setRateJustificationOpen] = useState(false)
   const [showSolicitationExpanded, setShowSolicitationExpanded] = useState(false)
   const [isVersionsSlideoutOpen, setIsVersionsSlideoutOpen] = useState(false)
@@ -244,6 +248,7 @@ export function SectionNavigation() {
 
     // Sync with old context for components that read activeMainTab
     const viewToTab: Record<string, string> = {
+      'strategy': 'upload',
       'solicitation-summary': 'upload',
       'requirements': 'estimate',
       'wbs-elements': 'estimate',
@@ -482,6 +487,9 @@ export function SectionNavigation() {
           <main className="flex-1 overflow-y-auto">
             <div className="container mx-auto px-6 py-6 max-w-5xl">
               {/* SCOPE views */}
+              {activeView === 'strategy' && activeSection === 'scope' && (
+                <StrategyTab />
+              )}
               {activeView === 'solicitation-summary' && activeSection === 'scope' && (
                 <UploadTab onContinue={() => { setActiveSection('staff'); handleViewChange('wbs-elements') }} />
               )}
