@@ -116,7 +116,7 @@ export async function POST(
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+      max_tokens: 16384,
       messages: [
         {
           role: 'user',
@@ -133,6 +133,15 @@ export async function POST(
       return NextResponse.json(
         { error: 'No response from AI model' },
         { status: 500 }
+      )
+    }
+
+    // Check if response was truncated
+    if (response.stop_reason === 'max_tokens') {
+      console.error('[generate] Response truncated due to max_tokens')
+      return NextResponse.json(
+        { error: 'Too many requirements to process at once. Try with fewer requirements.' },
+        { status: 400 }
       )
     }
 
