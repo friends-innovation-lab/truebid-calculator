@@ -20,7 +20,7 @@ export const extractedMetadataSchema = z.object({
 })
 
 export const extractedRequirementSchema = z.object({
-  id: z.string(),
+  id: z.string().optional(),
   title: z.string().default(''),
   text: z.string().default(''),
   type: z.enum(['delivery', 'reporting', 'staffing', 'compliance', 'governance', 'transition', 'other']).default('other'),

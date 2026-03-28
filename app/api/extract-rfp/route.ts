@@ -165,7 +165,7 @@ export async function POST(request: NextRequest) {
     // Validate AI response with Zod schema (applies defaults for missing fields)
     const validated = extractionResponseSchema.safeParse(extracted)
     if (!validated.success) {
-      console.error('AI response validation failed:', validated.error.flatten())
+      console.error('AI response validation failed:', JSON.stringify(validated.error.issues, null, 2))
       return NextResponse.json(
         { success: false, error: 'AI returned invalid data structure' },
         { status: 500 }
