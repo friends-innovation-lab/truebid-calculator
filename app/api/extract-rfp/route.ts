@@ -1,46 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { extractText } from 'unpdf'
-
-// Types for extraction response
-interface ExtractedMetadata {
-  title: string
-  solicitationNumber: string
-  clientAgency: string
-  contractType: 'ffp' | 'tm' | 'cpff' | 'idiq' | 'hybrid' | 'unknown'
-  naicsCode: string
-  responseDeadline: string
-  periodOfPerformance: {
-    base: number
-    options: number
-  }
-  placeOfPerformance: string
-  setAside: string
-}
-
-interface ExtractedRequirement {
-  id: string
-  title: string
-  text: string
-  type: 'delivery' | 'reporting' | 'staffing' | 'compliance' | 'governance' | 'transition' | 'other'
-  sourceSection: string
-  pageNumber: number | null
-}
-
-interface SuggestedRole {
-  title: string
-  quantity: number
-  rationale: string
-}
-
-interface ExtractionResponse {
-  success: boolean
-  metadata: ExtractedMetadata
-  requirements: ExtractedRequirement[]
-  suggestedRoles: SuggestedRole[]
-  rawTextLength: number
-  error?: string
-}
+import { extractionResponseSchema, type ExtractionResponse } from '@/lib/schemas/rfp'
 
 // System prompt for extraction
 const EXTRACTION_PROMPT = `Extract data from this government RFP/SOW. Return ONLY valid JSON, no markdown or explanation.
@@ -201,36 +162,26 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate and provide defaults
-    const response: ExtractionResponse = {
+    // Validate AI response with Zod schema (applies defaults for missing fields)
+    const validated = extractionResponseSchema.safeParse(extracted)
+    if (!validated.success) {
+      console.error('AI response validation failed:', validated.error.flatten())
+      return NextResponse.json(
+        { success: false, error: 'AI returned invalid data structure' },
+        { status: 500 }
+      )
+    }
+
+    // Ensure requirement IDs are populated
+    const requirements = validated.data.requirements.map((req, index) => ({
+      ...req,
+      id: req.id || `REQ-${String(index + 1).padStart(3, '0')}`,
+    }))
+
+    const response: ExtractionResponse & { success: boolean; rawTextLength: number } = {
       success: true,
-      metadata: {
-        title: extracted.metadata?.title || 'Untitled Solicitation',
-        solicitationNumber: extracted.metadata?.solicitationNumber || 'N/A',
-        clientAgency: extracted.metadata?.clientAgency || 'N/A',
-        contractType: extracted.metadata?.contractType || 'unknown',
-        naicsCode: extracted.metadata?.naicsCode || 'N/A',
-        responseDeadline: extracted.metadata?.responseDeadline || 'N/A',
-        periodOfPerformance: {
-          base: extracted.metadata?.periodOfPerformance?.base || 1,
-          options: extracted.metadata?.periodOfPerformance?.options || 0,
-        },
-        placeOfPerformance: extracted.metadata?.placeOfPerformance || 'N/A',
-        setAside: extracted.metadata?.setAside || 'N/A',
-      },
-      requirements: (extracted.requirements || []).map((req: any, index: number) => ({
-        id: req.id || `REQ-${String(index + 1).padStart(3, '0')}`,
-        title: req.title || '',
-        text: req.text || '',
-        type: req.type || 'other',
-        sourceSection: req.sourceSection || 'N/A',
-        pageNumber: req.pageNumber ?? null,
-      })),
-      suggestedRoles: (extracted.suggestedRoles || []).map((role: any) => ({
-        title: role.title || 'Unnamed Role',
-        quantity: role.quantity || 1,
-        rationale: role.rationale || '',
-      })),
+      ...validated.data,
+      requirements,
       rawTextLength: pdfText.length,
     }
 

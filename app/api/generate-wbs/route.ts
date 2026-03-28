@@ -6,29 +6,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { generateWbsRequestSchema } from '@/lib/schemas/wbs'
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY,
 })
-
-// Types matching the frontend
-interface RequirementInput {
-  id: string
-  referenceNumber: string
-  title: string
-  description: string
-  type: 'shall' | 'should' | 'may' | 'will'
-  category: string
-  source: string
-}
-
-interface RoleInput {
-  id: string
-  name: string
-  category: string
-  description?: string 
-}
 
 interface GeneratedLaborEstimate {
   roleId: string
@@ -64,32 +47,16 @@ interface GeneratedWBSElement {
   suggestedDependencies: string[]
 }
 
-interface GenerateWBSRequest {
-  requirements: RequirementInput[]
-  availableRoles: RoleInput[]
-  existingWbsNumbers: string[]
-  contractContext: {
-    title: string
-    agency: string
-    contractType: 'tm' | 'ffp' | 'hybrid'
-    periodOfPerformance: {
-      baseYear: boolean
-      optionYears: number
-    }
-  }
-}
-
 export async function POST(request: NextRequest) {
   try {
-    const body: GenerateWBSRequest = await request.json()
-    const { requirements, availableRoles, existingWbsNumbers, contractContext } = body
+    const body = await request.json()
 
-    if (!requirements || requirements.length === 0) {
-      return NextResponse.json(
-        { error: 'No requirements provided' },
-        { status: 400 }
-      )
+    const result = generateWbsRequestSchema.safeParse(body)
+    if (!result.success) {
+      return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
     }
+
+    const { requirements, availableRoles, existingWbsNumbers, contractContext } = result.data
 
     // Check for API key
     if (!process.env.ANTHROPIC_API_KEY) {

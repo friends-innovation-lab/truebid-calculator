@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
+import { proposalCreateSchema } from '@/lib/schemas/proposal'
 
 // Transform snake_case DB response to camelCase for frontend
 function transformProposal(p: Record<string, unknown>) {
@@ -87,7 +88,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'No company found' }, { status: 404 })
   }
 
-  const body = await request.json()
+  const raw = await request.json()
+
+  const result = proposalCreateSchema.safeParse(raw)
+  if (!result.success) {
+    return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
+  }
+
+  const body = result.data
 
   // Handle period_of_performance - convert string to jsonb object
   let periodOfPerformance = null
