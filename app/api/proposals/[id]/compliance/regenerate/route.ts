@@ -146,14 +146,20 @@ export async function POST(
     // Parse the JSON response
     let parsedItems
     try {
-      const jsonStart = responseText.indexOf('[')
-      const jsonEnd = responseText.lastIndexOf(']')
+      // Strip markdown code blocks if present
+      let cleanedResponse = responseText
+        .replace(/```json\s*/gi, '')
+        .replace(/```\s*/g, '')
+        .trim()
+
+      const jsonStart = cleanedResponse.indexOf('[')
+      const jsonEnd = cleanedResponse.lastIndexOf(']')
 
       if (jsonStart === -1 || jsonEnd === -1) {
         throw new Error('No JSON array found in response')
       }
 
-      const jsonString = responseText.slice(jsonStart, jsonEnd + 1)
+      const jsonString = cleanedResponse.slice(jsonStart, jsonEnd + 1)
       parsedItems = JSON.parse(jsonString)
     } catch (parseError) {
       console.error('Failed to parse AI response:', responseText.substring(0, 500))
