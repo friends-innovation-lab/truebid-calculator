@@ -29,19 +29,19 @@ export function CompanyPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
 
-  const handleChange = (field: string, value: string | boolean | string[] | number) => {
+  const handleChange = async (field: string, value: string | boolean | string[] | number) => {
     const updated = { ...companyProfile, [field]: value }
     setSaveStatus('saving')
 
+    // Clear any pending status reset
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
-    saveTimeout.current = setTimeout(async () => {
-      try {
-        await setCompanyProfile(updated)
-        setSaveStatus('saved')
-      } catch {
-        setSaveStatus('error')
-      }
-    }, 800)
+
+    try {
+      await setCompanyProfile(updated)
+      setSaveStatus('saved')
+    } catch {
+      setSaveStatus('error')
+    }
   }
 
   return (
