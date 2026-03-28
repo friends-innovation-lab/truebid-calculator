@@ -56,7 +56,6 @@ export function SolicitationSummary({ onContinue }: SolicitationSummaryProps) {
   const [error, setError] = useState<string | null>(null)
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
   const [winThemesChanged, setWinThemesChanged] = useState(false)
-  const [currentWinThemes, setCurrentWinThemes] = useState<string[]>([])
 
   // Load AI summary on mount
   useEffect(() => {
@@ -77,7 +76,6 @@ export function SolicitationSummary({ onContinue }: SolicitationSummaryProps) {
           // Check if win themes have changed since generation
           const currentThemes = response.proposal.strategy?.winThemes?.filter((t: string) => t?.trim()) || []
           const generatedThemes = response.proposal.aiSummary.win_themes_at_generation || []
-          setCurrentWinThemes(currentThemes)
 
           if (currentThemes.length > 0 && generatedThemes.length > 0) {
             const themesChanged = JSON.stringify(currentThemes.sort()) !== JSON.stringify(generatedThemes.sort())
