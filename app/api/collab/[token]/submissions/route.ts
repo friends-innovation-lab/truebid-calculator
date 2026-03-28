@@ -1,9 +1,9 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { createSubmissionSchema } from '@/lib/schemas/collab'
 
 // Helper to validate token and get session (shared by GET and POST)
-async function getSessionByToken(supabase: Awaited<ReturnType<typeof createClient>>, token: string) {
+async function getSessionByToken(supabase: ReturnType<typeof createServiceClient>, token: string) {
   const { data: session, error } = await supabase
     .from('collab_sessions')
     .select('*')
@@ -27,7 +27,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { token } = await params
 
   const { session, error, status } = await getSessionByToken(supabase, token)
@@ -53,7 +53,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { token } = await params
 
   const { session, error: sessionError, status: sessionStatus } = await getSessionByToken(supabase, token)

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
 // GET — validate token and return session data (NO AUTH — public endpoint)
@@ -6,7 +6,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ token: string }> }
 ) {
-  const supabase = await createClient()
+  const supabase = createServiceClient()
   const { token } = await params
 
   // Look up session by token
@@ -28,11 +28,23 @@ export async function GET(
     return NextResponse.json({ error: 'This collaboration link has expired' }, { status: 410 })
   }
 
-  // Fetch assigned WBS elements
-  const { data: wbsElements } = await supabase
-    .from('wbs_elements')
-    .select('*')
-    .in('id', session.assigned_wbs_ids || [])
+  // Fetch proposal with working_data (WBS elements live in the JSONB blob)
+  const { data: proposal } = await supabase
+    .from('proposals')
+    .select('title, agency, contract_type, solicitation_number, working_data')
+    .eq('id', session.proposal_id)
+    .single()
+
+  // Extract assigned WBS elements from working_data
+  const allWbs = (proposal?.working_data as Record<string, unknown>)?.estimateWbsElements as
+    { id: string; wbsNumber: string; title: string; description?: string; why?: string; what?: string }[] || []
+  const assignedIds = new Set(session.assigned_wbs_ids || [])
+  const wbsElements = allWbs.filter(el => assignedIds.has(el.id)).map(el => ({
+    id: el.id,
+    wbs_number: el.wbsNumber,
+    title: el.title,
+    description: el.why || el.what || el.description || '',
+  }))
 
   // Fetch existing submissions for this session
   const { data: submissions } = await supabase
@@ -40,13 +52,6 @@ export async function GET(
     .select('*')
     .eq('session_id', session.id)
     .order('created_at', { ascending: true })
-
-  // Fetch proposal context (minimal — just what the director needs)
-  const { data: proposal } = await supabase
-    .from('proposals')
-    .select('title, agency, contract_type, solicitation_number')
-    .eq('id', session.proposal_id)
-    .single()
 
   return NextResponse.json({
     session: {
