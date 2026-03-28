@@ -693,7 +693,7 @@ function SectionSlideout({
           {section.id === 'audit' && (
             <div className="space-y-6">
               <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <h4 className="text-sm font-semibold text-blue-900 mb-2">What's Included</h4>
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">What&apos;s Included</h4>
                 <p className="text-xs text-blue-800">
                   The audit defense package provides detailed documentation to support your rates during government audits.
                 </p>

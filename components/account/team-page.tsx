@@ -45,8 +45,8 @@ export function TeamPage() {
           Team collaboration is coming soon
         </h3>
         <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
-          We're building features to help your BD team collaborate on proposals. 
-          Get notified when it's ready.
+          We&apos;re building features to help your BD team collaborate on proposals.
+          Get notified when it&apos;s ready.
         </p>
         <Button disabled>
           <Mail className="w-4 h-4 mr-2" />
@@ -56,7 +56,7 @@ export function TeamPage() {
       
       {/* Planned Features */}
       <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
-        <h3 className="text-sm font-semibold text-gray-900 mb-4">What's coming</h3>
+        <h3 className="text-sm font-semibold text-gray-900 mb-4">What&apos;s coming</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {plannedFeatures.map((feature) => {
             const Icon = feature.icon
@@ -76,7 +76,7 @@ export function TeamPage() {
         <div className="flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-blue-900">Want to be notified when Team features launch?</p>
-            <p className="text-xs text-blue-700 mt-0.5">We'll email you as soon as it's available.</p>
+            <p className="text-xs text-blue-700 mt-0.5">We&apos;ll email you as soon as it&apos;s available.</p>
           </div>
           <Button variant="outline" size="sm" className="border-blue-300 text-blue-700 hover:bg-blue-100">
             Notify Me

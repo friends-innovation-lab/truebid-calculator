@@ -278,7 +278,7 @@ export default function TaskDecomposition({ epic, onClose, onApplyTasks }: TaskD
                 Task Decomposition
               </h2>
               <p className="text-sm text-gray-600 mt-1">
-                Break "{epic.title}" into estimable tasks
+                Break &quot;{epic.title}&quot; into estimable tasks
               </p>
             </div>
             <Button variant="ghost" size="sm" onClick={onClose}>
@@ -463,8 +463,8 @@ export default function TaskDecomposition({ epic, onClose, onApplyTasks }: TaskD
           <div className="flex items-start gap-2">
             <Info className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
             <div className="text-xs text-blue-800">
-              <strong>Hour ranges are suggestions only.</strong> After applying, you'll refine each task's 
-              hours based on your team's experience and add rationale for audit defense.
+              <strong>Hour ranges are suggestions only.</strong> After applying, you&apos;ll refine each task&apos;s
+              hours based on your team&apos;s experience and add rationale for audit defense.
             </div>
           </div>
         </div>

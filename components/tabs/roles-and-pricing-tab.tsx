@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { useAppContext, Subcontractor, ODCItem, PerDiemCalculation, Role, TeamingPartner } from '@/contexts/app-context'
+import { useAppContext, Subcontractor, ODCItem, PerDiemCalculation, Role } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -34,10 +34,8 @@ import {
   Check,
   Trash2,
   Calculator,
-  Sparkles,
   DollarSign,
   TrendingUp,
-  TrendingDown,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -47,13 +45,11 @@ import {
   Package,
   Pencil,
   CheckCircle2,
-  HelpCircle,
   Building2,
   AlertTriangle,
   MapPin,
   Shield,
   Award,
-  ExternalLink,
   FileText,
 Clock,
 BarChart3,
@@ -108,10 +104,6 @@ suggestedFte: number
 
 // ==================== HELPER FUNCTIONS ====================
 
-// Helper to derive priority from confidence
-const getPriorityFromConfidence = (confidence?: 'high' | 'medium' | 'low'): 'high' | 'medium' | 'low' => {
-  return confidence || 'medium'
-}
 
 // Convert AppContext year object to string array
 const yearsObjectToArray = (years: { base: boolean; option1: boolean; option2: boolean; option3: boolean; option4: boolean }): string[] => {
@@ -292,10 +284,7 @@ function calculateBLSPercentile(salary: number, blsData: BLSData): number {
 export function RolesAndPricingTab() {
   const {
     solicitation,
-    companyPolicy,
     indirectRates,
-    escalationRates,
-    profitTargets,
     // Subcontractors from context
     subcontractors,
     addSubcontractor,
@@ -303,7 +292,6 @@ export function RolesAndPricingTab() {
     removeSubcontractor,
     // Teaming Partners from context
     teamingPartners,
-    addTeamingPartner,
     getOrCreatePartnerByName,
     // ODCs from context
     odcs,
@@ -317,35 +305,19 @@ export function RolesAndPricingTab() {
     removePerDiem,
     // Selected Roles from context
     selectedRoles,
-    setSelectedRoles,
     addRole,
     updateRole,
     removeRole,
-    // Recommended Roles from context
-    recommendedRoles,
-    // UI-specific settings from context
-    uiLaborEscalation,
-    uiOdcEscalation,
-    uiShowEscalation,
-    setUiLaborEscalation,
-    setUiOdcEscalation,
-    setUiShowEscalation,
-    uiProfitMargin,
-    setUiProfitMargin,
-    uiBillableHours,
-    setUiBillableHours,
     // Solicitation pricing settings & editor
     getPricingSettings,
     openSolicitationEditor,
     // Rate Justifications
     rateJustifications,
-    updateRateJustification,
-     // Tab Navigation
+    // Tab Navigation
     navigateToRateJustification,
     // WBS Data from Estimate tab (replaces scopingData)
   estimateWbsElements,
   // Labor categories from Account Center
-  companyRoles,
   getIcLevelSalaries,
 } = useAppContext()
   
@@ -362,7 +334,7 @@ export function RolesAndPricingTab() {
   
    const icLevelRates = useMemo(() => {
     return getIcLevelSalaries()
-  }, [getIcLevelSalaries, companyRoles])
+  }, [getIcLevelSalaries])
 
   // Derive IC level options from actual company data
   const icLevelOptions = useMemo(() => {
@@ -487,17 +459,6 @@ const wbsHoursByRole = useMemo((): WBSRoleHours[] => {
 }, [estimateWbsElements, billableHours])
       
   
-  // Helper to find WBS hours for a role
-  const getWBSHoursForRole = (roleName: string): WBSRoleHours | null => {
-    if (!wbsHoursByRole || wbsHoursByRole.length === 0) return null
-    
-    return wbsHoursByRole.find(w =>
-      w.roleName.toLowerCase() === roleName.toLowerCase() ||
-      roleName.toLowerCase().includes(w.roleName.toLowerCase().split(' ')[0]) ||
-      w.roleName.toLowerCase().includes(roleName.toLowerCase().split(' ')[0])
-    ) || null
-  }
-
   // Panel states
   const [selectedRoleForBreakdown, setSelectedRoleForBreakdown] = useState<TeamRole | null>(null)
   const [showSubsExpanded, setShowSubsExpanded] = useState(false)
@@ -632,7 +593,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
         years: yearsObjectToArray(role.years),
       }
     })
-  }, [selectedRoles, rates, profitMargin])
+  }, [selectedRoles, rates, profitMargin, billableHours, icLevelRates])
 
   // Contract years from solicitation
   const contractYears = useMemo(() => {
@@ -766,7 +727,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
       avgRate,
       roleCount: teamRoles.length,
     }
-  }, [teamRoles, contractYears, laborEscalation, odcEscalation, showEscalation, subcontractors, odcs, perDiem])
+  }, [teamRoles, contractYears, laborEscalation, odcEscalation, showEscalation, subcontractors, odcs, perDiem, billableHours])
 
   // Helper to calculate sub total contract cost with escalation
   const calculateSubTotalContractCost = (sub: Subcontractor): number => {
@@ -825,7 +786,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
     })
     
     return Object.values(groups)
-  }, [subcontractors, contractYears, showEscalation, laborEscalation, billableHours])
+  }, [subcontractors, contractYears, showEscalation, laborEscalation, billableHours, calculateSubTotalContractCost])
 
   const [expandedPartnerGroups, setExpandedPartnerGroups] = useState<Record<string, boolean>>({})
 
@@ -837,12 +798,12 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
 
   const handleAddToTeam = (recRole: Role) => {
     const baseSalary = recRole.baseSalary || icLevelRates[recRole.icLevel] || 100000
-    const defaultYears = contractYears.length > 0 
-      ? contractYears.map(y => y.id) 
+    const defaultYears = contractYears.length > 0
+      ? contractYears.map(y => y.id)
       : ['base', 'option1', 'option2']
-    
+
     addRole({
-      id: `role-${Date.now()}`,
+      id: `role-${crypto.randomUUID()}`,
       name: recRole.name,
       description: recRole.description,
       icLevel: recRole.icLevel as 'IC1' | 'IC2' | 'IC3' | 'IC4' | 'IC5' | 'IC6',
@@ -903,8 +864,6 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
     }))
   }
 
-  const isRoleAdded = (name: string) => teamRoles.some(r => r.title === name)
-  const isRoleAssignedToSub = (name: string) => subcontractors.some(s => s.role === name)
   const getRoleAssignment = (name: string): 'prime' | 'sub' | null => {
     if (teamRoles.some(r => r.title === name)) return 'prime'
     if (subcontractors.some(s => s.role === name)) return 'sub'
@@ -1057,34 +1016,6 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
   }
 
   // ==================== SUBCONTRACTOR HANDLERS ====================
-
-  const handleAddSub = () => {
-    setEditingSub(null)
-    
-    const allocations: Record<string, { enabled: boolean; fte: number }> = {
-      base: { enabled: false, fte: 1 },
-      option1: { enabled: false, fte: 1 },
-      option2: { enabled: false, fte: 1 },
-      option3: { enabled: false, fte: 0 },
-      option4: { enabled: false, fte: 0 },
-    }
-    
-    contractYears.forEach(y => {
-      allocations[y.id] = { enabled: true, fte: 1 }
-    })
-    
-    setSubFormData({
-      partnerId: '',
-      newPartnerName: '',
-      companyName: '',
-      role: '',
-      laborCategory: '',
-      theirRate: 0,
-      markupPercent: 10,
-      allocations,
-    })
-    setSubDialogOpen(true)
-  }
 
   const handleEditSub = (sub: Subcontractor) => {
     setEditingSub(sub)
@@ -1381,7 +1312,6 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
     }).format(amount)
   }
 
-  const totalRecommendedFTE = recommendedRoles.reduce((sum, r) => sum + r.quantity, 0)
   const contractType = solicitation?.contractType || 'T&M'
 
   // ==================== RENDER ====================
@@ -1779,7 +1709,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                   <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center">
                     <Building2 className="w-6 h-6 text-gray-300 mx-auto mb-2" />
                     <p className="text-xs text-gray-600 mb-1">No subcontractors assigned</p>
-                    <p className="text-xs text-gray-500">Use "Sub" on a role to assign it</p>
+                    <p className="text-xs text-gray-500">Use &quot;Sub&quot; on a role to assign it</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -2896,7 +2826,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Add Role</DialogTitle>
-              <DialogDescription>Add a role that wasn't identified by AI analysis</DialogDescription>
+              <DialogDescription>Add a role that wasn&apos;t identified by AI analysis</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">

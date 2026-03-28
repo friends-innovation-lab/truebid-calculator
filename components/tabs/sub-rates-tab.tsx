@@ -32,20 +32,15 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  TrendingUp,
-  TrendingDown,
   DollarSign,
   Clock,
   Calendar,
   Building2,
-  ChevronRight,
-  Target,
   Info,
   Copy,
   Mail,
   MessageSquare,
   Search,
-  Filter,
   Users,
   FileText,
   Check
@@ -338,10 +333,12 @@ function OfferSlideout({ offer, isOpen, onClose, onUpdate, onEdit, targetMargin 
 
   // Reset local state when offer changes
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- intentional sync from prop to local state */
     setLocalNotes(offer.notes || '')
     setLocalOutcome(offer.outcome || 'pending')
     setLocalHistory(offer.negotiationHistory || [])
     setHasUnsavedChanges(false)
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [offer.id, offer.notes, offer.outcome, offer.negotiationHistory])
 
   // Track unsaved changes
@@ -349,6 +346,7 @@ function OfferSlideout({ offer, isOpen, onClose, onUpdate, onEdit, targetMargin 
     const notesChanged = localNotes !== (offer.notes || '')
     const outcomeChanged = localOutcome !== (offer.outcome || 'pending')
     const historyChanged = JSON.stringify(localHistory) !== JSON.stringify(offer.negotiationHistory || [])
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- derived state from local vs prop comparison
     setHasUnsavedChanges(notesChanged || outcomeChanged || historyChanged)
   }, [localNotes, localOutcome, localHistory, offer.notes, offer.outcome, offer.negotiationHistory])
 
@@ -570,7 +568,7 @@ Best regards`
                     <div>
                       <p className="text-sm font-medium text-blue-900">Partial workload: {utilizationPercent.toFixed(0)}%</p>
                       <p className="text-xs text-blue-800 mt-1">
-                        They're only buying {offer.hoursPerYear.toLocaleString()} hours/year. You'll need other work 
+                        They&apos;re only buying {offer.hoursPerYear.toLocaleString()} hours/year. You&apos;ll need other work 
                         to keep this person busy the rest of the time.
                       </p>
                     </div>
@@ -932,6 +930,7 @@ function OfferFormDialog({ isOpen, onClose, onSave, editingOffer, companyRoles, 
   const [offeredRate, setOfferedRate] = useState(150)
 
   // Reset form when editing offer changes
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional form reset from prop */
   useEffect(() => {
     if (editingOffer) {
       setPrimeName(editingOffer.primeName)
@@ -951,11 +950,11 @@ function OfferFormDialog({ isOpen, onClose, onSave, editingOffer, companyRoles, 
       setOfferedRate(150)
     }
   }, [editingOffer, isOpen])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const selectedRole = companyRoles.find((r: any) => r.id === roleId)
-  const selectedLevel = selectedRole?.levels?.[levelIndex ?? -1]
-  const selectedStep = selectedLevel?.steps?.[stepIndex ?? -1]
 
+   
   const preview = useMemo(() => {
     if (!selectedRole || levelIndex === null || stepIndex === null) return null
     return calculateOffer({
@@ -1014,7 +1013,7 @@ function OfferFormDialog({ isOpen, onClose, onSave, editingOffer, companyRoles, 
         <DialogHeader>
           <DialogTitle>{editingOffer ? 'Edit' : 'Analyze'} Prime Offer</DialogTitle>
           <DialogDescription>
-            Enter the details of the prime contractor's offer to see if it covers your costs.
+            Enter the details of the prime contractor&apos;s offer to see if it covers your costs.
           </DialogDescription>
         </DialogHeader>
 
@@ -1023,7 +1022,7 @@ function OfferFormDialog({ isOpen, onClose, onSave, editingOffer, companyRoles, 
           <div className="space-y-4">
             <div className="flex items-center gap-2 text-sm font-medium text-gray-900">
               <Building2 className="w-4 h-4 text-gray-400" />
-              Who's making the offer?
+              Who&apos;s making the offer?
             </div>
             <div className="space-y-2">
               <Label htmlFor="prime-name">Prime contractor name <span className="text-red-500">*</span></Label>
