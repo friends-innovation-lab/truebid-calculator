@@ -28,11 +28,17 @@ export const extractedRequirementSchema = z.object({
   pageNumber: z.coerce.number().nullable().catch(null),
 }).passthrough()
 
-export const suggestedRoleSchema = z.object({
+// Handle both string and object formats for suggested roles
+const suggestedRoleObjectSchema = z.object({
   title: z.string().default('Unnamed Role'),
   quantity: z.coerce.number().int().min(1).catch(1),
   rationale: z.string().default(''),
 }).passthrough()
+
+export const suggestedRoleSchema = z.union([
+  z.string().transform(title => ({ title, quantity: 1, rationale: '' })),
+  suggestedRoleObjectSchema,
+])
 
 export const extractionResponseSchema = z.object({
   metadata: extractedMetadataSchema,
