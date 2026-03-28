@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useRef } from 'react'
 import { useAppContext } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,7 @@ import {
   FileText,
 } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { SaveStatus } from '@/components/ui/save-status'
 import { toast } from 'sonner'
 
 // IDIQ Contract type
@@ -25,16 +26,32 @@ interface IDIQContract {
 
 export function CompanyPage() {
   const { companyProfile, setCompanyProfile } = useAppContext()
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveTimeout = useRef<NodeJS.Timeout | null>(null)
 
   const handleChange = (field: string, value: string | boolean | string[] | number) => {
-    setCompanyProfile({ ...companyProfile, [field]: value })
+    const updated = { ...companyProfile, [field]: value }
+    setSaveStatus('saving')
+
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    saveTimeout.current = setTimeout(async () => {
+      try {
+        await setCompanyProfile(updated)
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 800)
   }
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Company Profile</h2>
-        <p className="text-sm text-gray-600 mt-1">Company identity and registration information for proposals</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Company Profile</h2>
+          <p className="text-sm text-gray-600 mt-1">Company identity and registration information for proposals</p>
+        </div>
+        <SaveStatus status={saveStatus} />
       </div>
 
       {/* Basic Info Card */}

@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useRef } from 'react'
 import { useAppContext, IndirectRates } from '@/contexts/app-context'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
 import { Card } from '@/components/ui/card'
+import { SaveStatus } from '@/components/ui/save-status'
 
 export function RatesPage() {
   const {
@@ -26,8 +27,25 @@ export function RatesPage() {
     setCompanyPolicy,
   } = useAppContext()
 
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveTimeout = useRef<NodeJS.Timeout | null>(null)
+
+  const debouncedSave = (saveFn: () => Promise<void> | void) => {
+    setSaveStatus('saving')
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    saveTimeout.current = setTimeout(async () => {
+      try {
+        await saveFn()
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 800)
+  }
+
   const handleIndirectChange = (updates: Partial<IndirectRates>) => {
-    setIndirectRates({ ...indirectRates, ...updates })
+    const updated = { ...indirectRates, ...updates }
+    debouncedSave(() => setIndirectRates(updated))
   }
 
   const handleProfitChange = (updates: Partial<typeof profitTargets>) => {
@@ -45,9 +63,12 @@ export function RatesPage() {
   return (
     <TooltipProvider>
       <div className="space-y-8 max-w-2xl">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Rates & Margins</h2>
-          <p className="text-sm text-gray-600 mt-1">Configure indirect rates, profit targets, and escalation factors</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Rates & Margins</h2>
+            <p className="text-sm text-gray-600 mt-1">Configure indirect rates, profit targets, and escalation factors</p>
+          </div>
+          <SaveStatus status={saveStatus} />
         </div>
 
         {/* Indirect Rates Card */}
