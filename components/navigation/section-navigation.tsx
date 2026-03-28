@@ -46,6 +46,7 @@ import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
 import { SubRateCalculator } from '@/components/tabs/staff/sub-rate-calculator'
+import { LaborMatrix } from '@/components/tabs/staff/labor-matrix'
 import { ExportTab } from '@/components/tabs/export-tab'
 import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
 import { CollabManager } from '@/components/tabs/staff/collab-manager'
@@ -497,7 +498,7 @@ export function SectionNavigation() {
                 <EstimateTab />
               )}
               {activeView === 'labor-matrix' && activeSection === 'staff' && (
-                <EstimateTab />
+                <LaborMatrix />
               )}
               {activeView === 'timeline' && activeSection === 'staff' && (
                 <EstimateTab />
@@ -538,7 +539,7 @@ export function SectionNavigation() {
                 className="fixed inset-0 bg-black/20 z-40"
                 onClick={() => setRateJustificationOpen(false)}
               />
-              <div className="fixed inset-y-0 right-0 w-[480px] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 shadow-xl z-50 overflow-y-auto">
+              <div className="fixed inset-y-0 right-0 w-[560px] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 shadow-xl z-50 overflow-y-auto">
                 <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800">
                   <h2 className="text-sm font-semibold">Rate Justification</h2>
                   <Button

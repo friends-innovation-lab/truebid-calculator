@@ -48,40 +48,38 @@ export async function GET(
     description: el.why || el.what || el.description || '',
   }))
 
-  // Extract role names — try selectedRoles first, then WBS labor estimates, then company roles
-  const selectedRoles = (workingData.selectedRoles || []) as { name: string; id: string }[]
-  let roleNames = [...new Set(selectedRoles.map(r => r.name).filter(Boolean))]
+  // Always fetch company roles from database as the baseline
+  const { data: proposalFull } = await supabase
+    .from('proposals')
+    .select('company_id')
+    .eq('id', session.proposal_id)
+    .single()
 
-  // Fallback: extract unique role names from WBS labor estimates
-  if (roleNames.length === 0) {
-    const allWbsFull = (workingData.estimateWbsElements || []) as
-      { laborEstimates?: { roleName: string }[] }[]
-    const laborRoles = new Set<string>()
-    allWbsFull.forEach(el => {
-      el.laborEstimates?.forEach(le => {
-        if (le.roleName) laborRoles.add(le.roleName)
-      })
-    })
-    roleNames = Array.from(laborRoles)
-  }
-
-  // Fallback: fetch company roles from database
   let companyRoleNames: string[] = []
-  if (roleNames.length === 0) {
-    // Find company via proposal
-    const { data: proposalFull } = await supabase
-      .from('proposals')
-      .select('company_id')
-      .eq('id', session.proposal_id)
-      .single()
-    if (proposalFull?.company_id) {
-      const { data: companyRoles } = await supabase
-        .from('company_roles')
-        .select('title')
-        .eq('company_id', proposalFull.company_id)
-      companyRoleNames = (companyRoles || []).map((r: { title: string }) => r.title).filter(Boolean)
-    }
+  if (proposalFull?.company_id) {
+    const { data: companyRoles } = await supabase
+      .from('company_roles')
+      .select('title')
+      .eq('company_id', proposalFull.company_id)
+    companyRoleNames = (companyRoles || []).map((r: { title: string }) => r.title).filter(Boolean)
   }
+
+  // Also try to get roles from selectedRoles or WBS labor estimates
+  const selectedRoles = (workingData.selectedRoles || []) as { name: string; id: string }[]
+  const selectedRoleNames = [...new Set(selectedRoles.map(r => r.name).filter(Boolean))]
+
+  // Extract unique role names from WBS labor estimates
+  const allWbsFull = (workingData.estimateWbsElements || []) as
+    { laborEstimates?: { roleName: string }[] }[]
+  const laborRoles = new Set<string>()
+  allWbsFull.forEach(el => {
+    el.laborEstimates?.forEach(le => {
+      if (le.roleName) laborRoles.add(le.roleName)
+    })
+  })
+
+  // Combine all role sources, preferring company roles as baseline
+  const allRoles = new Set([...companyRoleNames, ...selectedRoleNames, ...Array.from(laborRoles)])
 
   // Fetch existing submissions for this session
   const { data: submissions } = await supabase
@@ -106,6 +104,6 @@ export async function GET(
       contract_type: proposal.contract_type,
       solicitation_number: proposal.solicitation_number,
     } : null,
-    available_roles: roleNames.length > 0 ? roleNames : companyRoleNames,
+    available_roles: Array.from(allRoles),
   })
 }
