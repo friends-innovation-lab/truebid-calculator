@@ -24,7 +24,7 @@
 //
 // ==================== IMPORTS ====================
 
-import { WBSElement, EstimateData, QualityGrade } from '@/contexts/app-context';
+import { WBSElement, EstimateData } from '@/contexts/app-context';
 
 // ==================== HELPER: Generate unique IDs ====================
 

@@ -5,14 +5,13 @@ import React, { useState, useMemo, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { wbsApi, requirementsApi } from '@/lib/api'
 import {
-  Search, Plus, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Info, HelpCircle,
-  Clock, Calendar, AlertTriangle, Link2, Pencil, Trash2, X, Check,
-  FileText, Users, BarChart3, Target, Lightbulb, MessageSquare,
-  Bot, TrendingUp, Shield, ArrowRight, CheckCircle2, XCircle,
-  Layers, ClipboardList, Download, RefreshCw, Sparkles, Grid3X3,
-  List, Table2, Building2, Hash, BookOpen, Eye, EyeOff, Filter,
-  ClipboardCheck, GitMerge, CircleDot, LinkIcon, Unlink, CheckSquare,
-  Square, ArrowRightLeft, ExternalLink, PieChart, UserPlus
+  Search, Plus, ChevronDown, ChevronUp, Info, HelpCircle,
+  Calendar, AlertTriangle, Link2, Pencil, Trash2, X, Check,
+  FileText, Users, Lightbulb,
+  Shield, ArrowRight, CheckCircle2, XCircle,
+  Layers, Grid3X3,
+  List, Table2, Building2, Hash, Filter,
+  ClipboardCheck, GitMerge, PieChart,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -37,11 +36,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import {
   Tooltip,
   TooltipContent,
@@ -246,12 +240,6 @@ function getRiskColor(score: number): string {
   return 'border-l-green-500'
 }
 
-function formatDate(dateString: string): string {
-  if (!dateString) return 'Not set'
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-}
-
 function formatDateShort(dateString: string): string {
   if (!dateString) return '—'
   const date = new Date(dateString)
@@ -368,81 +356,6 @@ const MOCK_CHARGE_CODES: ChargeCode[] = [
   { id: 'cc-2', chargeNumber: 'DOS-2023-1547', projectName: 'Consular Scheduling MVP', client: 'Department of State', dateRange: 'Jun 2023 - Dec 2023', totalHours: 14500, description: 'Public-facing appointment scheduling system', roles: ['Product Manager', 'Frontend Engineer', 'Backend Engineer', 'QA Engineer'] },
 ]
 
-
-function generateMockWBSElements(selectedRoles: SelectedRole[], optionYears: number): EnhancedWBSElement[] {
-  if (selectedRoles.length === 0) return []
-  
-  const elements: EnhancedWBSElement[] = [
-    {
-      id: 'wbs-1', wbsNumber: '1.1', title: 'Transition-In Planning & Knowledge Transfer', sowReference: 'SOO 3.1.1', clin: '0001',
-      periodOfPerformance: { startDate: '2025-01-01', endDate: '2025-02-28' },
-      why: 'Establish a seamless transition from the incumbent contractor to minimize disruption to ongoing operations.',
-      what: 'Conduct knowledge transfer sessions, review documentation, establish dev environments, complete security onboarding.',
-      notIncluded: 'Incumbent contractor responsibilities, hardware procurement.',
-      assumptions: ['Incumbent will provide 40 hours of knowledge transfer support', 'All team members will have clearances adjudicated within 30 days'],
-      estimateMethod: 'historical',
-      historicalReference: { chargeCodeId: 'cc-1', chargeNumber: 'TT-2024-0892', projectName: 'VA Transition Support', dateRange: 'Jan-Mar 2024', actualHours: 560, notes: 'Similar complexity, same clearance requirements.' },
-      complexityFactor: 1.0, complexityJustification: '',
-      laborEstimates: selectedRoles.slice(0, 3).map((role, idx) => ({
-        id: `labor-1-${idx}`, roleId: role.id, roleName: role.name,
-        hoursByPeriod: { base: idx === 0 ? 200 : 180, option1: 0, option2: 0, option3: 0, option4: 0 },
-        rationale: `Transition activities require ${role.name} for ${idx === 0 ? 'leading coordination' : 'technical handoff'}.`,
-        confidence: 'high' as const, isAISuggested: false, isOrphaned: false,
-      })),
-      risks: [
-        { id: 'risk-1-1', description: 'Incumbent knowledge transfer may be incomplete or delayed', probability: 3 as const, impact: 4 as const, mitigation: 'Schedule redundant sessions, document all verbal knowledge transfer', status: 'open' as const },
-        { id: 'risk-1-2', description: 'Security clearance processing delays', probability: 2 as const, impact: 3 as const, mitigation: 'Start clearance process immediately upon award', status: 'open' as const },
-      ],
-      dependencies: [],
-      qualityGrade: 'blue' as const, qualityScore: 95, qualityIssues: [], isAIGenerated: false, aiConfidence: 0,
-    },
-    {
-      id: 'wbs-2', wbsNumber: '1.2', title: 'Public Booking System Development', sowReference: 'SOO 3.2.1', clin: '0001',
-      periodOfPerformance: { startDate: '2025-03-01', endDate: '2025-12-31' },
-      why: 'Enable public users to schedule appointments in under 5 minutes, improving customer satisfaction.',
-      what: 'Design and develop a responsive booking interface with multi-language support and real-time availability.',
-      notIncluded: 'Third-party payment processing, SMS notifications.',
-      assumptions: ['Design system (USWDS) components are available', '10 primary screens identified in discovery'],
-      estimateMethod: 'parametric',
-      engineeringBasis: { similarWork: '10 screens × 80 hours per screen = 800 base hours per role.', expertSource: 'FFTC-PROD-2024 productivity metrics', assumptions: 'Assumes standard complexity screens with USWDS components', confidenceNotes: 'High confidence based on 3 similar projects completed in 2024' },
-      complexityFactor: 1.2, complexityJustification: 'Multi-language support (5 languages) and WCAG 2.1 AA accessibility requirements add 20% overhead.',
-      laborEstimates: selectedRoles.slice(0, 4).map((role, idx) => ({
-        id: `labor-2-${idx}`, roleId: role.id, roleName: role.name,
-        hoursByPeriod: { base: [480, 520, 400, 320][idx] || 400, option1: optionYears >= 1 ? [120, 100, 80, 60][idx] || 80 : 0, option2: optionYears >= 2 ? [60, 50, 40, 30][idx] || 40 : 0, option3: 0, option4: 0 },
-        rationale: `Based on parametric calculation: 10 screens × 80 hrs × 1.2 complexity.`,
-        confidence: idx < 2 ? 'high' as const : 'medium' as const, isAISuggested: false, isOrphaned: false,
-      })),
-      risks: [{ id: 'risk-2-1', description: 'Section 508 compliance may require significant rework', probability: 2 as const, impact: 3 as const, mitigation: 'Build accessibility into design from day one', status: 'open' as const }],
-      dependencies: [{ id: 'dep-2-1', predecessorWbsId: 'wbs-1', predecessorWbsNumber: '1.1', type: 'FS' as const, lagDays: 0 }],
-      qualityGrade: 'green' as const, qualityScore: 85, qualityIssues: [], isAIGenerated: false, aiConfidence: 0,
-    },
-    {
-      id: 'wbs-3', wbsNumber: '1.3', title: 'Admin Portal & Capacity Management', sowReference: 'SOO 3.2.2', clin: '0001',
-      periodOfPerformance: { startDate: '2025-04-01', endDate: '2025-12-31' },
-      why: 'Consular staff need to efficiently manage appointment slots, view metrics, and handle scheduling conflicts.',
-      what: 'Build admin dashboard with calendar views, bulk slot management, and reporting dashboards.',
-      notIncluded: 'Mobile admin app, offline functionality.',
-      assumptions: ['Role-based access control requirements are defined', 'Maximum 50 concurrent admin users per post'],
-      estimateMethod: 'engineering',
-      engineeringBasis: { similarWork: 'Based on similar admin portal built for HHS in 2023.', expertSource: 'Technical Lead (J. Smith) with 8+ years building federal admin systems', assumptions: 'Assumes standard federal security requirements', confidenceNotes: 'Medium confidence - report requirements not yet finalized' },
-      complexityFactor: 1.0, complexityJustification: '',
-      laborEstimates: selectedRoles.slice(0, 3).map((role, idx) => ({
-        id: `labor-3-${idx}`, roleId: role.id, roleName: role.name,
-        hoursByPeriod: { base: [360, 400, 280][idx] || 300, option1: optionYears >= 1 ? [80, 100, 60][idx] || 80 : 0, option2: optionYears >= 2 ? [40, 50, 30][idx] || 40 : 0, option3: 0, option4: 0 },
-        rationale: `Engineering estimate based on similar HHS admin portal.`,
-        confidence: 'medium' as const, isAISuggested: false, isOrphaned: false,
-      })),
-      risks: [{ id: 'risk-3-1', description: 'Report requirements may change significantly', probability: 4 as const, impact: 3 as const, mitigation: 'Build flexible reporting framework', status: 'open' as const }],
-      dependencies: [{ id: 'dep-3-1', predecessorWbsId: 'wbs-2', predecessorWbsNumber: '1.2', type: 'SS' as const, lagDays: 30 }],
-      qualityGrade: 'yellow' as const, qualityScore: 70, qualityIssues: ['Engineering judgment - document similar work reference'], isAIGenerated: false, aiConfidence: 0,
-    },
-  ]
-  
-  return elements.map(el => {
-    const { score, grade, issues } = calculateQualityScore(el)
-    return { ...el, qualityScore: score, qualityGrade: grade, qualityIssues: issues }
-  })
-}
 // ============================================================================
 // LABOR SUMMARY COMPONENT
 // ============================================================================
@@ -622,7 +535,7 @@ function ViewModeToggle({ viewMode, setViewMode }: { viewMode: ViewMode; setView
   )
 }
 
-function WBSCard({ element, onClick, onEdit, onDelete }: { element: EnhancedWBSElement; onClick: () => void; onEdit: () => void; onDelete: () => void }) {
+function WBSCard({ element, onClick, onDelete }: { element: EnhancedWBSElement; onClick: () => void; onEdit: () => void; onDelete: () => void }) {
   const totalHours = getElementTotalHours(element)
   const gradeConfig = QUALITY_GRADE_CONFIG[element.qualityGrade]
   const methodConfig = ESTIMATE_METHOD_LABELS[element.estimateMethod]
@@ -700,7 +613,7 @@ function WBSCard({ element, onClick, onEdit, onDelete }: { element: EnhancedWBSE
   )
 }
 
-function WBSTableView({ elements, onElementClick, onEdit, onDelete, contractPeriods }: { elements: EnhancedWBSElement[]; onElementClick: (id: string) => void; onEdit: (el: EnhancedWBSElement) => void; onDelete: (id: string) => void; contractPeriods: { key: PeriodKey; label: string }[] }) {
+function WBSTableView({ elements, onElementClick, onDelete, contractPeriods }: { elements: EnhancedWBSElement[]; onElementClick: (id: string) => void; onEdit: (el: EnhancedWBSElement) => void; onDelete: (id: string) => void; contractPeriods: { key: PeriodKey; label: string }[] }) {
   return (
     <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
       <table className="w-full text-sm">
@@ -915,12 +828,6 @@ function RequirementsSection({
   const unmappedRequirements = requirements.filter(r => r.linkedWbsIds.length === 0)
   const getLinkedWbsElements = (wbsIds: string[]) => wbsElements.filter(el => wbsIds.includes(el.id))
   
-  // Count selected unmapped requirements (only these can generate WBS)
-  const selectedUnmappedCount = Array.from(selectedRequirements).filter(id => {
-    const req = requirements.find(r => r.id === id)
-    return req && req.linkedWbsIds.length === 0
-  }).length
-
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -932,7 +839,7 @@ function RequirementsSection({
             <span className="w-1 h-1 rounded-full bg-gray-400" aria-hidden="true" />
             <span>{stats.mapped} mapped</span>
             <span className="w-1 h-1 rounded-full bg-gray-400" aria-hidden="true" />
-            <span>{stats.shallCoverage}% "shall" covered</span>
+            <span>{stats.shallCoverage}% &quot;shall&quot; covered</span>
             {stats.unmapped > 0 && (
               <>
                 <span className="w-1 h-1 rounded-full bg-red-400" aria-hidden="true" />
@@ -1260,7 +1167,7 @@ function RequirementsSection({
               Permanently delete all {requirements.length} requirements?
             </DialogTitle>
             <DialogDescription>
-              You'll need to upload your RFP again to start over.
+              You&apos;ll need to upload your RFP again to start over.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:gap-0">
@@ -1301,7 +1208,7 @@ interface WBSSlideoutProps {
   onDeleteLabor: (laborId: string) => void
 }
 
-function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, selectedRoles, allWbsElements, chargeCodes, onOpenLaborDialog, onDeleteLabor }: Omit<WBSSlideoutProps, 'onOpenEditElement'>) {
+function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, allWbsElements, chargeCodes, onOpenLaborDialog, onDeleteLabor }: Omit<WBSSlideoutProps, 'onOpenEditElement'>) {
   const [activeTab, setActiveTab] = useState('details')
   const [showRiskDialog, setShowRiskDialog] = useState(false)
   const [editingRisk, setEditingRisk] = useState<WBSRisk | null>(null)
@@ -1639,7 +1546,7 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, sele
                       <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
-                      <p className="text-sm">Explicitly state what's out of scope. This prevents scope creep and sets clear boundaries.</p>
+                      <p className="text-sm">Explicitly state what&apos;s out of scope. This prevents scope creep and sets clear boundaries.</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -2339,7 +2246,7 @@ function BulkGenerateDialog({
                 <span>Successfully generated {generatedWbs.length} WBS element{generatedWbs.length !== 1 ? 's' : ''}. Review below and accept to add them.</span>
               </div>
               
-              {generatedWbs.map((wbs, idx) => (
+              {generatedWbs.map((wbs) => (
                 <div key={wbs.id} className="border border-gray-200 rounded-lg p-4 bg-white">
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -2407,8 +2314,6 @@ export function EstimateTab() {
   // CONTEXT - Use shared state for WBS elements (flows to Roles & Pricing tab)
   // ==========================================================================
    const {
-    selectedRoles: contextRoles,
-    addRole,
     solicitation,
     updateSolicitation,
     setExtractedRequirements,
@@ -2493,7 +2398,7 @@ export function EstimateTab() {
   // Update requirements when extracted requirements change
   useEffect(() => {
     if (extractedRequirements && extractedRequirements.length > 0) {
-      const mapped = extractedRequirements.map((req, idx) => {
+      const mapped = extractedRequirements.map((req) => {
         const categoryMap: Record<string, RequirementCategory> = {
           'delivery': 'functional', 'reporting': 'management', 'staffing': 'management',
           'compliance': 'compliance', 'governance': 'management', 'transition': 'management', 'other': 'other',
@@ -2731,7 +2636,7 @@ export function EstimateTab() {
   }))
 
   let elementsWithDbIds: EnhancedWBSElement[] = []
-  let elementMapping: { reqId: string; wbsId: string }[] = []
+  const elementMapping: { reqId: string; wbsId: string }[] = []
 
   if (proposalId) {
     try {
@@ -3030,40 +2935,6 @@ const handleAddElement = async () => {
     }
   }
 const handleNavigateToRoles = () => { setActiveMainTab('roles') }
-  
-  // Add role to team (from Labor Summary missing roles)
-const handleAddRoleToTeam = (roleName: string) => {
-    // Find role in ROLE_LIBRARY or create a new one
-    const existingRole = ROLE_LIBRARY.find(r => r.name === roleName)
-    if (existingRole) {
-      addRole({
-        id: existingRole.id,
-        name: existingRole.name,
-        description: '',
-        storyPoints: 0,
-        icLevel: 'IC3',
-        baseSalary: existingRole.baseRate * 2080, // Convert hourly to annual
-        quantity: 1,
-        fte: 1.0,
-        billableHours: uiBillableHours,
-        years: { base: true, option1: true, option2: true, option3: true, option4: true }
-      })
-} else {
-      // Create a new role placeholder
-      addRole({
-        id: `role-${Date.now()}`,
-        name: roleName,
-        description: '',
-        storyPoints: 0,
-        icLevel: 'IC3',
-        baseSalary: 100000,
-        quantity: 1,
-        fte: 1.0,
-        billableHours: uiBillableHours,
-        years: { base: true, option1: true, option2: true, option3: true, option4: true }
-      })
-    }
-  }
   
   // Requirement handlers
   const handleOpenReqDialog = (req?: SOORequirement) => {
@@ -3497,7 +3368,7 @@ const handleAddRoleToTeam = (roleName: string) => {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(ESTIMATE_METHOD_LABELS).map(([key, { label, icon, description }]) => (
+            {Object.entries(ESTIMATE_METHOD_LABELS).map(([key, { label, icon }]) => (
               <SelectItem key={key} value={key}>
                 <div className="flex items-center gap-2">
                   <span>{icon}</span>

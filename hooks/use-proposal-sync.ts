@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 import { useAppContext } from '@/contexts/app-context'
 import { proposalsApi } from '@/lib/api'
 
@@ -180,7 +180,7 @@ export function useProposalSync(proposalId: string) {
         clearTimeout(saveTimeoutRef.current)
       }
     }
-  }, [proposalId])
+  }, [proposalId, setSolicitation, updateSolicitation, setSelectedRoles, setSubcontractors, setTeamingPartners, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, resetSolicitation])
 
   // Save proposal data when AppContext changes (debounced)
   useEffect(() => {

@@ -1,7 +1,8 @@
 'use client'
 
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
 import { 
   Upload, 
   Users, 
@@ -76,12 +77,6 @@ const CLEARANCE_LEVEL_LABELS: Record<string, string> = {
   'ts-sci': 'TS/SCI'
 } as const
 
-const EVALUATION_METHOD_LABELS: Record<string, string> = {
-  'LPTA': 'LPTA',
-  'best-value': 'Best Value',
-  'tradeoff': 'Tradeoff'
-} as const
-
 // Tab type definition - main flow only (utilities are separate)
 type TabType = 
   | 'upload' 
@@ -116,8 +111,6 @@ export function TabsNavigation() {
     // Tab Navigation from context
     activeMainTab,
     setActiveMainTab,
-    selectedRoleIdForJustification,
-    clearSelectedRoleForJustification,
     // Utility Tool from context
     activeUtilityTool,
     setActiveUtilityTool,
@@ -146,7 +139,7 @@ export function TabsNavigation() {
 
   // Main bid flow tabs - ordered by workflow sequence
   // Upload → Estimate → Roles & Pricing → Rate Justification → Teaming Partners → Export
-  const bidFlowTabs: TabConfig[] = [
+  const bidFlowTabs: TabConfig[] = useMemo(() => [
     { 
       id: 'upload', 
       label: 'Upload', 
@@ -183,23 +176,20 @@ export function TabsNavigation() {
       icon: FileDown,
       description: 'Generate proposal documents and exports'
     },
-  ]
+  ], [])
 
   // Check if a utility tool is active
   const isUtilityToolActive = activeUtilityTool !== null
 
   // ==================== DATE CALCULATIONS ====================
 
-  const getDaysUntilDue = useCallback(() => {
+  const daysUntilDue = useMemo(() => {
     if (!solicitation?.proposalDueDate) return null
     const due = new Date(solicitation.proposalDueDate)
     const now = new Date()
     const diffTime = due.getTime() - now.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }, [solicitation?.proposalDueDate])
-
-  const daysUntilDue = getDaysUntilDue()
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  }, [solicitation])
   const isUrgent = daysUntilDue !== null && daysUntilDue <= 14 && daysUntilDue >= 0
   const isOverdue = daysUntilDue !== null && daysUntilDue < 0
 
@@ -234,7 +224,7 @@ export function TabsNavigation() {
 
   // ==================== TAB CHANGE HANDLER ====================
 
-  const handleTabChange = useCallback((tabId: TabType) => {
+  const handleTabChange = (tabId: TabType) => {
     setActiveTab(tabId)
     // Announce tab change to screen readers
     const tab = bidFlowTabs.find(t => t.id === tabId)
@@ -244,7 +234,7 @@ export function TabsNavigation() {
         announcement.textContent = `${tab.label} tab selected. ${tab.description}`
       }
     }
-  }, [bidFlowTabs])
+  }
 
   // ==================== UTILITY TOOL HANDLER ====================
 
@@ -310,13 +300,13 @@ export function TabsNavigation() {
           <div className="flex items-center justify-between h-12">
             {/* Left: Breadcrumb */}
             <nav className="flex items-center gap-2 min-w-0" aria-label="Breadcrumb">
-              <a 
+              <Link
                 href="/dashboard"
                 className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors shrink-0"
               >
                 <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                 <span>Dashboard</span>
-              </a>
+              </Link>
               <span className="text-gray-300 dark:text-gray-600" aria-hidden="true">/</span>
               <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {proposalName}

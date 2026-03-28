@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { CreditCard, Check, Zap, Building2, Users } from 'lucide-react'
+import { CreditCard, Check, Zap, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 

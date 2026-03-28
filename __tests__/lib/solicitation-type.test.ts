@@ -2,7 +2,6 @@ import {
   hasSolicitationData,
   getSolicitationDisplayName,
   emptySolicitation,
-  type SolicitationInfo,
 } from '@/lib/solicitation-type'
 
 describe('hasSolicitationData', () => {

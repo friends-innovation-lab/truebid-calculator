@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useAppContext, TeamingPartner, TeamingPartnerCertifications } from '@/contexts/app-context'
+import { useAppContext, TeamingPartner } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -21,10 +21,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { 
-  Plus, 
-  Trash2, 
-  Building2, 
+import {
+  Plus,
+  Trash2,
+  Building2,
   Search,
   Pencil,
   X,
@@ -33,12 +33,10 @@ import {
   FileText,
   AlertTriangle,
   ExternalLink,
-  Upload,
   Users,
   Award,
   ChevronDown,
   ChevronUp,
-  ChevronRight,
   Shield,
   Handshake,
   Clock,
@@ -230,7 +228,7 @@ const farTooltips = {
 
 // ==================== COMPONENT ====================
 
-export function TeamingPartnersTab({ onContinue }: TeamingPartnersTabProps) {
+export function TeamingPartnersTab({}: TeamingPartnersTabProps) {
   const { 
     teamingPartners: partners,
     addTeamingPartner,
@@ -287,6 +285,15 @@ export function TeamingPartnersTab({ onContinue }: TeamingPartnersTabProps) {
       lastFocusedElement.current.focus()
     }
   }, [isPanelOpen])
+
+  const closePanel = () => {
+    setIsPanelOpen(false)
+    setEditingId(null)
+    setFormData(emptyPartner)
+    setFormJV(false)
+    setSelectedCapabilities([])
+    setFormErrors({})
+  }
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -449,15 +456,6 @@ export function TeamingPartnersTab({ onContinue }: TeamingPartnersTabProps) {
     setFormJV((partner as any).isJointVenture || false)
     setFormErrors({})
     setIsPanelOpen(true)
-  }
-
-  const closePanel = () => {
-    setIsPanelOpen(false)
-    setEditingId(null)
-    setFormData(emptyPartner)
-    setFormJV(false)
-    setSelectedCapabilities([])
-    setFormErrors({})
   }
 
   const validateForm = (): boolean => {

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
 import { proposalsApi } from '@/lib/api'
@@ -16,13 +16,6 @@ import {
   DropdownMenuLabel,
   DropdownMenuCheckboxItem,
 } from '@/components/ui/dropdown-menu'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { CardSkeletonGrid } from '@/components/ui/skeletons'
 import {
   Dialog,
@@ -39,14 +32,11 @@ import {
   Clock,
   DollarSign,
   TrendingUp,
-  Calendar,
   Building2,
   Check,
   Send,
   Trash2,
   Copy,
-  Users,
-  AlertCircle,
   Grid3X3,
   List,
   ChevronDown,
@@ -58,9 +48,6 @@ import {
   ArrowUpDown,
   Kanban,
   CalendarDays,
-  Settings2,
-  SlidersHorizontal,
-  Eye,
   Filter,
 } from 'lucide-react'
 
@@ -258,12 +245,6 @@ const getStatusConfig = (status: ProposalStatus) => {
   return configs[status]
 }
 
-// Get unique agencies from proposals
-const getUniqueAgencies = (proposals: Proposal[]): string[] => {
-  const agencies = new Set(proposals.map(p => p.client).filter(c => c))
-  return Array.from(agencies).sort()
-}
-
 // ============================================================================
 // CONSTANTS
 // ============================================================================
@@ -296,81 +277,6 @@ const SORT_OPTIONS: { value: SortOption; label: string }[] = [
   { value: 'title', label: 'Alphabetical' },
   { value: 'status', label: 'Status' },
 ]
-
-// ============================================================================
-// CARD DISPLAY SETTINGS DROPDOWN
-// ============================================================================
-
-function CardSettingsDropdown({
-  settings,
-  onSettingsChange,
-}: {
-  settings: CardDisplaySettings
-  onSettingsChange: (settings: CardDisplaySettings) => void
-}) {
-  const toggleSetting = (key: keyof CardDisplaySettings) => {
-    onSettingsChange({
-      ...settings,
-      [key]: !settings[key],
-    })
-  }
-
-  const settingsOptions: { key: keyof CardDisplaySettings; label: string }[] = [
-    { key: 'showStatus', label: 'Status' },
-    { key: 'showContractType', label: 'Contract Type' },
-    { key: 'showDueDate', label: 'Due Date' },
-    { key: 'showValue', label: 'Contract Value' },
-    { key: 'showClient', label: 'Agency / Client' },
-    { key: 'showTeamSize', label: 'Team Size' },
-    { key: 'showSolicitation', label: 'Solicitation #' },
-    { key: 'showProgress', label: 'Progress Bar' },
-    { key: 'showLastUpdated', label: 'Last Updated' },
-  ]
-
-  const enabledCount = Object.values(settings).filter(Boolean).length
-  const totalCount = Object.keys(settings).length
-
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="h-9 gap-1.5"
-          title="Show/hide card fields"
-        >
-          <Eye className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Fields</span>
-          <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-            {enabledCount}/{totalCount}
-          </Badge>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel className="text-xs text-gray-500">
-          Show on cards
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {settingsOptions.map((option) => (
-          <DropdownMenuCheckboxItem
-            key={option.key}
-            checked={settings[option.key]}
-            onCheckedChange={() => toggleSetting(option.key)}
-          >
-            {option.label}
-          </DropdownMenuCheckboxItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => onSettingsChange(DEFAULT_CARD_SETTINGS)}
-          className="text-xs text-gray-500 justify-center"
-        >
-          Reset to defaults
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  )
-}
 
 // ============================================================================
 // PROPOSAL CARD COMPONENT
@@ -1057,22 +963,16 @@ export function Dashboard() {
     }
   }, [cardSettings, isLoaded])
 
-  // Auto-switch back from archive view if no archived proposals
-  useEffect(() => {
-    if (showArchived && proposals.filter(p => p.archived).length === 0) {
-      setShowArchived(false)
-    }
-  }, [showArchived, proposals])
-
-  // Unique agencies for filter
-  const uniqueAgencies = useMemo(() => getUniqueAgencies(proposals), [proposals])
+  // Auto-disable archive view if no archived proposals exist
+  const hasArchivedProposals = proposals.some(p => p.archived)
+  const effectiveShowArchived = showArchived && hasArchivedProposals
 
   // Filter and sort proposals
   const filteredProposals = useMemo(() => {
     let result = proposals
 
     // Archive filter
-    result = result.filter(p => showArchived ? p.archived : !p.archived)
+    result = result.filter(p => effectiveShowArchived ? p.archived : !p.archived)
 
     // Search filter
     if (searchQuery) {
@@ -1128,7 +1028,7 @@ export function Dashboard() {
     })
 
     return result
-  }, [proposals, showArchived, searchQuery, statusFilter, typeFilter, agencyFilter, sortBy, sortDesc])
+  }, [proposals, effectiveShowArchived, searchQuery, statusFilter, typeFilter, agencyFilter, sortBy, sortDesc])
 
   // Stats calculations
   const stats = useMemo(() => {
@@ -1177,23 +1077,6 @@ export function Dashboard() {
       console.error('Failed to create proposal:', error)
       // Fallback to local creation
       const newId = `prop-${Date.now()}`
-      const newProposal: Proposal = {
-        id: newId,
-        title: 'New Proposal',
-        solicitation: '',
-        client: '',
-        status: 'draft',
-        totalValue: 0,
-        dueDate: null,
-        updatedAt: new Date().toISOString(),
-        createdAt: new Date().toISOString(),
-        teamSize: 0,
-        progress: 0,
-        starred: false,
-        archived: false,
-        contractType: 'tm',
-        periodOfPerformance: '',
-      }
       router.push(`/${newId}?tab=upload`)
     }
   }
@@ -1229,7 +1112,7 @@ export function Dashboard() {
     }
   }
 
-  const handleDuplicate = async (proposalId: string) => {
+  const handleDuplicate = useCallback(async (proposalId: string) => {
     const original = proposals.find(p => p.id === proposalId)
     if (!original) return
 
@@ -1267,7 +1150,7 @@ export function Dashboard() {
       }
       setProposals(prev => [duplicate, ...prev])
     }
-  }
+  }, [proposals])
 
   const handleDelete = (proposalId: string) => {
     setProposalToDelete(proposalId)

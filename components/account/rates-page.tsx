@@ -12,7 +12,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
-import { toast } from 'sonner'
 
 export function RatesPage() {
   const {
@@ -301,7 +300,7 @@ export function RatesPage() {
                     <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
-                    <p className="text-sm">Used for base rate calculation: annual salary ÷ 2,080. Don't change unless you have a reason.</p>
+                    <p className="text-sm">Used for base rate calculation: annual salary ÷ 2,080. Don&apos;t change unless you have a reason.</p>
                   </TooltipContent>
                 </Tooltip>
               </div>

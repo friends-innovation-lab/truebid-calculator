@@ -98,10 +98,9 @@ function SaveStatusIndicator({ status }: { status: 'idle' | 'saving' | 'saved' }
 }
 
 export function LaborPage() {
-  const { 
-    companyRoles, 
-    addCompanyRole, 
-    updateCompanyRole, 
+  const {
+    companyRoles,
+    addCompanyRole,
     removeCompanyRole,
     companySettings,
     updateCompanySettings,
