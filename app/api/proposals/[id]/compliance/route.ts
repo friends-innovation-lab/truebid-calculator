@@ -15,6 +15,7 @@ const createComplianceItemSchema = z.object({
     'not_applicable'
   ]).default('unaddressed'),
   notes: z.string().optional(),
+  source: z.enum(['requirement', 'instruction']).default('requirement'),
 })
 
 // GET - Fetch all compliance items for proposal with stats

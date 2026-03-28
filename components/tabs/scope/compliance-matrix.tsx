@@ -31,6 +31,8 @@ import { ListChecks, Plus, RefreshCw, Search, ChevronDown, ChevronUp } from 'luc
 
 type ComplianceStatus = 'unaddressed' | 'compliant' | 'partial' | 'exception' | 'not_applicable'
 
+type SourceType = 'requirement' | 'instruction'
+
 interface ComplianceItem {
   id: string
   proposal_id: string
@@ -41,6 +43,7 @@ interface ComplianceItem {
   owner: string | null
   compliance_status: ComplianceStatus
   notes: string | null
+  source: SourceType
   created_at: string
   updated_at: string
 }
@@ -88,6 +91,7 @@ export function ComplianceMatrix() {
   const [showAddDialog, setShowAddDialog] = useState(false)
 
   // Filters
+  const [filterSource, setFilterSource] = useState<'all' | 'requirement' | 'instruction'>('all')
   const [filterSection, setFilterSection] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterOwner, setFilterOwner] = useState<string>('all')
@@ -172,8 +176,16 @@ export function ComplianceMatrix() {
   // Get unique owners for filter dropdown
   const uniqueOwners = [...new Set(items.map(i => i.owner).filter(Boolean))]
 
+  // Count items by source
+  const requirementCount = items.filter(i => i.source === 'requirement' || !i.source).length
+  const instructionCount = items.filter(i => i.source === 'instruction').length
+
   // Filter items
   const filteredItems = items.filter(item => {
+    if (filterSource !== 'all') {
+      const itemSource = item.source || 'requirement'
+      if (filterSource !== itemSource) return false
+    }
     if (filterSection !== 'all' && item.proposal_section !== filterSection) return false
     if (filterStatus !== 'all' && item.compliance_status !== filterStatus) return false
     if (filterOwner !== 'all' && item.owner !== filterOwner) return false
@@ -288,6 +300,40 @@ export function ComplianceMatrix() {
         </div>
       )}
 
+      {/* Source Filter Tabs */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <button
+          onClick={() => setFilterSource('all')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            filterSource === 'all'
+              ? 'border-gray-900 text-gray-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          All ({items.length})
+        </button>
+        <button
+          onClick={() => setFilterSource('requirement')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            filterSource === 'requirement'
+              ? 'border-gray-900 text-gray-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Requirements ({requirementCount})
+        </button>
+        <button
+          onClick={() => setFilterSource('instruction')}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            filterSource === 'instruction'
+              ? 'border-purple-600 text-purple-600'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Instructions ({instructionCount})
+        </button>
+      </div>
+
       {/* Filter Row */}
       <div className="flex flex-wrap gap-3 items-center">
         <Select value={filterSection} onValueChange={setFilterSection}>
@@ -370,6 +416,7 @@ export function ComplianceMatrix() {
                   key={item.id}
                   item={item}
                   proposalId={proposalId}
+                  isInstruction={item.source === 'instruction'}
                   onUpdate={(updated) => {
                     setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
                   }}
@@ -442,10 +489,11 @@ function StatBadge({ label, value, color }: { label: string; value: number; colo
 interface ComplianceRowProps {
   item: ComplianceItem
   proposalId: string
+  isInstruction?: boolean
   onUpdate: (item: ComplianceItem) => void
 }
 
-function ComplianceRow({ item, proposalId, onUpdate }: ComplianceRowProps) {
+function ComplianceRow({ item, proposalId, isInstruction, onUpdate }: ComplianceRowProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
@@ -473,8 +521,11 @@ function ComplianceRow({ item, proposalId, onUpdate }: ComplianceRowProps) {
     }, 1000)
   }, [proposalId, item.id, onUpdate])
 
+  // Use purple border for instructions, otherwise use status-based color
+  const borderColor = isInstruction ? 'border-l-purple-400' : statusConfig.borderColor
+
   return (
-    <tr className={`border-l-4 ${statusConfig.borderColor} hover:bg-gray-50`}>
+    <tr className={`border-l-4 ${borderColor} hover:bg-gray-50`}>
       {/* Ref */}
       <td className="px-3 py-2 font-mono text-xs text-gray-600">
         {item.requirement_ref || '—'}

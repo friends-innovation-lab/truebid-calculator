@@ -5,7 +5,6 @@ import { z } from 'zod'
 
 const complianceItemSchema = z.object({
   requirement_id: z.string().optional().catch(undefined),
-  requirement_text: z.string().catch(''),
   requirement_ref: z.string().catch(''),
   proposal_section: z.string().catch(''),
   compliance_status: z.string().transform(s => {
@@ -14,6 +13,16 @@ const complianceItemSchema = z.object({
     return 'compliant'
   }).catch('compliant'),
   notes: z.string().catch(''),
+}).passthrough()
+
+const instructionItemSchema = z.object({
+  ref: z.string().catch(''),
+  text: z.string().catch(''),
+  category: z.string().transform(s => {
+    const normalized = s?.toLowerCase?.() || 'content'
+    if (['format', 'content', 'submission', 'certification'].includes(normalized)) return normalized
+    return 'content'
+  }).catch('content'),
 }).passthrough()
 
 const GENERATE_PROMPT = `You are a government proposal compliance expert.
@@ -29,8 +38,7 @@ Use these standard proposal sections:
 
 For each requirement return:
 {
-  "requirement_id": "original ID if provided",
-  "requirement_text": "the requirement text",
+  "requirement_id": "the UUID provided",
   "requirement_ref": "reference like REQ-001 or Section C.3.2",
   "proposal_section": "the mapped proposal section",
   "compliance_status": "compliant" | "partial" | "exception",
@@ -41,6 +49,19 @@ Status guidelines:
 - compliant: Standard requirement we can fully address
 - partial: Requirement we can partially address or needs clarification
 - exception: Requirement we cannot meet or conflicts with our approach
+
+Return only a JSON array. No preamble, no explanation.`
+
+const SECTION_L_PROMPT = `You are a government proposal expert. From this RFP document extract all instructions to offerors from Section L or equivalent (Instructions, Conditions, and Notices to Offerors).
+
+For each instruction return:
+{
+  "ref": "reference like L.5, L.5.1, or Instructions-1",
+  "text": "the instruction text",
+  "category": "format" | "content" | "submission" | "certification"
+}
+
+Focus on: page limits, font/margin requirements, required sections, required certifications, submission format, and volume structure.
 
 Return only a JSON array. No preamble, no explanation.`
 
@@ -103,11 +124,33 @@ export async function POST(
       )
     }
 
+    // Fetch proposal working_data for Section L extraction
+    const { data: proposal } = await supabase
+      .from('proposals')
+      .select('working_data')
+      .eq('id', id)
+      .single()
+
+    const workingData = proposal?.working_data || {}
+    const solicitationText = workingData.solicitationRawText || ''
+
+    // Build requirements array with actual text for Claude
+    // DB schema: id, reference_number, title, description (full text), source, type
+    const requirementsForPrompt = requirements.map((req, index) => {
+      const ref = req.reference_number || `REQ-${String(index + 1).padStart(3, '0')}`
+      const text = req.description || req.title || ''
+      return {
+        id: req.id,
+        ref,
+        text,
+        type: req.type || 'shall',
+      }
+    })
+
     // Format requirements for the prompt
-    const requirementsText = requirements.map((req, index) => {
-      const ref = req.requirement_ref || req.id || `REQ-${String(index + 1).padStart(3, '0')}`
-      return `[${ref}] ${req.text || req.requirement_text || ''}`
-    }).join('\n')
+    const requirementsText = requirementsForPrompt.map(req =>
+      `[ID: ${req.id}] [Ref: ${req.ref}] [Type: ${req.type}] ${req.text}`
+    ).join('\n\n')
 
     // Call Claude API
     const anthropic = new Anthropic({
@@ -174,29 +217,88 @@ export async function POST(
 
     console.log('[generate] Parsed items count:', parsedItems?.length)
 
+    // Build a map of requirement ID to requirement data for lookup
+    const reqMap = new Map(requirements.map(r => [r.id, r]))
+
     // Validate and prepare items for insertion
     const itemsToInsert = []
     for (const item of parsedItems) {
       const validated = complianceItemSchema.safeParse(item)
       if (!validated.success) {
         console.log('[generate] Validation failed for item:', item, 'Errors:', validated.error.issues)
+        continue
       }
-      if (validated.success) {
-        // Find matching requirement ID if possible
-        const matchingReq = requirements.find(r =>
-          r.id === item.requirement_id ||
-          r.requirement_ref === item.requirement_ref
-        )
 
+      // Find matching requirement by ID
+      const matchingReq = reqMap.get(item.requirement_id) ||
+        requirements.find(r => r.reference_number === validated.data.requirement_ref)
+
+      if (matchingReq) {
         itemsToInsert.push({
           proposal_id: id,
-          requirement_id: matchingReq?.id || null,
-          requirement_text: validated.data.requirement_text,
-          requirement_ref: validated.data.requirement_ref,
+          requirement_id: matchingReq.id,
+          requirement_text: matchingReq.description || matchingReq.title || '',
+          requirement_ref: matchingReq.reference_number || validated.data.requirement_ref,
           proposal_section: validated.data.proposal_section,
           compliance_status: validated.data.compliance_status,
           notes: validated.data.notes,
+          source: 'requirement',
         })
+      }
+    }
+
+    // Extract Section L instructions if we have the raw solicitation text
+    if (solicitationText && solicitationText.length > 100) {
+      console.log('[generate] Extracting Section L instructions...')
+      try {
+        const sectionLResponse = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8192,
+          messages: [
+            {
+              role: 'user',
+              content: `${SECTION_L_PROMPT}\n\nDocument:\n\n${solicitationText.substring(0, 100000)}`
+            }
+          ],
+        })
+
+        const sectionLText = sectionLResponse.content[0].type === 'text'
+          ? sectionLResponse.content[0].text
+          : ''
+
+        if (sectionLText && sectionLResponse.stop_reason !== 'max_tokens') {
+          let cleanedSectionL = sectionLText
+            .replace(/```json\s*/gi, '')
+            .replace(/```\s*/g, '')
+            .trim()
+
+          const jsonStart = cleanedSectionL.indexOf('[')
+          const jsonEnd = cleanedSectionL.lastIndexOf(']')
+
+          if (jsonStart !== -1 && jsonEnd !== -1) {
+            const instructions = JSON.parse(cleanedSectionL.slice(jsonStart, jsonEnd + 1))
+
+            for (const instr of instructions) {
+              const validated = instructionItemSchema.safeParse(instr)
+              if (validated.success && validated.data.text) {
+                itemsToInsert.push({
+                  proposal_id: id,
+                  requirement_id: null,
+                  requirement_text: validated.data.text,
+                  requirement_ref: validated.data.ref || 'L.x',
+                  proposal_section: mapCategoryToSection(validated.data.category),
+                  compliance_status: 'unaddressed',
+                  notes: `Category: ${validated.data.category}`,
+                  source: 'instruction',
+                })
+              }
+            }
+            console.log('[generate] Extracted Section L instructions:', instructions.length)
+          }
+        }
+      } catch (sectionLError) {
+        console.warn('[generate] Section L extraction failed:', sectionLError)
+        // Continue without Section L - not a fatal error
       }
     }
 
@@ -241,4 +343,15 @@ export async function POST(
       { status: 500 }
     )
   }
+}
+
+// Map Section L category to proposal section
+function mapCategoryToSection(category: string): string {
+  const mapping: Record<string, string> = {
+    format: 'Volume I, Section 1 — Executive Summary',
+    content: 'Volume I, Section 2 — Technical Approach',
+    submission: 'Volume I, Section 1 — Executive Summary',
+    certification: 'Volume II, Section 1 — Price/Cost',
+  }
+  return mapping[category] || 'Other'
 }
