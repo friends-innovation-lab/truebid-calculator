@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
+import { migrateLocalStorageToSupabase } from '@/hooks/use-proposal-sync'
 import { proposalsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -915,6 +916,11 @@ export function Dashboard() {
           setProposals([])
         }
       }
+
+      // One-time migration of localStorage data to Supabase
+      migrateLocalStorageToSupabase().catch(e =>
+        console.warn('[Dashboard] localStorage migration failed:', e)
+      )
 
       // Load recently viewed (keep in localStorage - UI preference)
       const recentStored = localStorage.getItem(RECENTLY_VIEWED_KEY)

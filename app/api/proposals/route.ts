@@ -30,6 +30,7 @@ function transformProposal(p: Record<string, unknown>) {
     archived: p.archived || false,
     contractType: p.contract_type || 'tm',
     periodOfPerformance,
+    workingData: p.working_data || {},
   }
 }
 
@@ -121,6 +122,7 @@ export async function POST(request: Request) {
       archived: body.archived || false,
       period_of_performance: periodOfPerformance,
       description: body.description,
+      working_data: body.working_data || body.workingData || {},
     })
     .select()
     .single()

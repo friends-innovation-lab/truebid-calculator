@@ -1439,20 +1439,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return solicitation.pricingSettings ?? defaultPricingSettings;
   };
 
-  // ==================== COMPANY SETTINGS (with localStorage) ====================
+  // ==================== COMPANY SETTINGS (API with localStorage cache) ====================
   const [companySettings, setCompanySettings] = useState<CompanySettings>(getInitialCompanySettings);
-  
-  // Persist companySettings to localStorage whenever it changes
+  const companySettingsLoaded = React.useRef(false);
+
+  // Load company settings from API on mount (localStorage is just initial/cache)
+  useEffect(() => {
+    async function loadCompanySettings() {
+      if (typeof window === 'undefined') return;
+      try {
+        const response = await settingsApi.get() as { settings: Record<string, unknown> | null };
+        if (response.settings) {
+          const s = response.settings;
+          const fromApi: Partial<CompanySettings> = {};
+          if (s.salary_structure) fromApi.salaryStructure = s.salary_structure as CompanySettings['salaryStructure'];
+          if (s.step_increase_percent != null) fromApi.stepIncreasePercent = s.step_increase_percent as number;
+          if (Object.keys(fromApi).length > 0) {
+            setCompanySettings(prev => ({ ...prev, ...fromApi }));
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load company settings from API, using localStorage cache:', e);
+      }
+      companySettingsLoaded.current = true;
+    }
+    loadCompanySettings();
+  }, []);
+
+  // Persist to localStorage (cache) and API when settings change
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(companySettings));
       } catch (e) {
-        console.warn('Failed to save company settings to localStorage:', e);
+        console.warn('Failed to cache company settings to localStorage:', e);
       }
     }
+
+    // Don't save to API until initial load is complete
+    if (!companySettingsLoaded.current) return;
+
+    settingsApi.save({
+      salary_structure: companySettings.salaryStructure,
+      step_increase_percent: companySettings.stepIncreasePercent,
+    }).catch(e => {
+      console.warn('Failed to save company settings to API:', e);
+    });
   }, [companySettings]);
-  
+
   const updateCompanySettings = (updates: Partial<CompanySettings>) => {
     setCompanySettings(prev => ({ ...prev, ...updates }));
   };

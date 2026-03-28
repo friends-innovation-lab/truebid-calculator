@@ -51,6 +51,10 @@ export const proposalCreateSchema = z.object({
       display: z.string().optional(),
     }),
   ]).nullable().optional(),
+
+  // Full proposal workspace state (JSONB blob)
+  working_data: z.record(z.string(), z.unknown()).optional(),
+  workingData: z.record(z.string(), z.unknown()).optional(),
 })
 
 export const proposalUpdateSchema = proposalCreateSchema.partial()
