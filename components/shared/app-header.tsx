@@ -1,9 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { useAppContext, UtilityToolType } from '@/contexts/app-context'
+import { useAppContext } from '@/contexts/app-context'
 import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
 import { createClient } from '@/lib/supabase/client'
@@ -13,17 +13,10 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import {
-  ChevronDown,
   HelpCircle,
   Wrench,
-  Calculator,
-  DollarSign,
-  Building2,
-  FileText,
-  ExternalLink,
   LogOut,
   LayoutDashboard,
   Settings,
@@ -35,9 +28,8 @@ import {
 type Theme = 'light' | 'dark' | 'system'
 
 export function AppHeader() {
-  const pathname = usePathname()
   const router = useRouter()
-  const { companyProfile, setActiveUtilityTool } = useAppContext()
+  const { companyProfile } = useAppContext()
   const { user } = useAuth()
 
   const [theme, setTheme] = useState<Theme>('system')
@@ -48,7 +40,6 @@ export function AppHeader() {
   })
 
   const companyName = companyProfile?.name || 'TrueBid'
-  const isHome = pathname === '/'
 
   // Load user profile - prefer Supabase user, fall back to localStorage
   useEffect(() => {
@@ -102,13 +93,6 @@ export function AppHeader() {
     }
   }
 
-  const handleToolSelect = (tool: string) => {
-    setActiveUtilityTool(tool as UtilityToolType)
-    if (isHome) {
-      router.push('/tools')
-    }
-  }
-
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
@@ -153,53 +137,13 @@ export function AppHeader() {
 
         {/* Right: Tools, Help, User Menu */}
         <div className="flex items-center gap-2">
-          {/* Tools Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-slate-400 hover:text-white hover:bg-slate-800">
-                <Wrench className="w-4 h-4" />
-                <span className="hidden sm:inline">Tools</span>
-                <ChevronDown className="w-3.5 h-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-xs text-gray-500">
-                Utility Tools
-              </DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => handleToolSelect('sub-rates')}>
-                <DollarSign className="w-4 h-4 mr-2 text-green-600" />
-                Sub Rates Calculator
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleToolSelect('rate-builder')} disabled>
-                <Calculator className="w-4 h-4 mr-2 text-blue-600" />
-                Rate Builder
-                <span className="ml-auto text-[10px] text-gray-400">Soon</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleToolSelect('wrap-rate')} disabled>
-                <Building2 className="w-4 h-4 mr-2 text-purple-600" />
-                Wrap Rate Analyzer
-                <span className="ml-auto text-[10px] text-gray-400">Soon</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-gray-500">
-                Resources
-              </DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <a href="https://sam.gov" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                  <FileText className="w-4 h-4 mr-2 text-gray-500" />
-                  SAM.gov
-                  <ExternalLink className="w-3 h-3 ml-auto text-gray-400" />
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href="https://www.gsa.gov/buy-through-us/purchasing-programs/gsa-multiple-award-schedule" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                  <FileText className="w-4 h-4 mr-2 text-gray-500" />
-                  GSA Schedules
-                  <ExternalLink className="w-3 h-3 ml-auto text-gray-400" />
-                </a>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Tools Link */}
+          <Link href="/tools">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-slate-400 hover:text-white hover:bg-slate-800">
+              <Wrench className="w-4 h-4" />
+              <span className="hidden sm:inline">Tools</span>
+            </Button>
+          </Link>
 
           {/* Help */}
           <Button variant="ghost" size="sm" className="gap-1.5 text-slate-400 hover:text-white hover:bg-slate-800">

@@ -10,7 +10,6 @@ import {
   Grid3X3,
   Clock,
   Users,
-  Calculator,
   Shield,
   Building2,
   CheckCircle2,
@@ -45,7 +44,6 @@ import { EstimateTab } from '@/components/tabs/estimate-tab'
 import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
-import { SubRateCalculator } from '@/components/tabs/staff/sub-rate-calculator'
 import { LaborMatrix } from '@/components/tabs/staff/labor-matrix'
 import { ExportTab } from '@/components/tabs/export-tab'
 import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
@@ -66,7 +64,6 @@ type ViewId =
   | 'labor-matrix'
   | 'timeline'
   | 'roles-pricing'
-  | 'sub-rate-calculator'
   | 'rate-justification'
   | 'subs-partners'
   | 'director-review'
@@ -126,7 +123,6 @@ const SECTIONS: SectionConfig[] = [
         label: 'Pricing',
         items: [
           { id: 'roles-pricing', label: 'Roles & Pricing', icon: Users },
-          { id: 'sub-rate-calculator', label: 'Sub Rate Calculator', icon: Calculator },
           { id: 'rate-justification', label: 'Rate Justification', icon: Shield, isPanel: true },
         ],
       },
@@ -174,7 +170,6 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
   'rate-justification': { section: 'staff', view: 'rate-justification' },
   'teaming-partners': { section: 'staff', view: 'subs-partners' },
   'export': { section: 'deliver', view: 'export-documents' },
-  'sub-rates': { section: 'staff', view: 'sub-rate-calculator' },
 }
 
 // ==================== MAIN COMPONENT ====================
@@ -253,7 +248,6 @@ export function SectionNavigation() {
       'labor-matrix': 'estimate',
       'timeline': 'estimate',
       'roles-pricing': 'roles',
-      'sub-rate-calculator': 'roles',
       'subs-partners': 'teaming-partners',
       'boe-preview': 'export',
       'export-documents': 'export',
@@ -505,9 +499,6 @@ export function SectionNavigation() {
               )}
               {activeView === 'roles-pricing' && activeSection === 'staff' && (
                 <RolesAndPricingTab />
-              )}
-              {activeView === 'sub-rate-calculator' && activeSection === 'staff' && (
-                <SubRateCalculator />
               )}
               {activeView === 'subs-partners' && activeSection === 'staff' && (
                 <TeamingPartnersTab />
