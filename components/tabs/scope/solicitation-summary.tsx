@@ -59,26 +59,30 @@ export function SolicitationSummary({ onContinue }: SolicitationSummaryProps) {
 
   // Load AI summary on mount
   useEffect(() => {
-    if (!proposalId) return
+    if (!proposalId) {
+      setIsLoading(false)
+      return
+    }
 
     async function loadSummary() {
       try {
         const response = await proposalsApi.get(proposalId) as {
-          proposal: {
-            aiSummary?: AISummary
-            strategy?: { winThemes?: string[] }
-          }
+          proposal?: {
+            aiSummary?: AISummary | null
+            strategy?: { winThemes?: string[] } | null
+          } | null
         }
 
-        if (response.proposal?.aiSummary) {
-          setAiSummary(response.proposal.aiSummary)
+        const proposal = response?.proposal
+        if (proposal?.aiSummary && typeof proposal.aiSummary === 'object') {
+          setAiSummary(proposal.aiSummary)
 
           // Check if win themes have changed since generation
-          const currentThemes = response.proposal.strategy?.winThemes?.filter((t: string) => t?.trim()) || []
-          const generatedThemes = response.proposal.aiSummary.win_themes_at_generation || []
+          const currentThemes = proposal.strategy?.winThemes?.filter((t: string) => t?.trim()) || []
+          const generatedThemes = proposal.aiSummary.win_themes_at_generation || []
 
           if (currentThemes.length > 0 && generatedThemes.length > 0) {
-            const themesChanged = JSON.stringify(currentThemes.sort()) !== JSON.stringify(generatedThemes.sort())
+            const themesChanged = JSON.stringify([...currentThemes].sort()) !== JSON.stringify([...generatedThemes].sort())
             setWinThemesChanged(themesChanged)
           }
         }

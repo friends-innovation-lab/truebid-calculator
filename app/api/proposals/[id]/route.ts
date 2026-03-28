@@ -31,7 +31,7 @@ function transformProposal(p: Record<string, unknown>) {
     periodOfPerformance,
     workingData: p.working_data || {},
     strategy: p.strategy || {},
-    aiSummary: p.ai_summary || null,
+    aiSummary: p.ai_summary ?? null,
     requirements: p.requirements,
     wbsElements: p.wbs_elements,
   }
