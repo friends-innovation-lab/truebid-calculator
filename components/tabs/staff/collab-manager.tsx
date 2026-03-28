@@ -30,6 +30,7 @@ import {
   UserPlus,
   ExternalLink,
   Eye,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDate } from '@/lib/utils'
@@ -109,6 +110,16 @@ export function CollabManager() {
     }
   }
 
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      await collabApi.deleteSession(proposalId, sessionId)
+      toast.success('Collaboration session deleted')
+      loadSessions()
+    } catch {
+      toast.error('Failed to delete session')
+    }
+  }
+
   if (isLoading) {
     return (
       <div className="space-y-4">
@@ -154,6 +165,7 @@ export function CollabManager() {
               session={session}
               wbsElements={wbsElements}
               onClose={() => handleCloseSession(session.id)}
+              onDelete={() => handleDeleteSession(session.id)}
               onViewSubmissions={() => setReviewingSession(session)}
             />
           ))}
@@ -176,7 +188,17 @@ export function CollabManager() {
                       <span className="text-xs text-muted-foreground ml-2">{session.reviewer_title}</span>
                     )}
                   </div>
-                  <Badge variant="secondary" className="text-xs">{session.status}</Badge>
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="text-xs">{session.status}</Badge>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleDeleteSession(session.id)}
+                      className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    </Button>
+                  </div>
                 </div>
               </Card>
             ))}
@@ -212,11 +234,13 @@ function SessionCard({
   session,
   wbsElements,
   onClose,
+  onDelete,
   onViewSubmissions,
 }: {
   session: CollabSession
   wbsElements: { id: string; wbsNumber: string; title: string }[]
   onClose: () => void
+  onDelete: () => void
   onViewSubmissions: () => void
 }) {
   const submissions = session.wbs_submissions || []
@@ -281,6 +305,9 @@ function SessionCard({
         )}
         <Button variant="ghost" size="sm" onClick={onClose} className="text-gray-500">
           Close Session
+        </Button>
+        <Button variant="ghost" size="sm" onClick={onDelete} className="text-red-500 hover:text-red-700 hover:bg-red-50">
+          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
         </Button>
       </div>
     </Card>

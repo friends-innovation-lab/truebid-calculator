@@ -17,6 +17,7 @@ import {
   Pencil,
   Plus,
   FileText,
+  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Toaster } from '@/components/ui/sonner'
@@ -277,30 +278,25 @@ function WBSReviewCard({
   const [isEditing, setIsEditing] = useState(!isSubmitted)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Form state — initialize from draft or existing submission, pre-populate all available roles
+  // Form state — initialize from draft or existing submission (don't pre-populate all roles)
   const draft = loadDraft(token, element.id)
   const [hours, setHours] = useState<Record<string, string>>(
     () => {
-      // Start with all available roles set to empty
-      const initial: Record<string, string> = {}
-      availableRoles.forEach(role => { initial[role] = '' })
-      // Override with draft or existing values
+      // Only include roles that have hours (from draft or existing submission)
       if (draft?.proposed_hours) {
-        const draftHours = Object.fromEntries(
+        return Object.fromEntries(
           Object.entries(draft.proposed_hours as Record<string, number>).map(([k, v]) => [k, String(v)])
         )
-        return { ...initial, ...draftHours }
       }
       if (existingSubmission?.proposed_hours) {
-        const subHours = Object.fromEntries(
+        return Object.fromEntries(
           Object.entries(existingSubmission.proposed_hours).map(([k, v]) => [k, String(v)])
         )
-        return { ...initial, ...subHours }
       }
-      return initial
+      return {}
     }
   )
-  const [newRoleName, setNewRoleName] = useState('')
+  const [selectedRole, setSelectedRole] = useState('')
   const [method, setMethod] = useState<string>(
     (draft?.proposed_estimation_method as string) || existingSubmission?.proposed_estimation_method || ''
   )
@@ -331,10 +327,21 @@ function WBSReviewCard({
   }, [hours, method, assumptions, notes, isEditing, token, element.id])
 
   const handleAddRole = () => {
-    if (!newRoleName.trim()) return
-    setHours(prev => ({ ...prev, [newRoleName.trim()]: '' }))
-    setNewRoleName('')
+    if (!selectedRole) return
+    setHours(prev => ({ ...prev, [selectedRole]: '' }))
+    setSelectedRole('')
   }
+
+  const handleRemoveRole = (role: string) => {
+    setHours(prev => {
+      const next = { ...prev }
+      delete next[role]
+      return next
+    })
+  }
+
+  // Filter available roles to exclude ones already added
+  const remainingRoles = availableRoles.filter(r => !(r in hours))
 
   const handleSubmit = async () => {
     const proposedHours: Record<string, number> = {}
@@ -399,7 +406,7 @@ function WBSReviewCard({
           {/* Hours by role */}
           <div className="space-y-2">
             <Label className="text-xs font-medium">Hours by Role</Label>
-            <p className="text-xs text-muted-foreground">Enter estimated hours for each role that applies to this element. Leave blank for roles not needed.</p>
+            <p className="text-xs text-muted-foreground">Select roles and enter estimated hours for this element.</p>
             {Object.entries(hours).map(([role, h]) => (
               <div key={role} className="flex items-center gap-2">
                 <span className="text-sm flex-1">{role}</span>
@@ -411,20 +418,37 @@ function WBSReviewCard({
                   className="w-24 text-sm"
                 />
                 <span className="text-xs text-muted-foreground">hours</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveRole(role)}
+                  className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </Button>
               </div>
             ))}
-            <div className="flex gap-2">
-              <Input
-                value={newRoleName}
-                onChange={(e) => setNewRoleName(e.target.value)}
-                placeholder="Add role name"
-                className="text-sm"
-                onKeyDown={(e) => e.key === 'Enter' && handleAddRole()}
-              />
-              <Button variant="outline" size="sm" onClick={handleAddRole} disabled={!newRoleName.trim()}>
-                <Plus className="w-3.5 h-3.5" />
-              </Button>
-            </div>
+            {remainingRoles.length > 0 && (
+              <div className="flex gap-2">
+                <select
+                  value={selectedRole}
+                  onChange={(e) => setSelectedRole(e.target.value)}
+                  className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                >
+                  <option value="">Select a role to add...</option>
+                  {remainingRoles.map(role => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
+                </select>
+                <Button variant="outline" size="sm" onClick={handleAddRole} disabled={!selectedRole}>
+                  <Plus className="w-3.5 h-3.5" />
+                </Button>
+              </div>
+            )}
+            {remainingRoles.length === 0 && Object.keys(hours).length === 0 && (
+              <p className="text-xs text-muted-foreground italic">No roles available. Contact the proposal owner.</p>
+            )}
           </div>
 
           {/* Estimation method */}
@@ -512,22 +536,29 @@ function NewElementCard({
   onCancel: () => void
 }) {
   const [title, setTitle] = useState('')
-  const [hours, setHours] = useState<Record<string, string>>(() => {
-    const initial: Record<string, string> = {}
-    availableRoles.forEach(role => { initial[role] = '' })
-    return initial
-  })
-  const [newRoleName, setNewRoleName] = useState('')
+  const [hours, setHours] = useState<Record<string, string>>({})
+  const [selectedRole, setSelectedRole] = useState('')
   const [method, setMethod] = useState('')
   const [assumptions, setAssumptions] = useState('')
   const [notes, setNotes] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleAddRole = () => {
-    if (!newRoleName.trim()) return
-    setHours(prev => ({ ...prev, [newRoleName.trim()]: '' }))
-    setNewRoleName('')
+    if (!selectedRole) return
+    setHours(prev => ({ ...prev, [selectedRole]: '' }))
+    setSelectedRole('')
   }
+
+  const handleRemoveRole = (role: string) => {
+    setHours(prev => {
+      const next = { ...prev }
+      delete next[role]
+      return next
+    })
+  }
+
+  // Filter available roles to exclude ones already added
+  const remainingRoles = availableRoles.filter(r => !(r in hours))
 
   const handleSubmit = async () => {
     if (!title.trim()) {
@@ -591,20 +622,37 @@ function NewElementCard({
               className="w-24 text-sm"
             />
             <span className="text-xs text-muted-foreground">hours</span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handleRemoveRole(role)}
+              className="h-8 w-8 p-0 text-muted-foreground hover:text-destructive"
+            >
+              <X className="w-3.5 h-3.5" />
+            </Button>
           </div>
         ))}
-        <div className="flex gap-2">
-          <Input
-            value={newRoleName}
-            onChange={(e) => setNewRoleName(e.target.value)}
-            placeholder="Add role name"
-            className="text-sm"
-            onKeyDown={(e) => e.key === 'Enter' && handleAddRole()}
-          />
-          <Button variant="outline" size="sm" onClick={handleAddRole} disabled={!newRoleName.trim()}>
-            <Plus className="w-3.5 h-3.5" />
-          </Button>
-        </div>
+        {remainingRoles.length > 0 && (
+          <div className="flex gap-2">
+            <select
+              value={selectedRole}
+              onChange={(e) => setSelectedRole(e.target.value)}
+              className="flex-1 h-9 rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            >
+              <option value="">Select a role to add...</option>
+              {remainingRoles.map(role => (
+                <option key={role} value={role}>{role}</option>
+              ))}
+            </select>
+            <Button variant="outline" size="sm" onClick={handleAddRole} disabled={!selectedRole}>
+              <Plus className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        )}
+        {remainingRoles.length === 0 && Object.keys(hours).length === 0 && (
+          <p className="text-xs text-muted-foreground italic">No roles available. Contact the proposal owner.</p>
+        )}
       </div>
 
       <div className="space-y-2">
