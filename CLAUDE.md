@@ -118,7 +118,8 @@ The Supabase `proposals` table has these columns:
 
 ## API Routes
 
-- All routes use service role key via `lib/supabase/server.ts`
+- All routes use the authenticated user's session via `lib/supabase/server.ts` (anon key + cookies)
+- RLS policies enforce data isolation — users can only access their own company's data
 - Auth check: `supabase.auth.getUser()` at start of each route
 - Return 401 if no session
 - Log errors with full details before returning 500
