@@ -181,7 +181,7 @@ export async function POST(
     for (const item of parsedItems) {
       const validated = complianceItemSchema.safeParse(item)
       if (!validated.success) {
-        console.log('[regenerate] Validation failed for item:', item, 'Errors:', validated.error.errors)
+        console.log('[regenerate] Validation failed for item:', item, 'Errors:', validated.error.issues)
       }
       if (validated.success) {
         // Find matching requirement ID if possible
