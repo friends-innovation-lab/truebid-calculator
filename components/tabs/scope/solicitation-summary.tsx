@@ -158,7 +158,6 @@ function SolicitationSummaryInner({ onContinue }: SolicitationSummaryProps) {
       setError(err instanceof Error ? err.message : 'Failed to generate summary')
     } finally {
       setIsGenerating(false)
-      setShowRegenerateConfirm(false)
     }
   }
 
@@ -168,6 +167,11 @@ function SolicitationSummaryInner({ onContinue }: SolicitationSummaryProps) {
     } else {
       generateSummary()
     }
+  }
+
+  const handleConfirmRegenerate = () => {
+    setShowRegenerateConfirm(false)
+    generateSummary()
   }
 
   const hasDocument = Boolean(solicitation?.analyzedFromDocument || solicitation?.title)
@@ -259,7 +263,7 @@ function SolicitationSummaryInner({ onContinue }: SolicitationSummaryProps) {
               <Button variant="outline" onClick={() => setShowRegenerateConfirm(false)}>
                 Cancel
               </Button>
-              <Button onClick={generateSummary}>
+              <Button onClick={handleConfirmRegenerate}>
                 Regenerate
               </Button>
             </DialogFooter>
