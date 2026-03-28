@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Component, ErrorInfo, ReactNode } from 'react'
 import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
 import { proposalsApi } from '@/lib/api'
@@ -25,6 +25,45 @@ import {
 import { Sparkles, RefreshCw, AlertTriangle } from 'lucide-react'
 import { UploadTab } from '@/components/tabs/upload-tab'
 
+// Error boundary for this component
+class SolicitationSummaryErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error('[SolicitationSummary] Error:', error, errorInfo)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="p-6 text-center">
+          <p className="text-red-600 mb-2">Error loading Solicitation Summary</p>
+          <p className="text-sm text-gray-500">{this.state.error?.message}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-4"
+          >
+            Try Again
+          </Button>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 // ==================== TYPES ====================
 
 interface AISummary {
@@ -44,7 +83,7 @@ interface SolicitationSummaryProps {
 
 // ==================== MAIN COMPONENT ====================
 
-export function SolicitationSummary({ onContinue }: SolicitationSummaryProps) {
+function SolicitationSummaryInner({ onContinue }: SolicitationSummaryProps) {
   const params = useParams()
   const proposalId = params?.id as string
 
@@ -370,6 +409,15 @@ function SummarySection({ title, children }: { title: string; children: React.Re
       <h4 className="text-sm font-medium text-gray-500 uppercase tracking-wide">{title}</h4>
       {children}
     </div>
+  )
+}
+
+// Wrapped export with error boundary
+export function SolicitationSummary(props: SolicitationSummaryProps) {
+  return (
+    <SolicitationSummaryErrorBoundary>
+      <SolicitationSummaryInner {...props} />
+    </SolicitationSummaryErrorBoundary>
   )
 }
 
