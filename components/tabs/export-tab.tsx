@@ -726,19 +726,8 @@ function SectionSlideout({
   )
 }
 
-// ============================================================================
-// SETTINGS SLIDEOUT COMPONENT
-// ============================================================================
 
-interface SettingsSlideoutProps {
-  isOpen: boolean
-  onClose: () => void
-  config: ExportConfig
-  onUpdateConfig: (updates: Partial<ExportConfig>) => void
-  solicitation: any
-}
-
-function SettingsSlideout({ isOpen, onClose, config, onUpdateConfig, solicitation }: SettingsSlideoutProps) {
+function SettingsSlideout_REMOVED() {
   // Local state for editing
   const [localConfig, setLocalConfig] = useState({
     solicitation: config.solicitation,
@@ -933,8 +922,6 @@ export function ExportTab() {
   const [exportStatus, setExportStatus] = useState<ExportStatus>('idle')
   const [exportResult, setExportResult] = useState<{ fileName?: string } | null>(null)
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
-  const [showSettings, setShowSettings] = useState(false)
-  
   const [config, setConfig] = useState<ExportConfig>({
     solicitation: '',
     client: '',
@@ -1154,11 +1141,6 @@ export function ExportTab() {
             ))}
           </div>
 
-          {/* Settings Button */}
-          <Button variant="outline" size="sm" onClick={() => setShowSettings(true)}>
-            <Settings className="w-4 h-4 mr-2" />
-            Settings
-          </Button>
 
           {/* Export Button */}
           <Button 
@@ -1478,14 +1460,6 @@ export function ExportTab() {
         calculateEscalatedRate={calculateEscalatedRate}
       />
 
-      {/* Settings Slideout */}
-      <SettingsSlideout
-        isOpen={showSettings}
-        onClose={() => setShowSettings(false)}
-        config={config}
-        onUpdateConfig={updateConfig}
-        solicitation={solicitation}
-      />
     </div>
   )
 }

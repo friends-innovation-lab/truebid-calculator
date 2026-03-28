@@ -21,6 +21,7 @@ import { Label } from '@/components/ui/label'
 import { SettingsCallout } from '@/components/shared/settings-callout'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
+import { DecomposeButton } from '@/components/task-decomposition'
 import { Loader2, Wand2 } from 'lucide-react'
 import {
   Select,
@@ -1884,9 +1885,37 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, allW
               )}
             </TabsContent>
           </Tabs>
+
+          {/* Decompose into tasks */}
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <DecomposeButton
+              epic={{
+                id: element.id,
+                title: element.title,
+                description: element.why || element.what || '',
+                pwsReferences: element.sowReference ? [element.sowReference] : [],
+              }}
+              onApplyTasks={(tasks) => {
+                // Add decomposed tasks as labor estimates on this WBS element
+                const newLabor = tasks.map(t => ({
+                  id: `labor-${crypto.randomUUID()}`,
+                  roleId: t.roleId || '',
+                  roleName: t.roleName,
+                  hoursByPeriod: { base: t.hours, option1: 0, option2: 0, option3: 0, option4: 0 },
+                  rationale: `${t.name}: ${t.rationale}`,
+                  confidence: (t.confidence || 'medium') as 'high' | 'medium' | 'low',
+                  isAISuggested: true,
+                  isOrphaned: false,
+                }))
+                onUpdate(element.id, {
+                  laborEstimates: [...element.laborEstimates, ...newLabor],
+                })
+              }}
+            />
+          </div>
         </div>
       </div>
-      
+
       {/* Risk Dialog */}
       <Dialog open={showRiskDialog} onOpenChange={setShowRiskDialog}>
         <DialogContent className="max-w-lg">
