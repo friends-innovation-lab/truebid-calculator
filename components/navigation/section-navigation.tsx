@@ -46,6 +46,7 @@ import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
 import { SubRatesTab } from '@/components/tabs/sub-rates-tab'
+import { SubRateCalculator } from '@/components/tabs/staff/sub-rate-calculator'
 import { ExportTab } from '@/components/tabs/export-tab'
 import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
 import { CollabManager } from '@/components/tabs/staff/collab-manager'
@@ -506,7 +507,7 @@ export function SectionNavigation() {
                 <RolesAndPricingTab />
               )}
               {activeView === 'sub-rate-calculator' && activeSection === 'staff' && (
-                <SubRatesTab />
+                <SubRateCalculator />
               )}
               {activeView === 'subs-partners' && activeSection === 'staff' && (
                 <TeamingPartnersTab />
