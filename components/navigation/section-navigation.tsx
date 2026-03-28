@@ -54,6 +54,7 @@ import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StrategyTab } from '@/components/tabs/scope/strategy-tab'
+import { SolicitationSummary } from '@/components/tabs/scope/solicitation-summary'
 
 // ==================== TYPES ====================
 
@@ -491,7 +492,7 @@ export function SectionNavigation() {
                 <StrategyTab />
               )}
               {activeView === 'solicitation-summary' && activeSection === 'scope' && (
-                <UploadTab onContinue={() => { setActiveSection('staff'); handleViewChange('wbs-elements') }} />
+                <SolicitationSummary onContinue={() => { setActiveSection('staff'); handleViewChange('wbs-elements') }} />
               )}
               {activeView === 'requirements' && activeSection === 'scope' && (
                 <EstimateTab />
