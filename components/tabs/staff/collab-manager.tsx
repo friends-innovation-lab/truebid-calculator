@@ -261,6 +261,18 @@ function SessionCard({
       </div>
 
       <div className="flex items-center gap-2 pt-1">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            const url = `${window.location.origin}/collab/${session.token}`
+            await navigator.clipboard.writeText(url)
+            toast.success('Review link copied to clipboard')
+          }}
+        >
+          <Copy className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
+          Copy Link
+        </Button>
         {someSubmitted && (
           <Button variant="outline" size="sm" onClick={onViewSubmissions}>
             <Eye className="w-3.5 h-3.5 mr-1.5" aria-hidden="true" />
