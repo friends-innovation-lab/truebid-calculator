@@ -187,11 +187,12 @@ export async function POST(request: NextRequest) {
       id: req.id || `REQ-${String(index + 1).padStart(3, '0')}`,
     }))
 
-    const response: ExtractionResponse & { success: boolean; rawTextLength: number } = {
+    const response: ExtractionResponse & { success: boolean; rawTextLength: number; solicitationRawText: string } = {
       success: true,
       ...validated.data,
       requirements,
       rawTextLength: pdfText.length,
+      solicitationRawText: pdfText,
     }
 
     return NextResponse.json(response)

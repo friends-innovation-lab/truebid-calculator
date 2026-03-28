@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ListChecks, Plus, RefreshCw, Search, ChevronDown, ChevronUp } from 'lucide-react'
+import { ListChecks, Plus, RefreshCw, Search, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 
 // ==================== TYPES ====================
 
@@ -89,6 +89,7 @@ export function ComplianceMatrix() {
   const [hasRequirements, setHasRequirements] = useState(false)
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [instructionsSkipReason, setInstructionsSkipReason] = useState<string | null>(null)
 
   // Filters
   const [filterSource, setFilterSource] = useState<'all' | 'requirement' | 'instruction'>('all')
@@ -131,13 +132,20 @@ export function ComplianceMatrix() {
 
     setIsGenerating(true)
     setError(null)
+    setInstructionsSkipReason(null)
 
     try {
       const response = await complianceApi.generate(proposalId) as {
         items: ComplianceItem[]
         count: number
+        skipped?: string[]
+        skipReason?: string
       }
       setItems(response.items || [])
+      // Check if instructions were skipped
+      if (response.skipped?.includes('instructions') && response.skipReason) {
+        setInstructionsSkipReason(response.skipReason)
+      }
       // Refresh stats
       const statsResponse = await complianceApi.list(proposalId) as {
         stats: ComplianceStats
@@ -154,13 +162,20 @@ export function ComplianceMatrix() {
     setShowRegenerateConfirm(false)
     setIsGenerating(true)
     setError(null)
+    setInstructionsSkipReason(null)
 
     try {
       const response = await complianceApi.regenerate(proposalId) as {
         items: ComplianceItem[]
         count: number
+        skipped?: string[]
+        skipReason?: string
       }
       setItems(response.items || [])
+      // Check if instructions were skipped
+      if (response.skipped?.includes('instructions') && response.skipReason) {
+        setInstructionsSkipReason(response.skipReason)
+      }
       // Refresh stats
       const statsResponse = await complianceApi.list(proposalId) as {
         stats: ComplianceStats
@@ -287,6 +302,17 @@ export function ComplianceMatrix() {
           Map every requirement to a proposal section and track completion
         </p>
       </div>
+
+      {/* Instructions Skipped Banner */}
+      {instructionsSkipReason && (
+        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">Section L instructions not extracted</p>
+            <p className="text-xs text-amber-700 mt-0.5">{instructionsSkipReason}</p>
+          </div>
+        </div>
+      )}
 
       {/* Stats Bar */}
       {stats && (

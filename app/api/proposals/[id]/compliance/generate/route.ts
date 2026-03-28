@@ -247,6 +247,10 @@ export async function POST(
       }
     }
 
+    // Track what sections were generated
+    let instructionsExtracted = false
+    let instructionsSkippedReason: string | null = null
+
     // Extract Section L instructions if we have the raw solicitation text
     if (solicitationText && solicitationText.length > 100) {
       console.log('[generate] Extracting Section L instructions...')
@@ -294,12 +298,16 @@ export async function POST(
               }
             }
             console.log('[generate] Extracted Section L instructions:', instructions.length)
+            instructionsExtracted = true
           }
         }
       } catch (sectionLError) {
         console.warn('[generate] Section L extraction failed:', sectionLError)
+        instructionsSkippedReason = 'Section L extraction failed'
         // Continue without Section L - not a fatal error
       }
+    } else {
+      instructionsSkippedReason = 'Re-upload RFP to enable Section L extraction'
     }
 
     if (itemsToInsert.length === 0) {
@@ -320,9 +328,22 @@ export async function POST(
       return NextResponse.json({ error: insertError.message }, { status: 500 })
     }
 
+    // Build response with generation metadata
+    const sectionsGenerated = ['requirements']
+    const skipped: string[] = []
+
+    if (instructionsExtracted) {
+      sectionsGenerated.push('instructions')
+    } else if (instructionsSkippedReason) {
+      skipped.push('instructions')
+    }
+
     return NextResponse.json({
       items: insertedItems,
       count: insertedItems?.length || 0,
+      sectionsGenerated,
+      skipped,
+      skipReason: instructionsSkippedReason,
     })
 
   } catch (error) {

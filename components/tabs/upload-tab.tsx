@@ -63,6 +63,7 @@ interface ExtractionResponse {
   requirements: ExtractedRequirement[]
   suggestedRoles: SuggestedRole[]
   rawTextLength: number
+  solicitationRawText?: string
   error?: string
 }
 
@@ -309,6 +310,26 @@ export function UploadTab({ onContinue }: UploadTabProps) {
             periodOfPerformance: `1 Base + ${metadata.periodOfPerformance.options} Options`,
           })
           console.log('[Upload] Updated proposal with extracted metadata')
+
+          // Save raw text to working_data for compliance matrix Section L extraction
+          // This is done separately to merge with existing working_data
+          if (data.solicitationRawText) {
+            try {
+              const existingProposal = await proposalsApi.get(proposalId as string) as {
+                proposal: { workingData?: Record<string, unknown> }
+              }
+              const existingWorkingData = existingProposal.proposal?.workingData || {}
+              await proposalsApi.update(proposalId as string, {
+                working_data: {
+                  ...existingWorkingData,
+                  solicitationRawText: data.solicitationRawText,
+                },
+              })
+              console.log('[Upload] Saved raw text for Section L extraction')
+            } catch (rawTextError) {
+              console.warn('[Upload] Failed to save raw text:', rawTextError)
+            }
+          }
         } catch (error) {
           console.warn('[Upload] Failed to update proposal:', error)
         }
