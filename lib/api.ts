@@ -177,3 +177,54 @@ export const wbsApi = {
       method: 'DELETE',
     }).then(handleResponse),
 }
+
+// Collab Sessions (authenticated — proposal owner)
+export const collabApi = {
+  listSessions: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/collab-sessions`).then(handleResponse),
+
+  createSession: (proposalId: string, data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/collab-sessions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  updateSession: (proposalId: string, sessionId: string, data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/collab-sessions/${sessionId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  deleteSession: (proposalId: string, sessionId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/collab-sessions/${sessionId}`, {
+      method: 'DELETE',
+    }).then(handleResponse),
+
+  listSubmissions: (proposalId: string, sessionId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/collab-sessions/${sessionId}/submissions`).then(handleResponse),
+
+  reviewSubmission: (proposalId: string, sessionId: string, data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/collab-sessions/${sessionId}/submissions`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+}
+
+// Collaborator API (token-based — no auth, used by directors)
+export const collaboratorApi = {
+  getSession: (token: string) =>
+    fetch(`${API_BASE}/collab/${token}`).then(handleResponse),
+
+  getSubmissions: (token: string) =>
+    fetch(`${API_BASE}/collab/${token}/submissions`).then(handleResponse),
+
+  submitReview: (token: string, data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/collab/${token}/submissions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+}
