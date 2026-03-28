@@ -24,6 +24,7 @@ import {
   AlertCircle,
 } from 'lucide-react'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 
 // GSA SIN types
@@ -60,7 +61,7 @@ export function GSASchedulePage() {
         </div>
 
         {/* GSA Contract Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">Contract Information</h3>
             <a
@@ -183,18 +184,18 @@ export function GSASchedulePage() {
               </div>
             </>
           )}
-        </div>
+        </Card>
 
         {/* SINs and Labor Categories */}
         {isActive && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+          <Card>
             <div>
               <h3 className="text-sm font-semibold text-gray-900">SINs & Ceiling Rates</h3>
               <p className="text-xs text-gray-500 mt-0.5">Special Item Numbers and labor category ceiling rates from your GSA price list</p>
             </div>
             
             <GSAScheduleRates />
-          </div>
+          </Card>
         )}
       </div>
     </TooltipProvider>

@@ -210,7 +210,7 @@ export function AppHeader() {
           {/* User Menu (Avatar) */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 p-0.5 rounded-full hover:ring-2 hover:ring-emerald-500 transition-all">
+              <button className="flex items-center gap-2 p-0.5 rounded-full hover:ring-2 hover:ring-emerald-500 transition-all" aria-label="Account menu">
                 {userProfile.avatarUrl ? (
                   <img
                     src={userProfile.avatarUrl}

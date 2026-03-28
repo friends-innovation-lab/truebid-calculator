@@ -19,6 +19,7 @@ import {
   AvatarFallback,
   AvatarImage,
 } from '@/components/ui/avatar'
+import { Card } from '@/components/ui/card'
 
 interface UserProfile {
   fullName: string
@@ -159,7 +160,7 @@ export function ProfilePage() {
       </div>
       
       {/* Avatar Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <Card className="space-y-0">
         <div className="flex items-center gap-6">
           <div className="relative group">
             <Avatar className="w-20 h-20">
@@ -168,7 +169,7 @@ export function ProfilePage() {
                 {getInitials(profile.fullName)}
               </AvatarFallback>
             </Avatar>
-            <button 
+            <button
               className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
               onClick={() => {/* TODO: Avatar upload */}}
             >
@@ -180,10 +181,10 @@ export function ProfilePage() {
             <p className="text-sm text-gray-600">{profile.email}</p>
           </div>
         </div>
-      </div>
+      </Card>
       
       {/* Details Card */}
-      <div className="bg-white rounded-lg border border-gray-200 divide-y divide-gray-200">
+      <Card className="p-0 divide-y divide-gray-200 space-y-0">
         {/* Full Name */}
         <div className="p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -248,10 +249,10 @@ export function ProfilePage() {
             Change
           </Button>
         </div>
-      </div>
-      
+      </Card>
+
       {/* Sign Out */}
-      <div className="bg-white rounded-lg border border-gray-200 p-4">
+      <Card className="p-4 space-y-0">
         <button
           onClick={handleLogout}
           className="flex items-center gap-3 text-red-600 hover:text-red-700 transition-colors"
@@ -259,7 +260,7 @@ export function ProfilePage() {
           <LogOut className="w-5 h-5" />
           <span className="text-sm font-medium">Sign out</span>
         </button>
-      </div>
+      </Card>
       
       {/* Password Change Dialog */}
       <Dialog open={showPasswordDialog} onOpenChange={setShowPasswordDialog}>

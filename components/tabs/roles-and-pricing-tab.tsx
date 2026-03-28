@@ -1598,6 +1598,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                   size="sm"
                                   onClick={() => handleEditRole(role)}
                                   className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                  aria-label="Edit role"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
@@ -1611,6 +1612,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                   size="sm"
                                   onClick={() => setSelectedRoleForBreakdown(role)}
                                   className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                  aria-label="View rate breakdown"
                                 >
                                   <Calculator className="w-3.5 h-3.5" />
                                 </Button>
@@ -1624,6 +1626,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                   size="sm"
                                   onClick={() => handleRemoveFromTeam(role.id)}
                                   className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                  aria-label="Delete role"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
@@ -1758,6 +1761,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                     size="sm"
                                     onClick={() => handleEditSub(sub)}
                                     className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                    aria-label="Edit subcontractor"
                                   >
                                     <Pencil className="w-3.5 h-3.5" />
                                   </Button>
@@ -1771,6 +1775,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                     size="sm"
                                     onClick={() => handleDeleteSub(sub.id)}
                                     className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                    aria-label="Delete subcontractor"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </Button>
@@ -1917,19 +1922,21 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                     <div className="flex items-center gap-2">
                                       <span className="text-gray-700">{formatCurrency(subTotalCost)} total</span>
                                       <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button 
-                                          variant="ghost" 
-                                          size="sm" 
-                                          onClick={() => handleEditSub(sub)} 
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleEditSub(sub)}
                                           className="h-5 w-5 p-0 text-gray-500 hover:text-blue-600"
+                                          aria-label="Edit subcontractor"
                                         >
                                           <Pencil className="w-3 h-3" />
                                         </Button>
-                                        <Button 
-                                          variant="ghost" 
-                                          size="sm" 
-                                          onClick={() => handleDeleteSub(sub.id)} 
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleDeleteSub(sub.id)}
                                           className="h-5 w-5 p-0 text-gray-500 hover:text-red-600"
+                                          aria-label="Delete subcontractor"
                                         >
                                           <Trash2 className="w-3 h-3" />
                                         </Button>
@@ -1976,19 +1983,21 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                             {odc.quantity > 1 ? `${odc.quantity} × ` : ''}{formatCurrency(odc.unitCost)}/yr
                           </span>
                           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleEditOdc(odc)} 
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditOdc(odc)}
                               className="h-5 w-5 p-0 text-gray-500 hover:text-blue-600"
+                              aria-label="Edit ODC"
                             >
                               <Pencil className="w-3 h-3" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleDeleteOdc(odc.id)} 
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteOdc(odc.id)}
                               className="h-5 w-5 p-0 text-gray-500 hover:text-red-600"
+                              aria-label="Delete ODC"
                             >
                               <Trash2 className="w-3 h-3" />
                             </Button>
@@ -2029,19 +2038,21 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           <div className="flex items-center gap-2">
                             <span className="text-gray-900 font-medium">{formatCurrency(pd.totalCost)}/yr</span>
                             <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleEditTravel(pd)} 
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditTravel(pd)}
                                 className="h-5 w-5 p-0 text-gray-500 hover:text-blue-600"
+                                aria-label="Edit travel"
                               >
                                 <Pencil className="w-3 h-3" />
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleDeleteTravel(pd.id)} 
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteTravel(pd.id)}
                                 className="h-5 w-5 p-0 text-gray-500 hover:text-red-600"
+                                aria-label="Delete travel"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
@@ -3090,7 +3101,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                   <h3 className="text-lg font-semibold text-gray-900">Rate Breakdown</h3>
                   <p className="text-sm text-gray-500 mt-0.5">{selectedRoleForBreakdown.title}</p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedRoleForBreakdown(null)} className="h-8 w-8 p-0">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedRoleForBreakdown(null)} className="h-8 w-8 p-0" aria-label="Close">
                   <X className="w-4 h-4" />
                 </Button>
               </div>

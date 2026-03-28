@@ -12,6 +12,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
+import { Card } from '@/components/ui/card'
 
 export function RatesPage() {
   const {
@@ -50,7 +51,7 @@ export function RatesPage() {
         </div>
 
         {/* Indirect Rates Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">Indirect Rates</h3>
@@ -176,10 +177,10 @@ export function RatesPage() {
               </select>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Profit Targets Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Profit Targets</h3>
             <p className="text-xs text-gray-500 mt-0.5">Default profit margins by contract type and risk level</p>
@@ -243,10 +244,10 @@ export function RatesPage() {
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Escalation Rates Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Escalation Rates</h3>
             <p className="text-xs text-gray-500 mt-0.5">Annual escalation for multi-year contracts</p>
@@ -282,10 +283,10 @@ export function RatesPage() {
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Company Defaults Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Company Defaults</h3>
             <p className="text-xs text-gray-500 mt-0.5">Base rate calculation uses standard hours. Billable hours are set per-bid.</p>
@@ -331,7 +332,7 @@ export function RatesPage() {
               />
             </div>
           </div>
-        </div>
+        </Card>
       </div>
     </TooltipProvider>
   )

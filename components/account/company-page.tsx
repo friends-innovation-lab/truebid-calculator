@@ -11,6 +11,7 @@ import {
   X,
   FileText,
 } from 'lucide-react'
+import { Card } from '@/components/ui/card'
 import { toast } from 'sonner'
 
 // IDIQ Contract type
@@ -37,7 +38,7 @@ export function CompanyPage() {
       </div>
 
       {/* Basic Info Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <Card>
         <h3 className="text-sm font-semibold text-gray-900">Basic Information</h3>
         
         <div className="grid grid-cols-2 gap-4">
@@ -86,10 +87,10 @@ export function CompanyPage() {
             </label>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Address Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <Card>
         <h3 className="text-sm font-semibold text-gray-900">Address</h3>
         
         <div className="space-y-2">
@@ -131,10 +132,10 @@ export function CompanyPage() {
             />
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Government Registrations Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <Card>
         <h3 className="text-sm font-semibold text-gray-900">Government Registrations</h3>
         
         <div className="grid grid-cols-2 gap-4">
@@ -192,10 +193,10 @@ export function CompanyPage() {
           />
           <p className="text-xs text-gray-500">Comma-separated list of your registered NAICS codes</p>
         </div>
-      </div>
+      </Card>
 
       {/* Contract Vehicles Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <Card>
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Contract Vehicles</h3>
@@ -224,7 +225,7 @@ export function CompanyPage() {
 
         {/* Other IDIQs */}
         <IDIQContracts />
-      </div>
+      </Card>
     </div>
   )
 }
