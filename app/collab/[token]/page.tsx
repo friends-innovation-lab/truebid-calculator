@@ -61,6 +61,7 @@ interface SessionData {
     contract_type: string
     solicitation_number: string
   } | null
+  available_roles: string[]
 }
 
 // ===== DRAFT STORAGE =====
@@ -148,7 +149,7 @@ export default function CollabPage({ params }: { params: Promise<{ token: string
 
   if (!data) return null
 
-  const { session, assigned_wbs_elements, existing_submissions, proposal_context } = data
+  const { session, assigned_wbs_elements, existing_submissions, proposal_context, available_roles } = data
   const submissionMap = new Map(existing_submissions.map(s => [s.wbs_element_id, s]))
   const completedCount = assigned_wbs_elements.filter(el => submissionMap.has(el.id)).length
   const allComplete = completedCount === assigned_wbs_elements.length
@@ -230,6 +231,7 @@ export default function CollabPage({ params }: { params: Promise<{ token: string
             key={el.id}
             element={el}
             token={token}
+            availableRoles={available_roles}
             existingSubmission={submissionMap.get(el.id)}
             onSubmitted={loadData}
           />
@@ -244,6 +246,7 @@ export default function CollabPage({ params }: { params: Promise<{ token: string
         ) : (
           <NewElementCard
             token={token}
+            availableRoles={available_roles}
             onSubmitted={() => { setShowNewElement(false); loadData() }}
             onCancel={() => setShowNewElement(false)}
           />
@@ -260,11 +263,13 @@ export default function CollabPage({ params }: { params: Promise<{ token: string
 function WBSReviewCard({
   element,
   token,
+  availableRoles,
   existingSubmission,
   onSubmitted,
 }: {
   element: WBSElement
   token: string
+  availableRoles: string[]
   existingSubmission?: Submission
   onSubmitted: () => void
 }) {
@@ -272,17 +277,27 @@ function WBSReviewCard({
   const [isEditing, setIsEditing] = useState(!isSubmitted)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  // Form state — initialize from draft or existing submission
+  // Form state — initialize from draft or existing submission, pre-populate all available roles
   const draft = loadDraft(token, element.id)
   const [hours, setHours] = useState<Record<string, string>>(
     () => {
-      if (draft?.proposed_hours) return Object.fromEntries(
-        Object.entries(draft.proposed_hours as Record<string, number>).map(([k, v]) => [k, String(v)])
-      )
-      if (existingSubmission?.proposed_hours) return Object.fromEntries(
-        Object.entries(existingSubmission.proposed_hours).map(([k, v]) => [k, String(v)])
-      )
-      return {}
+      // Start with all available roles set to empty
+      const initial: Record<string, string> = {}
+      availableRoles.forEach(role => { initial[role] = '' })
+      // Override with draft or existing values
+      if (draft?.proposed_hours) {
+        const draftHours = Object.fromEntries(
+          Object.entries(draft.proposed_hours as Record<string, number>).map(([k, v]) => [k, String(v)])
+        )
+        return { ...initial, ...draftHours }
+      }
+      if (existingSubmission?.proposed_hours) {
+        const subHours = Object.fromEntries(
+          Object.entries(existingSubmission.proposed_hours).map(([k, v]) => [k, String(v)])
+        )
+        return { ...initial, ...subHours }
+      }
+      return initial
     }
   )
   const [newRoleName, setNewRoleName] = useState('')
@@ -384,9 +399,7 @@ function WBSReviewCard({
           {/* Hours by role */}
           <div className="space-y-2">
             <Label className="text-xs font-medium">Hours by Role</Label>
-            {Object.keys(hours).length === 0 && (
-              <p className="text-xs text-muted-foreground">Add roles and enter your estimated hours for each.</p>
-            )}
+            <p className="text-xs text-muted-foreground">Enter estimated hours for each role that applies to this element. Leave blank for roles not needed.</p>
             {Object.entries(hours).map(([role, h]) => (
               <div key={role} className="flex items-center gap-2">
                 <span className="text-sm flex-1">{role}</span>
@@ -489,15 +502,21 @@ function WBSReviewCard({
 
 function NewElementCard({
   token,
+  availableRoles,
   onSubmitted,
   onCancel,
 }: {
   token: string
+  availableRoles: string[]
   onSubmitted: () => void
   onCancel: () => void
 }) {
   const [title, setTitle] = useState('')
-  const [hours, setHours] = useState<Record<string, string>>({})
+  const [hours, setHours] = useState<Record<string, string>>(() => {
+    const initial: Record<string, string> = {}
+    availableRoles.forEach(role => { initial[role] = '' })
+    return initial
+  })
   const [newRoleName, setNewRoleName] = useState('')
   const [method, setMethod] = useState('')
   const [assumptions, setAssumptions] = useState('')

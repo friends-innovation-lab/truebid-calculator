@@ -35,9 +35,11 @@ export async function GET(
     .eq('id', session.proposal_id)
     .single()
 
+  const workingData = (proposal?.working_data || {}) as Record<string, unknown>
+
   // Extract assigned WBS elements from working_data
-  const allWbs = (proposal?.working_data as Record<string, unknown>)?.estimateWbsElements as
-    { id: string; wbsNumber: string; title: string; description?: string; why?: string; what?: string }[] || []
+  const allWbs = (workingData.estimateWbsElements || []) as
+    { id: string; wbsNumber: string; title: string; description?: string; why?: string; what?: string }[]
   const assignedIds = new Set(session.assigned_wbs_ids || [])
   const wbsElements = allWbs.filter(el => assignedIds.has(el.id)).map(el => ({
     id: el.id,
@@ -45,6 +47,28 @@ export async function GET(
     title: el.title,
     description: el.why || el.what || el.description || '',
   }))
+
+  // Extract role names from the proposal's selected roles
+  const selectedRoles = (workingData.selectedRoles || []) as { name: string; id: string }[]
+  const roleNames = selectedRoles.map(r => r.name).filter(Boolean)
+
+  // Fallback: fetch company roles if no selected roles in working_data
+  let companyRoleNames: string[] = []
+  if (roleNames.length === 0) {
+    // Find company via proposal
+    const { data: proposalFull } = await supabase
+      .from('proposals')
+      .select('company_id')
+      .eq('id', session.proposal_id)
+      .single()
+    if (proposalFull?.company_id) {
+      const { data: companyRoles } = await supabase
+        .from('company_roles')
+        .select('title')
+        .eq('company_id', proposalFull.company_id)
+      companyRoleNames = (companyRoles || []).map((r: { title: string }) => r.title).filter(Boolean)
+    }
+  }
 
   // Fetch existing submissions for this session
   const { data: submissions } = await supabase
@@ -69,5 +93,6 @@ export async function GET(
       contract_type: proposal.contract_type,
       solicitation_number: proposal.solicitation_number,
     } : null,
+    available_roles: roleNames.length > 0 ? roleNames : companyRoleNames,
   })
 }
