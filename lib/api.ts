@@ -228,3 +228,34 @@ export const collaboratorApi = {
       body: JSON.stringify(data),
     }).then(handleResponse),
 }
+
+// Share Links (authenticated — proposal owner)
+export const shareLinksApi = {
+  get: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/share-link`).then(handleResponse),
+
+  create: (proposalId: string, data?: { expiresInDays?: number }) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/share-link`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data || {}),
+    }).then(handleResponse),
+
+  update: (proposalId: string, data: { isActive?: boolean; expiresInDays?: number }) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/share-link`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  delete: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/share-link`, {
+      method: 'DELETE',
+    }).then(handleResponse),
+}
+
+// Public BOE API (token-based — no auth, used by external viewers)
+export const publicBoeApi = {
+  get: (token: string) =>
+    fetch(`${API_BASE}/boe/${token}`).then(handleResponse),
+}
