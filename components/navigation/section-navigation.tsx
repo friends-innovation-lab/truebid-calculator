@@ -25,6 +25,7 @@ import {
   Save,
   RotateCcw,
   Trash2,
+  Calendar,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -50,6 +51,7 @@ import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
 import { CollabManager } from '@/components/tabs/staff/collab-manager'
 import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
+import { EmptyState } from '@/components/ui/empty-state'
 
 // ==================== TYPES ====================
 
@@ -495,7 +497,11 @@ export function SectionNavigation() {
                 <LaborMatrix />
               )}
               {activeView === 'timeline' && activeSection === 'staff' && (
-                <EstimateTab />
+                <EmptyState
+                  icon={Calendar}
+                  title="Timeline available after staffing is complete"
+                  description="Once WBS elements have roles and hours assigned, the timeline will show FTE loading by month across the contract period."
+                />
               )}
               {activeView === 'roles-pricing' && activeSection === 'staff' && (
                 <RolesAndPricingTab />
