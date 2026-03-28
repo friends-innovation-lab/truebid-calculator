@@ -131,7 +131,7 @@ export function SolicitationSummary({ onContinue }: SolicitationSummaryProps) {
     }
   }
 
-  const hasDocument = Boolean(solicitation.analyzedFromDocument || solicitation.title)
+  const hasDocument = Boolean(solicitation?.analyzedFromDocument || solicitation?.title)
 
   // Format date
   const formatDate = (dateString: string) => {
