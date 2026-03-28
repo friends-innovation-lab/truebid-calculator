@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useAppContext } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -25,23 +25,29 @@ interface IDIQContract {
 }
 
 export function CompanyPage() {
-  const { companyProfile, setCompanyProfile } = useAppContext()
+  const { companyProfile, setCompanyProfile, saveCompanyProfile } = useAppContext()
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
+  const latestProfile = useRef(companyProfile)
+  useEffect(() => { latestProfile.current = companyProfile }, [companyProfile])
 
-  const handleChange = async (field: string, value: string | boolean | string[] | number) => {
+  const handleChange = (field: string, value: string | boolean | string[] | number) => {
+    // Update state immediately so UI reflects the change
     const updated = { ...companyProfile, [field]: value }
+    setCompanyProfile(updated)
+    latestProfile.current = updated
+
+    // Debounce the API save
     setSaveStatus('saving')
-
-    // Clear any pending status reset
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
-
-    try {
-      await setCompanyProfile(updated)
-      setSaveStatus('saved')
-    } catch {
-      setSaveStatus('error')
-    }
+    saveTimeout.current = setTimeout(async () => {
+      try {
+        await saveCompanyProfile(latestProfile.current)
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 1000)
   }
 
   return (

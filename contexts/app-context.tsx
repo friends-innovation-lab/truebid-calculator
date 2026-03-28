@@ -1070,6 +1070,7 @@ interface AppContextType {
   // Company Profile (SaaS)
   companyProfile: CompanyProfile;
   setCompanyProfile: (profile: CompanyProfile) => void;
+  saveCompanyProfile: (profile: CompanyProfile) => Promise<void>;
   
   // Company Settings
   companySettings: CompanySettings;
@@ -1541,43 +1542,39 @@ export function AppProvider({ children }: { children: ReactNode }) {
     loadCompanyProfile();
   }, []);
 
-  // Wrapper to save company profile to API when it changes
-  const setCompanyProfile = async (profile: CompanyProfile) => {
+  // Update local state immediately (no API call)
+  const setCompanyProfile = (profile: CompanyProfile) => {
     setCompanyProfileState(profile);
+  };
 
-    // Don't save until initial load is complete
+  // Save company profile to API (call this after debouncing)
+  const saveCompanyProfile = async (profile: CompanyProfile) => {
     if (!companyProfileLoaded) return;
 
-    try {
-      const apiData = {
-        name: profile.name,
-        legal_name: profile.legalName,
-        sam_uei: profile.samUei,
-        cage_code: profile.cageCode,
-        duns: profile.dunsNumber,
-        ein: profile.ein,
-        naics_codes: profile.naicsCodes,
-        address: {
-          street: profile.streetAddress,
-          city: profile.city,
-          state: profile.state,
-          zip: profile.zipCode,
-          businessSize: profile.businessSize,
-        },
-      };
+    const apiData = {
+      name: profile.name,
+      legal_name: profile.legalName,
+      sam_uei: profile.samUei,
+      cage_code: profile.cageCode,
+      duns: profile.dunsNumber,
+      ein: profile.ein,
+      naics_codes: profile.naicsCodes,
+      address: {
+        street: profile.streetAddress,
+        city: profile.city,
+        state: profile.state,
+        zip: profile.zipCode,
+        businessSize: profile.businessSize,
+      },
+    };
 
-      if (profile.id) {
-        // Update existing company
-        await companiesApi.update(apiData);
-      } else {
-        // Create new company
-        const response = await companiesApi.create(apiData) as { company: { id: string } };
-        if (response.company?.id) {
-          setCompanyProfileState(prev => ({ ...prev, id: response.company.id }));
-        }
+    if (profile.id) {
+      await companiesApi.update(apiData);
+    } else {
+      const response = await companiesApi.create(apiData) as { company: { id: string } };
+      if (response.company?.id) {
+        setCompanyProfileState(prev => ({ ...prev, id: response.company.id }));
       }
-    } catch (e) {
-      console.warn('Failed to save company profile to API:', e);
     }
   };
 
@@ -2391,6 +2388,7 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     // Company Profile
     companyProfile,
     setCompanyProfile,
+    saveCompanyProfile,
 
     // Indirect Rates
     indirectRates,
