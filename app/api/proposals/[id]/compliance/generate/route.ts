@@ -4,13 +4,17 @@ import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
 
 const complianceItemSchema = z.object({
-  requirement_id: z.string().optional(),
-  requirement_text: z.string(),
-  requirement_ref: z.string(),
-  proposal_section: z.string(),
-  compliance_status: z.enum(['compliant', 'partial', 'exception']),
-  notes: z.string(),
-})
+  requirement_id: z.string().optional().catch(undefined),
+  requirement_text: z.string().catch(''),
+  requirement_ref: z.string().catch(''),
+  proposal_section: z.string().catch(''),
+  compliance_status: z.string().transform(s => {
+    const normalized = s?.toLowerCase?.() || 'compliant'
+    if (['compliant', 'partial', 'exception'].includes(normalized)) return normalized
+    return 'compliant'
+  }).catch('compliant'),
+  notes: z.string().catch(''),
+}).passthrough()
 
 const GENERATE_PROMPT = `You are a government proposal compliance expert.
 Given these requirements from a federal solicitation, generate a compliance matrix mapping each requirement to the most appropriate proposal section.
@@ -151,17 +155,23 @@ export async function POST(
       const jsonString = cleanedResponse.slice(jsonStart, jsonEnd + 1)
       parsedItems = JSON.parse(jsonString)
     } catch (parseError) {
-      console.error('Failed to parse AI response:', responseText.substring(0, 500))
+      console.error('Failed to parse AI response. Raw response:', responseText)
+      console.error('Parse error:', parseError)
       return NextResponse.json(
         { error: 'Failed to parse AI response' },
         { status: 500 }
       )
     }
 
+    console.log('[generate] Parsed items count:', parsedItems?.length)
+
     // Validate and prepare items for insertion
     const itemsToInsert = []
     for (const item of parsedItems) {
       const validated = complianceItemSchema.safeParse(item)
+      if (!validated.success) {
+        console.log('[generate] Validation failed for item:', item, 'Errors:', validated.error.errors)
+      }
       if (validated.success) {
         // Find matching requirement ID if possible
         const matchingReq = requirements.find(r =>
