@@ -5,7 +5,7 @@ import { z } from 'zod'
 export const createCollabSessionSchema = z.object({
   reviewer_name: z.string().min(1, 'Reviewer name is required'),
   reviewer_title: z.string().optional(),
-  assigned_wbs_ids: z.array(z.string().uuid()).min(1, 'At least one WBS element must be assigned'),
+  assigned_wbs_ids: z.array(z.string().min(1)).min(1, 'At least one WBS element must be assigned'),
   expires_at: z.string().datetime().optional(),
 })
 
@@ -16,7 +16,7 @@ export const updateCollabSessionSchema = z.object({
 // ===== WBS Submission Schemas =====
 
 export const createSubmissionSchema = z.object({
-  wbs_element_id: z.string().uuid().optional(),
+  wbs_element_id: z.string().min(1).optional(),
   is_new_element: z.boolean().optional().default(false),
   proposed_title: z.string().optional(),
   proposed_hours: z.record(z.string(), z.number()).optional().default({}),
@@ -31,7 +31,7 @@ export const createSubmissionSchema = z.object({
 })
 
 export const reviewSubmissionSchema = z.object({
-  submissionId: z.string().uuid(),
+  submissionId: z.string().min(1),
   status: z.enum(['accepted', 'modified', 'rejected']),
   owner_response: z.string().optional(),
   modified_values: z.object({
