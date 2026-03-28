@@ -29,19 +29,52 @@ import {
   Copy,
   ChevronDown,
   ExternalLink,
+  Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ErrorAlert } from '@/components/ui/error-alert'
 
 // ===== TYPES =====
+
+interface SalaryLevel {
+  level: string
+  levelName: string
+  steps: Array<{ step: number; salary: number }>
+}
+
+interface CompanyRoleFromAPI {
+  id: string
+  title: string
+  labor_category?: string
+  salary_levels?: SalaryLevel[]
+}
 
 interface CompanyRole {
   id: string
   title: string
-  levels?: Array<{
-    level: string
-    levelName: string
-    steps: Array<{ step: number; salary: number }>
-  }>
+  laborCategory?: string
+  levels?: SalaryLevel[]
+}
+
+// Transform API response to internal format
+function transformRole(apiRole: CompanyRoleFromAPI): CompanyRole {
+  return {
+    id: apiRole.id,
+    title: apiRole.title,
+    laborCategory: apiRole.labor_category,
+    levels: apiRole.salary_levels,
+  }
+}
+
+// Extract salary from role (first level, first step)
+function getRoleSalary(role: CompanyRole): number | null {
+  if (role.levels && role.levels.length > 0) {
+    const firstLevel = role.levels[0]
+    if (firstLevel.steps && firstLevel.steps.length > 0) {
+      return firstLevel.steps[0].salary
+    }
+  }
+  return null
 }
 
 // ===== COMPONENT =====
@@ -65,14 +98,15 @@ export function SubRateCalculator() {
 
   // Data loading state
   const [companyRoles, setCompanyRoles] = useState<CompanyRole[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingPage, setIsLoadingPage] = useState(true)
+  const [isLoadingRoles, setIsLoadingRoles] = useState(true)
+  const [rolesError, setRolesError] = useState<string | null>(null)
   const [billableHoursPerYear, setBillableHoursPerYear] = useState(1920)
 
-  // Load data on mount
+  // Load settings on mount
   useEffect(() => {
-    async function loadData() {
+    async function loadSettings() {
       try {
-        // Load settings
         const settingsResponse = await settingsApi.get() as { settings: Record<string, unknown> | null }
         if (settingsResponse.settings) {
           const s = settingsResponse.settings
@@ -81,13 +115,7 @@ export function SubRateCalculator() {
           if (typeof s.ga_rate === 'number') setGaRate(s.ga_rate * 100)
           if (typeof s.billable_hours === 'number') setBillableHoursPerYear(s.billable_hours)
         }
-
-        // Load roles
-        const rolesResponse = await rolesApi.list() as { roles: CompanyRole[] }
-        if (rolesResponse.roles) {
-          setCompanyRoles(rolesResponse.roles)
-        }
-      } catch (e) {
+      } catch {
         // Fallback to context values
         if (indirectRates) {
           setFringeRate(indirectRates.fringe * 100)
@@ -98,11 +126,31 @@ export function SubRateCalculator() {
           setBillableHoursPerYear(companyPolicy.targetBillableHours)
         }
       } finally {
-        setIsLoading(false)
+        setIsLoadingPage(false)
       }
     }
-    loadData()
+    loadSettings()
   }, [indirectRates, companyPolicy])
+
+  // Load roles on mount (separate from settings)
+  useEffect(() => {
+    async function loadRoles() {
+      setIsLoadingRoles(true)
+      setRolesError(null)
+      try {
+        const rolesResponse = await rolesApi.list() as { roles: CompanyRoleFromAPI[] }
+        if (rolesResponse.roles && rolesResponse.roles.length > 0) {
+          const transformedRoles = rolesResponse.roles.map(transformRole)
+          setCompanyRoles(transformedRoles)
+        }
+      } catch {
+        setRolesError('Could not load roles — enter manually')
+      } finally {
+        setIsLoadingRoles(false)
+      }
+    }
+    loadRoles()
+  }, [])
 
   // Handle role selection
   const handleRoleSelect = (roleId: string) => {
@@ -110,12 +158,9 @@ export function SubRateCalculator() {
     const role = companyRoles.find(r => r.id === roleId)
     if (role) {
       setRoleName(role.title)
-      // Pre-fill salary from first level, first step
-      if (role.levels && role.levels.length > 0) {
-        const firstLevel = role.levels[0]
-        if (firstLevel.steps && firstLevel.steps.length > 0) {
-          setBaseSalary(firstLevel.steps[0].salary)
-        }
+      const salary = getRoleSalary(role)
+      if (salary !== null) {
+        setBaseSalary(salary)
       }
     }
   }
@@ -198,7 +243,7 @@ export function SubRateCalculator() {
     }
   }
 
-  if (isLoading) {
+  if (isLoadingPage) {
     return (
       <div className="space-y-6">
         <div>
@@ -240,10 +285,18 @@ export function SubRateCalculator() {
             {/* Role Name / Dropdown */}
             <div className="space-y-2">
               <Label htmlFor="role-name">Role</Label>
-              {companyRoles.length > 0 ? (
+              {rolesError && (
+                <ErrorAlert variant="inline" message={rolesError} />
+              )}
+              {isLoadingRoles ? (
+                <div className="flex items-center gap-2 h-10 px-3 border rounded-md bg-muted/50">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  <span className="text-sm text-muted-foreground">Loading roles...</span>
+                </div>
+              ) : companyRoles.length > 0 && !rolesError ? (
                 <Select value={selectedRoleId || ''} onValueChange={handleRoleSelect}>
                   <SelectTrigger id="role-name">
-                    <SelectValue placeholder="Select or type a role..." />
+                    <SelectValue placeholder="Select a role..." />
                   </SelectTrigger>
                   <SelectContent>
                     {companyRoles.map(role => (
