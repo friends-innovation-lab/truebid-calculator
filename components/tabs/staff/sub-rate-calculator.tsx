@@ -139,11 +139,16 @@ export function SubRateCalculator() {
       setRolesError(null)
       try {
         const rolesResponse = await rolesApi.list() as { roles: CompanyRoleFromAPI[] }
+        console.log('[SubRateCalculator] rolesApi.list() response:', rolesResponse)
         if (rolesResponse.roles && rolesResponse.roles.length > 0) {
           const transformedRoles = rolesResponse.roles.map(transformRole)
+          console.log('[SubRateCalculator] transformed roles:', transformedRoles)
           setCompanyRoles(transformedRoles)
+        } else {
+          console.log('[SubRateCalculator] No roles returned or empty array')
         }
-      } catch {
+      } catch (err) {
+        console.error('[SubRateCalculator] Error loading roles:', err)
         setRolesError('Could not load roles — enter manually')
       } finally {
         setIsLoadingRoles(false)
