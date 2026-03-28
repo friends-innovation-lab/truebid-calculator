@@ -1,9 +1,10 @@
 // @ts-nocheck
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useAppContext, Subcontractor, ODCItem, PerDiemCalculation, Role } from '@/contexts/app-context'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -1316,6 +1317,25 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
   const contractType = solicitation?.contractType || 'T&M'
 
   // ==================== RENDER ====================
+
+  const [isHydrated, setIsHydrated] = useState(false)
+  useEffect(() => { setIsHydrated(true) }, [])
+
+  if (!isHydrated) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="grid grid-cols-[1fr_400px] gap-6">
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-24 w-full rounded-lg" />
+            ))}
+          </div>
+          <Skeleton className="h-80 w-full rounded-lg" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <TooltipProvider>

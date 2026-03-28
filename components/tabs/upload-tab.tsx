@@ -22,6 +22,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { ErrorAlert } from '@/components/ui/error-alert'
+import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
 
 // ==================== TYPES ====================
 interface UploadTabProps {
@@ -66,31 +67,6 @@ interface ExtractionResponse {
 }
 
 // ==================== HELPERS ====================
-const setAsideLabels: Record<string, string> = {
-  'full-open': 'Full & Open',
-  'Full & Open': 'Full & Open',
-  'small-business': 'Small Business',
-  'Small Business': 'Small Business',
-  '8a': '8(a)',
-  '8(a)': '8(a)',
-  'hubzone': 'HUBZone',
-  'HUBZone': 'HUBZone',
-  'sdvosb': 'SDVOSB',
-  'SDVOSB': 'SDVOSB',
-  'wosb': 'WOSB',
-  'WOSB': 'WOSB',
-  'edwosb': 'EDWOSB',
-  'EDWOSB': 'EDWOSB',
-  'N/A': 'Not Specified',
-}
-
-const contractTypeLabels: Record<string, string> = {
-  'ffp': 'Firm Fixed Price',
-  'tm': 'Time & Materials',
-  'cpff': 'Cost Plus Fixed Fee',
-  'idiq': 'IDIQ',
-  'unknown': 'Not Specified',
-}
 
 // Map API contract type to context format
 const mapContractType = (type: string): 'FFP' | 'T&M' | 'CPFF' | 'IDIQ' => {

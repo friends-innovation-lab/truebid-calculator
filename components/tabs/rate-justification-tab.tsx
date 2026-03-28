@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppContext, RoleJustification } from '@/contexts/app-context'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // ==================== TYPES ====================
 
@@ -609,6 +610,29 @@ export function RateJustificationTab() {
   }
 
   // ==================== RENDER ====================
+
+  const [isHydrated, setIsHydrated] = useState(false)
+  useEffect(() => { setIsHydrated(true) }, [])
+
+  if (!isHydrated) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <TooltipProvider>

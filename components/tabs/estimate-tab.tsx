@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { SettingsCallout } from '@/components/shared/settings-callout'
 import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Loader2, Wand2 } from 'lucide-react'
 import {
   Select,
@@ -3012,7 +3013,24 @@ const handleNavigateToRoles = () => { setActiveMainTab('roles') }
   }, [wbsElements, searchQuery, filterGrade, sortBy])
   
   const selectedElement = wbsElements.find(el => el.id === selectedElementId)
-  
+
+  // Show skeleton while proposal data is loading (brief flash on mount)
+  const [isHydrated, setIsHydrated] = useState(false)
+  useEffect(() => { setIsHydrated(true) }, [])
+
+  if (!isHydrated) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <TooltipProvider>
       <div className="space-y-6">

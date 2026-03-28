@@ -125,6 +125,10 @@ The Supabase `proposals` table has these columns:
 - Log errors with full details before returning 500
 - Validate request bodies with Zod schemas from `lib/schemas/`
 
+## UI Standards
+
+Before writing any UI code, read `DESIGN-SYSTEM.md`. All components, patterns, and decisions must follow it.
+
 ## Code Style
 
 - snake_case for database columns
