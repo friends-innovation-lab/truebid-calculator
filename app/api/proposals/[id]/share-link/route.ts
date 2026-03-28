@@ -83,7 +83,7 @@ export async function POST(
   // Validate input
   const parsed = shareLinkCreateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.errors }, { status: 400 })
+    return NextResponse.json({ error: parsed.error.issues }, { status: 400 })
   }
 
   // Verify user owns this proposal
@@ -162,7 +162,7 @@ export async function PUT(
   // Validate input
   const parsed = shareLinkUpdateSchema.safeParse(body)
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.errors }, { status: 400 })
+    return NextResponse.json({ error: parsed.error.issues }, { status: 400 })
   }
 
   // Verify user owns this proposal
