@@ -5,7 +5,7 @@ const requirementInputSchema = z.object({
   referenceNumber: z.string(),
   title: z.string(),
   description: z.string(),
-  type: z.enum(['shall', 'should', 'may', 'will']),
+  type: z.string(),
   category: z.string(),
   source: z.string(),
 })
@@ -20,7 +20,7 @@ const roleInputSchema = z.object({
 const contractContextSchema = z.object({
   title: z.string(),
   agency: z.string(),
-  contractType: z.enum(['tm', 'ffp', 'hybrid']),
+  contractType: z.string(),
   periodOfPerformance: z.object({
     baseYear: z.boolean(),
     optionYears: z.number().int().min(0).max(10),

@@ -53,7 +53,12 @@ export async function POST(request: NextRequest) {
 
     const result = generateWbsRequestSchema.safeParse(body)
     if (!result.success) {
-      return NextResponse.json({ error: result.error.flatten() }, { status: 400 })
+      const flat = result.error.flatten()
+      const messages = [
+        ...Object.entries(flat.fieldErrors).map(([field, errs]) => `${field}: ${(errs as string[]).join(', ')}`),
+        ...flat.formErrors,
+      ]
+      return NextResponse.json({ error: messages.join('; ') || 'Invalid request data' }, { status: 400 })
     }
 
     const { requirements, availableRoles, existingWbsNumbers, contractContext } = result.data
