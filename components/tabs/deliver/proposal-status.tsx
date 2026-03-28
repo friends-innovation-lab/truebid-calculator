@@ -1,22 +1,64 @@
 'use client'
 
+import { useState, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
+import { collabApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
-import { CheckCircle2, Circle, AlertCircle } from 'lucide-react'
+import { CheckCircle2, Circle, AlertCircle, Clock } from 'lucide-react'
 
 interface ChecklistItem {
   label: string
   description: string
   complete: boolean
+  pending?: boolean // amber state (in progress, needs action)
 }
 
 export function ProposalStatus() {
+  const params = useParams()
+  const proposalId = params?.id as string
+
   const {
     solicitation,
     selectedRoles,
     estimateWbsElements,
     extractedRequirements,
   } = useAppContext()
+
+  // Collab session status
+  const [collabStatus, setCollabStatus] = useState<'none' | 'pending' | 'complete'>('none')
+  const [collabDescription, setCollabDescription] = useState('No director reviews created')
+
+  useEffect(() => {
+    if (!proposalId) return
+    async function checkCollab() {
+      try {
+        const response = await collabApi.listSessions(proposalId) as {
+          sessions: { status: string; pending_count: number; submission_count: number }[]
+        }
+        const sessions = response.sessions || []
+        const openSessions = sessions.filter(s => s.status === 'open')
+
+        if (openSessions.length === 0 && sessions.length === 0) {
+          setCollabStatus('none')
+          setCollabDescription('No director reviews created')
+        } else if (openSessions.some(s => s.pending_count > 0)) {
+          setCollabStatus('pending')
+          const totalPending = openSessions.reduce((sum, s) => sum + s.pending_count, 0)
+          setCollabDescription(`${totalPending} submission${totalPending !== 1 ? 's' : ''} pending your review`)
+        } else if (openSessions.length > 0) {
+          setCollabStatus('pending')
+          setCollabDescription('Waiting for director submissions')
+        } else {
+          setCollabStatus('complete')
+          setCollabDescription('All director reviews resolved')
+        }
+      } catch {
+        // Silently fail — don't block the status page
+      }
+    }
+    checkCollab()
+  }, [proposalId])
 
   const totalValue = selectedRoles.reduce((sum, r) => {
     const activeYears = Object.values(r.years).filter(Boolean).length
@@ -59,9 +101,9 @@ export function ProposalStatus() {
     },
     {
       label: 'Director review resolved',
-      description: 'All review comments addressed',
-      // TODO: Wire to real review/comment system post-launch
-      complete: false,
+      description: collabDescription,
+      complete: collabStatus === 'complete',
+      pending: collabStatus === 'pending',
     },
   ]
 
@@ -89,11 +131,13 @@ export function ProposalStatus() {
           <div key={item.label} className="flex items-start gap-3 p-4">
             {item.complete ? (
               <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+            ) : item.pending ? (
+              <Clock className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             ) : (
               <Circle className="w-5 h-5 text-gray-300 shrink-0 mt-0.5" />
             )}
             <div>
-              <p className={`text-sm font-medium ${item.complete ? 'text-gray-900' : 'text-gray-500'}`}>
+              <p className={`text-sm font-medium ${item.complete ? 'text-gray-900' : item.pending ? 'text-amber-700' : 'text-gray-500'}`}>
                 {item.label}
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">{item.description}</p>

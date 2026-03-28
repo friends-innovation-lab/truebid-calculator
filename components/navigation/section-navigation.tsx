@@ -48,6 +48,7 @@ import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
 import { SubRatesTab } from '@/components/tabs/sub-rates-tab'
 import { ExportTab } from '@/components/tabs/export-tab'
 import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
+import { CollabManager } from '@/components/tabs/staff/collab-manager'
 import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
 
@@ -67,6 +68,7 @@ type ViewId =
   | 'sub-rate-calculator'
   | 'rate-justification'
   | 'subs-partners'
+  | 'director-review'
   // Deliver
   | 'proposal-status'
   | 'boe-preview'
@@ -131,6 +133,12 @@ const SECTIONS: SectionConfig[] = [
         label: 'Partners',
         items: [
           { id: 'subs-partners', label: 'Subs & Partners', icon: Building2 },
+        ],
+      },
+      {
+        label: 'Collaboration',
+        items: [
+          { id: 'director-review', label: 'Director Review', icon: Users },
         ],
       },
     ],
@@ -502,6 +510,9 @@ export function SectionNavigation() {
               )}
               {activeView === 'subs-partners' && activeSection === 'staff' && (
                 <TeamingPartnersTab />
+              )}
+              {activeView === 'director-review' && activeSection === 'staff' && (
+                <CollabManager />
               )}
 
               {/* DELIVER views */}
