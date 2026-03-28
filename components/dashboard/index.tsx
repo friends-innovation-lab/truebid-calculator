@@ -4,6 +4,7 @@ import { useState, useMemo, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
 import { migrateLocalStorageToSupabase } from '@/hooks/use-proposal-sync'
+import { EmptyState as EmptyStateUI } from '@/components/ui/empty-state'
 import { proposalsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -1636,19 +1637,12 @@ export function Dashboard() {
                   />
                 ) : proposals.length === 0 ? (
                   // Brand new user - no proposals at all
-                  <div className="text-center py-16 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <FileText className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No proposals yet</h3>
-                    <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-                      Upload an RFP to get started. TrueBid will extract key details and help you build a competitive proposal.
-                    </p>
-                    <Button onClick={handleImportRFP} className="gap-2">
-                      <Plus className="w-4 h-4" />
-                      Create Your First Proposal
-                    </Button>
-                  </div>
+                  <EmptyStateUI
+                    icon={FileText}
+                    title="No proposals yet"
+                    description="Upload an RFP to get started. TrueBid will extract key details and help you build a competitive proposal."
+                    action={{ label: 'Create Your First Proposal', onClick: handleImportRFP }}
+                  />
                 ) : null
               )}
             </div>

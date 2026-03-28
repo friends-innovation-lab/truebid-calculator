@@ -23,6 +23,7 @@ import {
   FileText,
   AlertCircle,
 } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from 'sonner'
 
 // GSA SIN types
@@ -297,17 +298,12 @@ function GSAScheduleRates() {
       </div>
 
       {gsaSins.length === 0 ? (
-        <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-          <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-sm text-gray-600 mb-2">No SINs configured</p>
-          <p className="text-xs text-gray-500 mb-4 max-w-sm mx-auto">
-            Add the Special Item Numbers (SINs) from your GSA contract along with the approved ceiling rates for each labor category.
-          </p>
-          <Button variant="outline" size="sm" onClick={handleAddSin}>
-            <Plus className="w-3 h-3 mr-1" />
-            Add Your First SIN
-          </Button>
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="No SINs configured"
+          description="Add the Special Item Numbers (SINs) from your GSA contract along with the approved ceiling rates for each labor category."
+          action={{ label: 'Add Your First SIN', onClick: handleAddSin, variant: 'outline' }}
+        />
       ) : (
         <div className="space-y-3">
           {gsaSins.map((sin) => (

@@ -3,6 +3,7 @@
 
 import { useState, useMemo } from 'react'
 import { useAppContext, Subcontractor, ODCItem, PerDiemCalculation, Role } from '@/contexts/app-context'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -1385,11 +1386,11 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
             <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-2">
                 {wbsHoursByRole.length === 0 ? (
-                  <div className="border border-dashed border-gray-200 rounded-lg p-8 text-center">
-                    <BarChart3 className="w-8 h-8 text-gray-400 mx-auto mb-2" />
-                    <p className="text-sm text-gray-600">No roles in Estimate yet</p>
-                    <p className="text-xs text-gray-500 mt-1">Add WBS elements with labor hours in the Estimate tab</p>
-                  </div>
+                  <EmptyState
+                    icon={BarChart3}
+                    title="No roles in Estimate yet"
+                    description="Add WBS elements with labor hours in the Estimate tab"
+                  />
                 ) : (
                   wbsHoursByRole.map((wbsRole) => {
                     const assignment = getRoleAssignment(wbsRole.roleName)

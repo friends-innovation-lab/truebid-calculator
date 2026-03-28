@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useAppContext, TeamingPartner } from '@/contexts/app-context'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -702,29 +703,18 @@ export function TeamingPartnersTab({}: TeamingPartnersTabProps) {
         {/* ==================== PARTNER CARDS ==================== */}
         <div id="partner-list" role="tabpanel" aria-label="Partner list">
           {filteredPartners.length === 0 ? (
-            <div className="text-center py-16 border border-dashed border-gray-200 rounded-lg bg-white">
-              <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" aria-hidden="true" />
-              <p className="text-sm text-gray-600 mb-2">
-                {searchQuery 
-                  ? 'No partners match your search' 
-                  : activeFilter !== 'all'
-                    ? `No partners match the "${filterOptions.find(f => f.id === activeFilter)?.label}" filter`
-                    : 'No teaming partners added yet'
-                }
-              </p>
-              <p className="text-xs text-gray-500 mb-4">
-                {searchQuery 
-                  ? 'Try a different search term' 
-                  : 'Add partner companies to track compliance and agreements'
-                }
-              </p>
-              {!searchQuery && activeFilter === 'all' && (
-                <Button variant="outline" size="sm" onClick={openAddPanel}>
-                  <Plus className="w-4 h-4 mr-2" aria-hidden="true" />
-                  Add Your First Partner
-                </Button>
-              )}
-            </div>
+            <EmptyState
+              icon={Building2}
+              title={searchQuery
+                ? 'No partners match your search'
+                : activeFilter !== 'all'
+                  ? `No partners match the "${filterOptions.find(f => f.id === activeFilter)?.label}" filter`
+                  : 'No teaming partners added yet'}
+              description={searchQuery
+                ? 'Try a different search term'
+                : 'Add partner companies to track compliance and agreements'}
+              action={!searchQuery && activeFilter === 'all' ? { label: 'Add Your First Partner', onClick: openAddPanel, variant: 'outline' } : undefined}
+            />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4" role="list" aria-label="Teaming partners">
               {filteredPartners.map(partner => {

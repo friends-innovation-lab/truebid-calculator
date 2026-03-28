@@ -7,7 +7,8 @@ import { AuthLayout } from '@/components/auth/auth-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Eye, EyeOff, Loader2, AlertCircle, Check, X } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
 import { createClient } from '@/lib/supabase/client'
 
 // OAuth provider icons
@@ -196,12 +197,8 @@ export default function SignupPage() {
     >
       {/* Error message */}
       {error && (
-        <div 
-          className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-lg mb-6"
-          role="alert"
-        >
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+        <div className="mb-6">
+          <ErrorAlert message={error} />
         </div>
       )}
 

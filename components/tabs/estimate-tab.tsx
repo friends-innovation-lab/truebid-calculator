@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { SettingsCallout } from '@/components/shared/settings-callout'
+import { EmptyState } from '@/components/ui/empty-state'
 import { Loader2, Wand2 } from 'lucide-react'
 import {
   Select,
@@ -3052,7 +3053,7 @@ const handleNavigateToRoles = () => { setActiveMainTab('roles') }
             </div>
             
            {filteredElements.length === 0 ? (
-              <div className="text-center py-12 bg-white border border-gray-100 rounded-lg"><Layers className="w-12 h-12 text-gray-300 mx-auto mb-3" /><p className="text-sm text-gray-600">No WBS elements found</p><Button variant="outline" size="sm" className="mt-3" onClick={() => setShowAddElement(true)}><Plus className="w-4 h-4 mr-2" />Add First Element</Button></div>
+              <EmptyState icon={Layers} title="No WBS elements found" action={{ label: 'Add First Element', onClick: () => setShowAddElement(true), variant: 'outline' }} />
             ) : viewMode === 'grid' ? (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">{filteredElements.map(element => <WBSCard key={element.id} element={element} onClick={() => setSelectedElementId(element.id)} onEdit={() => setSelectedElementId(element.id)} onDelete={() => handleDeleteElement(element.id)} />)}</div>
             ) : (

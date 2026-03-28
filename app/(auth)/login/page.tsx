@@ -6,7 +6,8 @@ import Link from 'next/link'
 import { AuthLayout } from '@/components/auth/auth-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
 import { createClient } from '@/lib/supabase/client'
 
 // OAuth provider icons
@@ -103,9 +104,8 @@ export default function LoginPage() {
   return (
     <AuthLayout title="Log in to TrueBid" showSignUp>
       {error && (
-        <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg mb-6" role="alert">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mb-6">
+          <ErrorAlert message={error} />
         </div>
       )}
 

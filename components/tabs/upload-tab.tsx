@@ -19,9 +19,9 @@ import {
   Shield,
   MapPin,
   Pencil,
-  AlertCircle,
   RefreshCw,
 } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
 
 // ==================== TYPES ====================
 interface UploadTabProps {
@@ -504,26 +504,21 @@ export function UploadTab({ onContinue }: UploadTabProps) {
       {/* ==================== ERROR STATE ==================== */}
       {state === 'error' && (
         <div className="space-y-6">
-          <div className="text-center">
-            <div className="w-14 h-14 rounded-lg bg-red-50 mx-auto flex items-center justify-center mb-4">
-              <AlertCircle className="w-7 h-7 text-red-600" />
-            </div>
-            <h1 className="text-xl font-semibold text-gray-900 mb-1">Analysis Failed</h1>
-            <p className="text-sm text-red-600">{errorMessage}</p>
-          </div>
+          <ErrorAlert
+            variant="page"
+            title="Analysis Failed"
+            message={errorMessage || 'An unexpected error occurred'}
+            onRetry={handleRetry}
+          />
 
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
             <FileText className="w-3.5 h-3.5" />
             <span>{uploadedFileName}</span>
           </div>
 
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center">
             <Button variant="outline" onClick={handleReset}>
               Upload Different File
-            </Button>
-            <Button onClick={handleRetry}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Try Again
             </Button>
           </div>
         </div>

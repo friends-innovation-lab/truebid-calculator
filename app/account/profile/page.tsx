@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Mail, Lock, LogOut, Camera, Check, X } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -335,7 +336,7 @@ function ProfilePage() {
               />
             </div>
             {passwordError && (
-              <p className="text-sm text-red-600">{passwordError}</p>
+              <ErrorAlert variant="inline" message={passwordError} />
             )}
           </div>
           <DialogFooter>

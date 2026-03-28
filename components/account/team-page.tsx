@@ -4,6 +4,7 @@ import React from 'react'
 import { Users, Mail, Shield, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { EmptyState } from '@/components/ui/empty-state'
 
 export function TeamPage() {
   const plannedFeatures = [
@@ -37,22 +38,11 @@ export function TeamPage() {
       </div>
       
       {/* Empty State */}
-      <div className="bg-white rounded-lg border border-gray-200 p-12 text-center">
-        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Users className="w-8 h-8 text-gray-400" />
-        </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          Team collaboration is coming soon
-        </h3>
-        <p className="text-sm text-gray-600 max-w-md mx-auto mb-6">
-          We&apos;re building features to help your BD team collaborate on proposals.
-          Get notified when it&apos;s ready.
-        </p>
-        <Button disabled>
-          <Mail className="w-4 h-4 mr-2" />
-          Invite Team Member
-        </Button>
-      </div>
+      <EmptyState
+        icon={Users}
+        title="Team collaboration is coming soon"
+        description="We're building features to help your BD team collaborate on proposals. Get notified when it's ready."
+      />
       
       {/* Planned Features */}
       <div className="bg-gray-50 rounded-lg border border-gray-200 p-6">
