@@ -78,12 +78,18 @@ export async function POST(
     const requirements = workingData.extractedRequirements || []
     const strategy = proposal.strategy || {}
 
+    console.log('[generate-summary] Working data keys:', Object.keys(workingData))
+    console.log('[generate-summary] Solicitation title:', solicitation.title)
+    console.log('[generate-summary] Requirements count:', requirements.length)
+
     // Build context from solicitation and requirements
     const documentContext = buildDocumentContext(solicitation, requirements)
 
+    console.log('[generate-summary] Document context length:', documentContext.length)
+
     if (!documentContext || documentContext.length < 100) {
       return NextResponse.json(
-        { error: 'Not enough document content. Please upload and analyze an RFP first.' },
+        { error: `Not enough document content (${documentContext.length} chars). Please upload and analyze an RFP first.` },
         { status: 400 }
       )
     }
@@ -211,6 +217,7 @@ export async function POST(
     console.error('Generate summary error:', error)
 
     if (error instanceof Anthropic.APIError) {
+      console.error('Anthropic API error:', error.status, error.message)
       if (error.status === 401) {
         return NextResponse.json(
           { error: 'Invalid Anthropic API key' },
@@ -223,10 +230,16 @@ export async function POST(
           { status: 429 }
         )
       }
+      return NextResponse.json(
+        { error: `AI service error: ${error.message}` },
+        { status: 500 }
+      )
     }
 
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    console.error('Non-Anthropic error:', errorMessage)
     return NextResponse.json(
-      { error: 'Failed to generate summary' },
+      { error: `Failed to generate summary: ${errorMessage}` },
       { status: 500 }
     )
   }
