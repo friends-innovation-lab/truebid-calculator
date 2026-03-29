@@ -4,7 +4,26 @@ import { extractText } from 'unpdf'
 import { extractionResponseSchema, type ExtractionResponse } from '@/lib/schemas/rfp'
 
 // System prompt for extraction
-const EXTRACTION_PROMPT = `Extract data from this government RFP/SOW. Return ONLY valid JSON, no markdown or explanation.
+const EXTRACTION_SYSTEM_PROMPT = `You are a senior proposal manager at a government contracting firm. Your job is to extract only the requirements that directly affect how the proposal is written and evaluated.
+
+Think like someone who has to write a response to this RFP. What are the distinct things you need to address, prove, or comply with? Extract those — nothing else.
+
+STRICT RULES:
+1. Maximum 25 requirements total
+2. Each requirement must be meaningfully distinct — no overlaps, no sub-clauses of another requirement
+3. Consolidate related items — if there are 5 bullets about security, that is ONE requirement: the security requirement
+4. Skip entirely:
+   - FAR/DFAR boilerplate clauses
+   - Payment, invoicing, reporting admin
+   - Any requirement already captured in another item
+   - General statements of work that don't add a distinct compliance obligation
+5. Ask yourself: 'If I missed this, would the proposal be non-compliant or score lower?' If no — skip it.
+
+Target: 15–25 requirements for a typical scoped federal RFP. If you are finding more, you are being too granular. Consolidate.`
+
+const EXTRACTION_USER_PROMPT = `Extract the key proposal requirements and metadata from this RFP. Be selective — aim for 15 to 25 total requirements maximum.
+
+Return ONLY valid JSON with this structure:
 
 {
   "metadata": {
@@ -18,33 +37,38 @@ const EXTRACTION_PROMPT = `Extract data from this government RFP/SOW. Return ONL
     "placeOfPerformance": "City, State",
     "setAside": "small business|8a|SDVOSB|WOSB|HUBZone|unrestricted|N/A"
   },
-  "requirements": [],
+  "requirements": [
+    {
+      "id": "REQ-001",
+      "title": "3-6 word title",
+      "text": "Full consolidated requirement text",
+      "type": "shall|should|instruction|evaluation",
+      "sourceSection": "Section C · p.12"
+    }
+  ],
   "suggestedRoles": []
 }
 
 METADATA RULES:
 - periodOfPerformance.base = number of BASE YEARS (usually 1)
 - periodOfPerformance.options = number of OPTION YEARS (0-4, NOT months)
-- Look for "1 base year + 2 option years" type language
 - clientAgency: DOS/State Department = "Department of State"
 
-EXTRACT 30-40 REQUIREMENTS from ALL these categories:
-1. USER STORIES: "As a [user], I want..." - type: "delivery"
-2. SECURITY: clearances, MRPT, authentication, OKTA, FedRAMP - type: "compliance"
-3. INFRASTRUCTURE: AWS, S3, Lambda, ECS, CloudFront, databases - type: "delivery"
-4. DEVELOPMENT: features, APIs, integrations, screens, functionality - type: "delivery"
-5. COMPLIANCE: Section 508, WCAG, accessibility standards - type: "compliance"
-6. OPERATIONS: support, monitoring, maintenance, SLAs - type: "delivery"
-7. STAFFING: labor categories, key personnel, qualifications - type: "staffing"
-8. REPORTING: status reports, deliverables, documentation - type: "reporting"
-9. GOVERNANCE: meetings, reviews, approvals - type: "governance"
+REQUIREMENT NUMBERING:
+- REQ-001, REQ-002... for technical and performance requirements (Section C, H etc.)
+- L.1, L.2... for Section L submission and formatting instructions
+- M.1, M.2... for Section M evaluation criteria
 
-Search ALL sections including: Objectives, Operating Constraints, Key Personnel, Security, Technical Requirements.
+TYPE VALUES:
+- 'shall' — mandatory requirement
+- 'should' — preferred/desired
+- 'instruction' — Section L formatting rule
+- 'evaluation' — Section M eval factor
 
-Each requirement format:
-{"id": "REQ-001", "title": "3-6 word title you create", "text": "verbatim text from document (can be full sentence)", "type": "delivery|staffing|compliance|reporting|governance|other", "sourceSection": "actual section header from document", "pageNumber": null}
+SOURCE FORMAT: 'Section [LETTER] · p.[N]'
+Use section letter, not heading name. Examples: 'Section C · p.8', 'Section L · p.31'
 
-IMPORTANT: Extract REAL values from the document. Response must start with { and end with }`
+If you find more than 25 requirements, consolidate further until you are at 25 or fewer. Response must start with { and end with }`
 
 export async function POST(request: NextRequest) {
   try {
@@ -120,14 +144,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Call Claude for extraction - Using Sonnet 3.5 for better quality and higher token limit
+    // Call Claude for extraction - Using Sonnet for better quality
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 8192,
+      system: EXTRACTION_SYSTEM_PROMPT,
       messages: [
         {
           role: 'user',
-          content: `${EXTRACTION_PROMPT}\n\nDocument to analyze:\n\n${truncatedText}`
+          content: `${EXTRACTION_USER_PROMPT}\n\nDocument to analyze:\n\n${truncatedText}`
         }
       ],
     })
@@ -178,6 +203,18 @@ export async function POST(request: NextRequest) {
           details: issues
         },
         { status: 500 }
+      )
+    }
+
+    // Guard rail: max 25 requirements
+    if (validated.data.requirements.length > 25) {
+      console.error(`[extract-rfp] Too many requirements: ${validated.data.requirements.length}`)
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Extraction returned ${validated.data.requirements.length} requirements. Maximum is 25. Please re-extract with a more consolidated approach.`
+        },
+        { status: 400 }
       )
     }
 
