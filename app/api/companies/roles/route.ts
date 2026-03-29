@@ -3,6 +3,28 @@ import { NextResponse } from 'next/server'
 
 // Transform database row (snake_case) to frontend format (camelCase)
 function transformRoleFromDb(dbRole: Record<string, unknown>) {
+  // Transform salary_levels from DB format to UI format
+  // DB: [{ level: "IC1", level_title: "Associate", steps: [87000, 89610] }]
+  // UI: [{ level: "IC1", levelName: "Associate", steps: [{ step: 1, salary: 87000 }, ...] }]
+  const rawLevels = (dbRole.salary_levels || []) as Array<{
+    level: string
+    level_title: string
+    steps: number[]
+  }>
+
+  const levels = rawLevels.map(l => ({
+    level: l.level,
+    levelName: l.level_title,
+    yearsExperience: getExperienceForLevel(l.level),
+    monthsBeforePromotionReady: 24,
+    isTerminal: l.level === 'IC5',
+    steps: l.steps.map((salary, i) => ({
+      step: i + 1,
+      salary,
+      monthsToNextStep: i < l.steps.length - 1 ? 12 : null,
+    })),
+  }))
+
   return {
     id: dbRole.id,
     title: dbRole.title || '',
@@ -11,7 +33,7 @@ function transformRoleFromDb(dbRole: Record<string, unknown>) {
     functionalResponsibilities: dbRole.functional_responsibilities || '',
     education: dbRole.education || undefined,
     certifications: dbRole.certifications || [],
-    levels: dbRole.salary_levels || [],
+    levels,
     blsOccCode: dbRole.soc_code || '',
     blsOccTitle: dbRole.soc_title || '',
     gsaLaborCategory: dbRole.gsa_labor_category || '',
@@ -21,8 +43,35 @@ function transformRoleFromDb(dbRole: Record<string, unknown>) {
   }
 }
 
+// Map IC levels to typical experience ranges
+function getExperienceForLevel(level: string): string {
+  switch (level) {
+    case 'IC1': return '0-2'
+    case 'IC2': return '2-4'
+    case 'IC3': return '4-6'
+    case 'IC4': return '6-10'
+    case 'IC5': return '10+'
+    default: return '0+'
+  }
+}
+
 // Transform frontend format (camelCase) to database format (snake_case)
 function transformRoleToDb(role: Record<string, unknown>) {
+  // Transform levels from UI format back to DB format
+  // UI: [{ level: "IC1", levelName: "Associate", steps: [{ step: 1, salary: 87000 }, ...] }]
+  // DB: [{ level: "IC1", level_title: "Associate", steps: [87000, 89610] }]
+  const uiLevels = (role.levels || []) as Array<{
+    level: string
+    levelName: string
+    steps: Array<{ step: number; salary: number }>
+  }>
+
+  const salaryLevels = uiLevels.map(l => ({
+    level: l.level,
+    level_title: l.levelName,
+    steps: l.steps.map(s => s.salary),
+  }))
+
   return {
     title: role.title,
     labor_category: role.laborCategory,
@@ -30,7 +79,7 @@ function transformRoleToDb(role: Record<string, unknown>) {
     functional_responsibilities: role.functionalResponsibilities,
     education: role.education,
     certifications: role.certifications,
-    salary_levels: role.levels,
+    salary_levels: salaryLevels,
     soc_code: role.blsOccCode,
     soc_title: role.blsOccTitle,
     gsa_labor_category: role.gsaLaborCategory,
