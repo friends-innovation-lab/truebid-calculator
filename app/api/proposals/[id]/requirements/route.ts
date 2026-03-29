@@ -26,7 +26,22 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ requirements })
+  // Transform DB format to component format
+  // DB: { reference_number, title, description, source, priority, type }
+  // Component: { ref, type, text, source, status }
+  const transformed = (requirements || []).map((req: Record<string, unknown>) => ({
+    id: req.id,
+    ref: req.reference_number || '',
+    type: req.type || 'shall',
+    text: req.description || req.title || '',
+    source: req.source || '',
+    status: req.status || 'unaddressed',
+    proposalSection: req.proposal_section || null,
+    wbsLinks: req.wbs_links || [],
+    owner: req.owner || null,
+  }))
+
+  return NextResponse.json({ requirements: transformed })
 }
 
 // Helper function to extract title from requirement text
