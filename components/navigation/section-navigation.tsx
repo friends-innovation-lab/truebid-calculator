@@ -744,4 +744,4 @@ export function SectionNavigation() {
 }
 
 // Need MainTabId type for context sync
-type MainTabId = 'upload' | 'estimate' | 'roles' | 'teaming-partners' | 'rate-justification' | 'export'
+type MainTabId = 'upload' | 'estimate' | 'roles' | 'teaming-partners' | 'rate-justification' | 'write' | 'export'

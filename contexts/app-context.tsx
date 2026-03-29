@@ -1002,12 +1002,13 @@ export interface GSAContractInfo {
 // Note: 'sub-rates' is now a utility tool in the Tools menu, not a main tab
 // Note: 'gsa-bid' functionality merged into Upload tab (contract type selection)
 // Workflow order: Upload → Estimate → Roles → Teaming → Rate Justification → Export
-export type MainTabId = 
-  | 'upload' 
+export type MainTabId =
+  | 'upload'
   | 'estimate'
   | 'roles'  // Roles & Pricing
   | 'teaming-partners'
-  | 'rate-justification' 
+  | 'rate-justification'
+  | 'write'  // Technical Volume Outline
   | 'export';
 
   // Utility tool type - accessed via Tools menu in header

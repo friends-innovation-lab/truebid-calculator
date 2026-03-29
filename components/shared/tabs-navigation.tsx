@@ -3,19 +3,20 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { 
-  Upload, 
-  Users, 
-  TrendingUp, 
-  Building2, 
-  FileDown, 
-  FileText, 
-  Clock, 
-  ChevronUp, 
-  ChevronDown, 
-  X, 
-  Pencil, 
-  Shield, 
+import {
+  Upload,
+  Users,
+  TrendingUp,
+  Building2,
+  FileDown,
+  FileText,
+  Clock,
+  ChevronUp,
+  ChevronDown,
+  X,
+  Pencil,
+  PenLine,
+  Shield,
   AlertCircle,
   Layers,
   HelpCircle,
@@ -44,6 +45,7 @@ import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
 import { SubRatesTab } from '@/components/tabs/sub-rates-tab'
+import { Outline } from '@/components/tabs/write/outline'
 import { ExportTab } from '@/components/tabs/export-tab'
 
 // ==================== CONSTANTS ====================
@@ -78,12 +80,13 @@ const CLEARANCE_LEVEL_LABELS: Record<string, string> = {
 } as const
 
 // Tab type definition - main flow only (utilities are separate)
-type TabType = 
-  | 'upload' 
+type TabType =
+  | 'upload'
   | 'estimate'
-  | 'roles' 
+  | 'roles'
   | 'rate-justification'
-  | 'teaming-partners' 
+  | 'teaming-partners'
+  | 'write'
   | 'export'
 
 // Tab configuration with accessibility metadata
@@ -132,7 +135,7 @@ export function TabsNavigation() {
   const searchParams = useSearchParams()
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['upload', 'estimate', 'roles', 'rate-justification', 'teaming-partners', 'export'].includes(tabParam)) {
+    if (tabParam && ['upload', 'estimate', 'roles', 'rate-justification', 'teaming-partners', 'write', 'export'].includes(tabParam)) {
       setActiveMainTab(tabParam as TabType)
     }
   }, [searchParams, setActiveMainTab])
@@ -164,15 +167,21 @@ export function TabsNavigation() {
       icon: TrendingUp,
       description: 'Document rate justifications for audit defense'
     },
-    { 
-      id: 'teaming-partners', 
-      label: 'Teaming Partners', 
+    {
+      id: 'teaming-partners',
+      label: 'Teaming Partners',
       icon: Building2,
       description: 'Manage subcontractor companies and teaming arrangements'
     },
-    { 
-      id: 'export', 
-      label: 'Export', 
+    {
+      id: 'write',
+      label: 'Write',
+      icon: PenLine,
+      description: 'Structure and write your technical volume content'
+    },
+    {
+      id: 'export',
+      label: 'Export',
       icon: FileDown,
       description: 'Generate proposal documents and exports'
     },
@@ -778,6 +787,7 @@ export function TabsNavigation() {
             {activeTab === 'roles' && <RolesAndPricingTab />}
             {activeTab === 'rate-justification' && <RateJustificationTab />}
             {activeTab === 'teaming-partners' && <TeamingPartnersTab />}
+            {activeTab === 'write' && <Outline />}
             {activeTab === 'export' && <ExportTab />}
           </div>
         )}

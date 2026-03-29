@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
-import { collabApi, complianceApi, proposalsApi } from '@/lib/api'
+import { collabApi, complianceApi, proposalsApi, sectionsApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { CheckCircle2, Circle, AlertCircle, Clock } from 'lucide-react'
 
@@ -36,6 +36,10 @@ export function ProposalStatus() {
   // Collab session status
   const [collabStatus, setCollabStatus] = useState<'none' | 'pending' | 'complete'>('none')
   const [collabDescription, setCollabDescription] = useState('No director reviews created')
+
+  // Outline status
+  const [outlineStatus, setOutlineStatus] = useState<'none' | 'pending' | 'complete'>('none')
+  const [outlineDescription, setOutlineDescription] = useState('No outline generated')
 
   // Load strategy data
   useEffect(() => {
@@ -139,6 +143,39 @@ export function ProposalStatus() {
     checkCollab()
   }, [proposalId])
 
+  // Load outline status
+  useEffect(() => {
+    if (!proposalId) return
+    async function checkOutline() {
+      try {
+        const response = await sectionsApi.list(proposalId) as {
+          sections: { status: string }[]
+          stats: { total: number; complete: number; draft: number; inProgress: number; review: number }
+        }
+        const sections = response.sections || []
+        const stats = response.stats
+
+        if (sections.length === 0) {
+          setOutlineStatus('none')
+          setOutlineDescription('No outline generated')
+        } else {
+          const allComplete = stats.complete === stats.total
+          if (allComplete) {
+            setOutlineStatus('complete')
+            setOutlineDescription(`${stats.total} sections complete`)
+          } else {
+            setOutlineStatus('pending')
+            const remaining = stats.total - stats.complete
+            setOutlineDescription(`${stats.total} sections, ${remaining} not complete`)
+          }
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    checkOutline()
+  }, [proposalId])
+
   const totalValue = selectedRoles.reduce((sum, r) => {
     const activeYears = Object.values(r.years).filter(Boolean).length
     return sum + r.baseSalary * r.fte * activeYears
@@ -195,6 +232,12 @@ export function ProposalStatus() {
       description: collabDescription,
       complete: collabStatus === 'complete',
       pending: collabStatus === 'pending',
+    },
+    {
+      label: 'Proposal outline complete',
+      description: outlineDescription,
+      complete: outlineStatus === 'complete',
+      pending: outlineStatus === 'pending',
     },
   ]
 

@@ -297,6 +297,48 @@ export const contentLibraryApi = {
     }).then(handleResponse),
 }
 
+// Proposal Sections (Technical Volume Outline)
+export const sectionsApi = {
+  list: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/sections`).then(handleResponse),
+
+  create: (proposalId: string, data: Record<string, unknown> | Record<string, unknown>[]) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/sections`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  update: (proposalId: string, sectionId: string, data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/sections`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sectionId, ...data }),
+    }).then(handleResponse),
+
+  delete: (proposalId: string, sectionId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/sections?sectionId=${sectionId}`, {
+      method: 'DELETE',
+    }).then(handleResponse),
+
+  deleteAll: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/sections?all=true`, {
+      method: 'DELETE',
+    }).then(handleResponse),
+
+  generate: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/sections/generate`, {
+      method: 'POST',
+    }).then(handleResponse),
+
+  regenerate: (proposalId: string) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/sections/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ regenerate: true }),
+    }).then(handleResponse),
+}
+
 // Compliance Matrix
 export const complianceApi = {
   list: (proposalId: string) =>
