@@ -59,7 +59,8 @@ export function CompanyPage() {
   const handleSaveWritingGuide = useCallback(async (guide: WritingGuide) => {
     try {
       await settingsApi.save({ writing_guide: guide })
-      setWritingGuide(guide)
+      // Don't call setWritingGuide here - it causes infinite loop
+      // WritingGuideForm manages its own state
     } catch (err) {
       console.error('[CompanyPage] Failed to save writing guide:', err)
       throw err // Re-throw so the form shows error state
