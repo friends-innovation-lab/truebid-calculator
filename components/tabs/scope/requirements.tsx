@@ -57,6 +57,14 @@ const TYPE_BADGE_STYLES = {
   instruction: { bg: '#FAEEDA', text: '#633806', border: '#EF9F27' },
 }
 
+// Helper to safely get status color with fallback
+const getStatusColor = (status: string | undefined | null): string => {
+  if (status && STATUS_COLORS[status as RequirementStatus]) {
+    return STATUS_COLORS[status as RequirementStatus]
+  }
+  return STATUS_COLORS.unaddressed
+}
+
 // ==================== FILTER CHIP ====================
 
 interface FilterChipProps {
@@ -109,8 +117,10 @@ interface StatusBadgeProps {
 }
 
 function StatusBadge({ status, onClick, clickable = false }: StatusBadgeProps) {
-  const style = STATUS_BADGE_STYLES[status]
-  const labels = {
+  // Default to unaddressed if status is invalid
+  const validStatus = status && STATUS_BADGE_STYLES[status] ? status : 'unaddressed'
+  const style = STATUS_BADGE_STYLES[validStatus]
+  const labels: Record<string, string> = {
     compliant: 'Compliant',
     partial: 'Partial',
     gap: 'Gap',
@@ -133,7 +143,7 @@ function StatusBadge({ status, onClick, clickable = false }: StatusBadgeProps) {
         cursor: clickable ? 'pointer' : 'default',
       }}
     >
-      {labels[status]}
+      {labels[validStatus] || 'N/A'}
     </button>
   )
 }
@@ -145,8 +155,10 @@ interface TypeBadgeProps {
 }
 
 function TypeBadge({ type }: TypeBadgeProps) {
-  const style = TYPE_BADGE_STYLES[type]
-  const labels = { shall: 'Shall', should: 'Should', instruction: 'Instr' }
+  // Default to 'shall' if type is invalid
+  const validType = type && TYPE_BADGE_STYLES[type] ? type : 'shall'
+  const style = TYPE_BADGE_STYLES[validType]
+  const labels: Record<string, string> = { shall: 'Shall', should: 'Should', instruction: 'Instr' }
 
   return (
     <span
@@ -159,7 +171,7 @@ function TypeBadge({ type }: TypeBadgeProps) {
         color: style.text,
       }}
     >
-      {labels[type]}
+      {labels[validType] || 'Req'}
     </span>
   )
 }
@@ -855,7 +867,7 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
           style={{
             gridTemplateColumns: '72px 80px 1fr 110px 60px',
             borderBottom: '0.5px solid #F4F3EF',
-            borderLeft: `3px solid ${STATUS_COLORS[req.status]}`,
+            borderLeft: `3px solid ${getStatusColor(req.status)}`,
             backgroundColor: selectedRef === req.ref ? '#FBF9F0' : 'transparent',
           }}
         >
@@ -883,7 +895,7 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                backgroundColor: STATUS_COLORS[req.status],
+                backgroundColor: getStatusColor(req.status),
                 margin: '0 auto',
               }}
             />
@@ -959,7 +971,7 @@ function ComplianceTable({
             style={{
               gridTemplateColumns: '72px 180px 1fr 120px 100px 100px',
               borderBottom: '0.5px solid #F4F3EF',
-              borderLeft: `3px solid ${isHighlighted ? '#F5C200' : STATUS_COLORS[req.status]}`,
+              borderLeft: `3px solid ${isHighlighted ? '#F5C200' : getStatusColor(req.status)}`,
               backgroundColor: isHighlighted ? '#FBF9F0' : 'transparent',
             }}
           >
