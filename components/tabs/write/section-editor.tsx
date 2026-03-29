@@ -81,6 +81,33 @@ const STATUS_CONFIG = {
   locked: { label: 'Locked', color: 'bg-purple-100 text-purple-700' },
 }
 
+// Helper to parse content that might be double-encoded JSON
+function parseContent(content: unknown): object | string {
+  if (!content) return ''
+
+  // If it's already an object with the right structure, return it
+  if (typeof content === 'object' && content !== null) {
+    const obj = content as Record<string, unknown>
+    if (obj.type === 'doc' && Array.isArray(obj.content)) {
+      return content as object
+    }
+  }
+
+  // If it's a string, try to parse it
+  if (typeof content === 'string') {
+    try {
+      const parsed = JSON.parse(content)
+      // Recursively parse in case it's double-encoded
+      return parseContent(parsed)
+    } catch {
+      // If it's not valid JSON, return as plain text for the editor
+      return content
+    }
+  }
+
+  return ''
+}
+
 // ==================== MAIN COMPONENT ====================
 
 export function SectionEditor({
@@ -110,7 +137,7 @@ export function SectionEditor({
       CharacterCount,
       Typography,
     ],
-    content: section.content as object || '',
+    content: parseContent(section.content),
     editable: !isLocked,
     onUpdate: ({ editor }) => {
       handleContentChange(editor.getJSON(), editor.getText())
@@ -127,9 +154,10 @@ export function SectionEditor({
   useEffect(() => {
     if (editor && section.content) {
       const currentContent = JSON.stringify(editor.getJSON())
-      const newContent = JSON.stringify(section.content)
+      const parsedContent = parseContent(section.content)
+      const newContent = JSON.stringify(parsedContent)
       if (currentContent !== newContent) {
-        editor.commands.setContent(section.content as object)
+        editor.commands.setContent(parsedContent)
       }
     }
   }, [editor, section.id, section.content])
