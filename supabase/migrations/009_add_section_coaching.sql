@@ -26,7 +26,8 @@ CREATE POLICY "Owner manages coaching"
   ON section_coaching FOR ALL
   USING (
     proposal_id IN (
-      SELECT id FROM proposals
-      WHERE user_id = auth.uid()
+      SELECT p.id FROM proposals p
+      JOIN companies c ON p.company_id = c.id
+      WHERE c.owner_id = auth.uid()
     )
   );
