@@ -583,7 +583,7 @@ function AISummaryPanel({
 
             {/* Key challenges */}
             <SummarySection label="Key challenges">
-              <div className="flex flex-wrap gap-1.5">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {(summary.keyChallenges || []).map((challenge, index) => {
                   // Cycle through semantic colors: red, amber, blue
                   const colorSchemes = [
@@ -595,12 +595,15 @@ function AISummaryPanel({
                   return (
                     <span
                       key={index}
-                      className="text-[11px] font-medium rounded-full"
                       style={{
+                        fontSize: '11px',
+                        fontWeight: 500,
                         padding: '4px 10px',
-                        backgroundColor: colors.bg,
+                        borderRadius: '20px',
+                        background: colors.bg,
                         color: colors.text,
                         border: `0.5px solid ${colors.border}`,
+                        display: 'inline-block',
                       }}
                     >
                       {challenge}
@@ -612,16 +615,19 @@ function AISummaryPanel({
 
             {/* Evaluation emphasis */}
             <SummarySection label="Evaluation emphasis">
-              <div className="flex flex-wrap gap-1.5">
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                 {(summary.evaluationEmphasis || []).map((factor, index) => (
                   <span
                     key={index}
-                    className="text-[11px] font-medium rounded-full"
                     style={{
+                      fontSize: '11px',
+                      fontWeight: 500,
                       padding: '4px 10px',
-                      backgroundColor: '#E6F1FB',
+                      borderRadius: '20px',
+                      background: '#E6F1FB',
                       color: '#042C53',
                       border: '0.5px solid #85B7EB',
+                      display: 'inline-block',
                     }}
                   >
                     {factor}
