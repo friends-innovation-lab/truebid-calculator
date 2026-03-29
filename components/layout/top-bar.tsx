@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Menu, X, LogOut, Settings, LayoutDashboard, Sun, Moon, Monitor } from 'lucide-react'
+import { LogOut, Settings, LayoutDashboard, Sun, Moon, Monitor } from 'lucide-react'
 import { Wordmark } from '@/components/ui/wordmark'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
+import { cn } from '@/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,24 +16,36 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 
+export type SectionId = 'scope' | 'staff' | 'write' | 'deliver'
+
 interface TopBarProps {
-  /** Current proposal title (if inside a proposal) */
-  proposalTitle?: string
-  /** Show mobile menu button */
-  showMobileMenu?: boolean
-  /** Mobile menu open state */
-  mobileMenuOpen?: boolean
-  /** Toggle mobile menu */
-  onMobileMenuToggle?: () => void
+  /** Current active section for phase progress */
+  activeSection?: SectionId
+  /** Section change handler */
+  onSectionChange?: (section: SectionId) => void
+  /** Show phase progress nav (proposal context) */
+  showPhaseProgress?: boolean
+  /** Contract type badge */
+  contractType?: string
+  /** Days until due */
+  daysUntilDue?: number | null
 }
+
+const PHASES: { id: SectionId; number: string; label: string }[] = [
+  { id: 'scope', number: '01', label: 'Scope' },
+  { id: 'staff', number: '02', label: 'Staff' },
+  { id: 'write', number: '03', label: 'Write' },
+  { id: 'deliver', number: '04', label: 'Deliver' },
+]
 
 type Theme = 'light' | 'dark' | 'system'
 
 export function TopBar({
-  proposalTitle,
-  showMobileMenu = false,
-  mobileMenuOpen = false,
-  onMobileMenuToggle
+  activeSection,
+  onSectionChange,
+  showPhaseProgress = false,
+  contractType,
+  daysUntilDue,
 }: TopBarProps) {
   const router = useRouter()
   const { user } = useAuth()
@@ -97,82 +110,97 @@ export function TopBar({
       .slice(0, 2)
   }
 
-  // Truncate proposal title
-  const truncatedTitle = proposalTitle && proposalTitle.length > 45
-    ? proposalTitle.slice(0, 45) + '...'
-    : proposalTitle
+  // Get active phase index for progress indicator
+  const activePhaseIndex = PHASES.findIndex(p => p.id === activeSection)
 
   return (
     <header
-      className="h-[var(--nav-height)] bg-ink sticky top-0 z-50"
-      style={{ borderBottom: '0.5px solid rgba(255,255,255,0.06)' }}
+      className="h-[var(--nav-height)] sticky top-0 z-50"
+      style={{
+        backgroundColor: 'var(--canvas)',
+        borderBottom: '2px solid var(--ink)',
+      }}
     >
-      <div className="h-full px-4 md:px-6 flex items-center justify-between">
-        {/* Left side */}
-        <div className="flex items-center gap-4">
-          {/* Mobile menu button */}
-          {showMobileMenu && (
-            <button
-              onClick={onMobileMenuToggle}
-              className="md:hidden p-1.5 -ml-1.5 rounded-md text-white/40 hover:text-white/70 hover:bg-white/5 transition-fast"
-              aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
-            >
-              {mobileMenuOpen ? (
-                <X className="w-6 h-6" />
-              ) : (
-                <Menu className="w-6 h-6" />
-              )}
-            </button>
-          )}
-
-          {/* Wordmark */}
-          <Wordmark variant="default" />
-
-          {/* Separator + Proposal breadcrumb */}
-          {proposalTitle && (
-            <>
-              {/* Separator line */}
-              <div
-                className="hidden sm:block w-[0.5px] h-4 bg-white/15"
-                aria-hidden="true"
-              />
-
-              {/* Breadcrumb */}
-              <nav className="hidden sm:flex items-center gap-2 text-sm" aria-label="Breadcrumb">
-                <Link
-                  href="/dashboard"
-                  className="text-[11px] text-white/30 hover:text-white/60 transition-fast"
-                >
-                  Dashboard
-                </Link>
-                <span className="text-white/15" aria-hidden="true">/</span>
-                <span className="text-[13px] text-white/65 truncate max-w-[280px]">
-                  {truncatedTitle}
-                </span>
-              </nav>
-            </>
-          )}
+      <div className="h-full px-6 flex items-center justify-between">
+        {/* Left: Wordmark */}
+        <div className="flex items-center">
+          <Wordmark variant="light" />
         </div>
 
-        {/* Right side */}
-        <div className="flex items-center gap-1">
-          {/* Tools */}
-          <Link href="/tools">
-            <button className="px-3 py-1.5 text-[12px] text-white/40 hover:text-white/70 transition-fast rounded-md hover:bg-white/5">
-              Tools
-            </button>
+        {/* Center: Phase Progress Nav */}
+        {showPhaseProgress && (
+          <nav className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1" role="tablist" aria-label="Proposal phases">
+            {PHASES.map((phase, index) => {
+              const isActive = activeSection === phase.id
+              const isPast = index < activePhaseIndex
+
+              return (
+                <button
+                  key={phase.id}
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={() => onSectionChange?.(phase.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-[12px] transition-fast',
+                    isActive
+                      ? 'bg-ink text-white font-medium'
+                      : isPast
+                        ? 'text-text-primary hover:bg-surface-2'
+                        : 'text-text-tertiary hover:text-text-secondary hover:bg-surface-2'
+                  )}
+                >
+                  <span className={cn(
+                    'font-mono text-[10px]',
+                    isActive ? 'text-signal' : 'opacity-50'
+                  )}>
+                    {phase.number}
+                  </span>
+                  <span>{phase.label}</span>
+                </button>
+              )
+            })}
+
+            {/* Status badges */}
+            {(contractType || daysUntilDue !== null && daysUntilDue !== undefined) && (
+              <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
+                {contractType && (
+                  <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-surface-2 text-text-secondary">
+                    {contractType}
+                  </span>
+                )}
+                {daysUntilDue !== null && daysUntilDue !== undefined && (
+                  <span
+                    className={cn(
+                      'px-2 py-0.5 text-[10px] font-medium rounded',
+                      daysUntilDue < 0
+                        ? 'bg-danger-bg text-danger'
+                        : daysUntilDue <= 14
+                          ? 'bg-warning-bg text-warning'
+                          : 'bg-surface-2 text-text-secondary'
+                    )}
+                  >
+                    {daysUntilDue < 0
+                      ? `${Math.abs(daysUntilDue)}d overdue`
+                      : `${daysUntilDue}d until due`}
+                  </span>
+                )}
+              </div>
+            )}
+          </nav>
+        )}
+
+        {/* Right: Avatar Menu */}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/tools"
+            className="text-[12px] text-text-secondary hover:text-text-primary transition-fast"
+          >
+            Tools
           </Link>
-
-          {/* Help */}
-          <button className="px-3 py-1.5 text-[12px] text-white/40 hover:text-white/70 transition-fast rounded-md hover:bg-white/5">
-            Help
-          </button>
-
-          {/* Avatar dropdown */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
-                className="ml-2 focus-ring rounded-full"
+                className="focus-ring rounded-full"
                 aria-label="Account menu"
               >
                 {userProfile.avatarUrl ? (

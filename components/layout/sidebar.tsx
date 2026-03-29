@@ -1,14 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
-import { ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  TooltipProvider,
-} from '@/components/ui/tooltip'
 
 export interface SidebarItem {
   id: string
@@ -26,8 +19,6 @@ interface SidebarProps {
   groups: SidebarGroup[]
   activeItemId: string
   onItemClick: (itemId: string) => void
-  /** Collapsed mode (icons only) */
-  collapsed?: boolean
   /** Mobile overlay mode */
   mobileOpen?: boolean
   onMobileClose?: () => void
@@ -38,7 +29,6 @@ export function Sidebar({
   groups,
   activeItemId,
   onItemClick,
-  collapsed = false,
   mobileOpen = false,
   onMobileClose,
   className,
@@ -57,34 +47,33 @@ export function Sidebar({
   const sidebarContent = (
     <nav
       className={cn(
-        'h-full bg-ink overflow-y-auto pt-2',
-        collapsed ? 'w-12' : 'w-[var(--sidebar-width)]',
+        'h-full w-[var(--sidebar-width)] overflow-y-auto py-4 shrink-0',
         className
       )}
-      style={{ borderRight: '0.5px solid rgba(255,255,255,0.06)' }}
+      style={{
+        backgroundColor: 'var(--canvas)',
+        borderRight: '0.5px solid var(--border)',
+      }}
       aria-label="Section navigation"
     >
-      <TooltipProvider delayDuration={0}>
-        <div className="space-y-4 px-1">
-          {groups.map((group) => (
-            <div key={group.label}>
-              {/* Group label */}
-              {!collapsed && (
-                <p
-                  className="text-micro px-3 py-2"
-                  style={{ color: 'rgba(255,255,255,0.2)' }}
-                >
-                  {group.label}
-                </p>
-              )}
+      <div className="space-y-6">
+        {groups.map((group) => (
+          <div key={group.label}>
+            {/* Group label */}
+            <p
+              className="text-micro px-4 pb-2"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
+              {group.label}
+            </p>
 
-              {/* Items */}
-              <ul className="space-y-0.5">
-                {group.items.map((item) => {
-                  const Icon = item.icon
-                  const isActive = activeItemId === item.id
+            {/* Items */}
+            <ul className="space-y-0.5">
+              {group.items.map((item) => {
+                const isActive = activeItemId === item.id
 
-                  const button = (
+                return (
+                  <li key={item.id}>
                     <button
                       onClick={() => {
                         onItemClick(item.id)
@@ -93,58 +82,26 @@ export function Sidebar({
                         }
                       }}
                       className={cn(
-                        'w-full flex items-center gap-2 rounded-md transition-fast',
-                        collapsed ? 'px-3 py-2 justify-center' : 'px-3 py-[7px] mx-1',
+                        'w-full flex items-center px-4 py-2 text-[13px] transition-fast text-left',
                         isActive
                           ? 'font-medium'
-                          : 'hover:bg-white/5'
+                          : 'hover:bg-surface-2'
                       )}
                       style={{
-                        backgroundColor: isActive ? 'rgba(245,194,0,0.10)' : undefined,
-                        color: isActive ? 'var(--signal)' : 'rgba(255,255,255,0.45)',
+                        borderLeft: isActive ? '2px solid var(--signal)' : '2px solid transparent',
+                        color: isActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                        backgroundColor: isActive ? 'var(--surface-2)' : undefined,
                       }}
                     >
-                      <span className="w-4 h-4 shrink-0 flex items-center justify-center">
-                        <Icon className="w-4 h-4" />
-                      </span>
-                      {!collapsed && (
-                        <>
-                          <span className="text-[12px] truncate flex-1 text-left">
-                            {item.label}
-                          </span>
-                          {item.isPanel && (
-                            <ChevronRight
-                              className="w-3.5 h-3.5 shrink-0 text-white/20"
-                            />
-                          )}
-                        </>
-                      )}
+                      <span className="truncate">{item.label}</span>
                     </button>
-                  )
-
-                  // Wrap in tooltip when collapsed
-                  if (collapsed) {
-                    return (
-                      <li key={item.id}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            {button}
-                          </TooltipTrigger>
-                          <TooltipContent side="right" sideOffset={8}>
-                            {item.label}
-                          </TooltipContent>
-                        </Tooltip>
-                      </li>
-                    )
-                  }
-
-                  return <li key={item.id}>{button}</li>
-                })}
-              </ul>
-            </div>
-          ))}
-        </div>
-      </TooltipProvider>
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+        ))}
+      </div>
     </nav>
   )
 

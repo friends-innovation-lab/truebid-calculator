@@ -1,8 +1,8 @@
 'use client'
 
 import { useState, useMemo, ReactNode } from 'react'
-import { TopBar } from './top-bar'
-import { ProposalTabs, SectionId } from './proposal-tabs'
+import { TopBar, SectionId } from './top-bar'
+import { IconRail, IconRailItem } from './icon-rail'
 import { Sidebar, SidebarGroup } from './sidebar'
 import { useAppContext } from '@/contexts/app-context'
 import {
@@ -14,13 +14,21 @@ import {
   Users,
   Shield,
   Building2,
-  CheckCircle2,
   FileDown,
   Link2,
   PenLine,
   Target,
   ListChecks,
+  Eye,
 } from 'lucide-react'
+
+// Icon rail items for each section
+const SECTION_ICONS: IconRailItem[] = [
+  { id: 'scope', label: 'Scope', icon: Target },
+  { id: 'staff', label: 'Staff', icon: Users },
+  { id: 'write', label: 'Write', icon: PenLine },
+  { id: 'deliver', label: 'Deliver', icon: FileDown },
+]
 
 // Section configurations
 const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
@@ -77,7 +85,7 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
     {
       label: 'Review',
       items: [
-        { id: 'proposal-status', label: 'Proposal Status', icon: CheckCircle2 },
+        { id: 'proposal-status', label: 'Proposal Status', icon: Eye },
         { id: 'boe-preview', label: 'BOE Preview', icon: FileText },
       ],
     },
@@ -116,8 +124,6 @@ export function ProposalLayout({
 }: ProposalLayoutProps) {
   const { solicitation } = useAppContext()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  // Future: tablet mode collapsed sidebar
-  const isTabletCollapsed = false
 
   // Calculate days until due
   const daysUntilDue = useMemo(() => {
@@ -137,35 +143,36 @@ export function ProposalLayout({
     onViewChange(SECTION_DEFAULT_VIEWS[section])
   }
 
-  // Detect tablet mode for collapsed sidebar
-  // In real implementation, you'd use a resize observer or media query hook
+  // Handle icon rail click
+  const handleIconRailClick = (sectionId: string) => {
+    handleSectionChange(sectionId as SectionId)
+  }
 
   return (
     <div className="flex flex-col h-screen">
-      {/* Top Bar */}
+      {/* Top Bar with Phase Progress */}
       <TopBar
-        proposalTitle={solicitation?.title || 'Untitled Proposal'}
-        showMobileMenu
-        mobileMenuOpen={mobileMenuOpen}
-        onMobileMenuToggle={() => setMobileMenuOpen(!mobileMenuOpen)}
-      />
-
-      {/* Proposal Tabs */}
-      <ProposalTabs
         activeSection={activeSection}
         onSectionChange={handleSectionChange}
+        showPhaseProgress
         contractType={solicitation?.contractType}
         daysUntilDue={daysUntilDue}
       />
 
-      {/* Body: Sidebar + Content */}
+      {/* Body: Icon Rail + Sidebar + Content */}
       <div className="flex flex-1 min-h-0">
-        {/* Sidebar */}
+        {/* Icon Rail (dark, left) */}
+        <IconRail
+          items={SECTION_ICONS}
+          activeItemId={activeSection}
+          onItemClick={handleIconRailClick}
+        />
+
+        {/* Content Sidebar (light) */}
         <Sidebar
           groups={currentGroups}
           activeItemId={activeView}
           onItemClick={onViewChange}
-          collapsed={isTabletCollapsed}
           mobileOpen={mobileMenuOpen}
           onMobileClose={() => setMobileMenuOpen(false)}
         />
@@ -173,7 +180,7 @@ export function ProposalLayout({
         {/* Main content */}
         <main
           className="flex-1 overflow-y-auto"
-          style={{ backgroundColor: 'var(--canvas)' }}
+          style={{ backgroundColor: 'var(--surface)' }}
         >
           <div className="p-6">
             {children}

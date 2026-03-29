@@ -4,33 +4,29 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 
 interface WordmarkProps {
-  variant?: 'default' | 'large'
+  /** Light variant for light backgrounds, dark for dark icon rail */
+  variant?: 'light' | 'dark'
   linkTo?: string
   className?: string
 }
 
-export function Wordmark({ variant = 'default', linkTo = '/dashboard', className }: WordmarkProps) {
+export function Wordmark({ variant = 'light', linkTo = '/dashboard', className }: WordmarkProps) {
+  const isDark = variant === 'dark'
+
   const content = (
     <div className={cn('flex flex-col leading-none', className)}>
-      {variant === 'default' ? (
-        <>
-          <span className="wordmark-primary text-[14px] text-white tracking-[-0.5px]">
-            TrueBid
-          </span>
-          <span className="wordmark-cursive text-[10px] leading-[1.4]">
-            by Friends
-          </span>
-        </>
-      ) : (
-        <>
-          <span className="wordmark-primary text-[24px] text-ink tracking-[-0.8px]">
-            TrueBid
-          </span>
-          <span className="wordmark-cursive text-[14px] leading-[1.4]">
-            by Friends
-          </span>
-        </>
-      )}
+      <span
+        className="font-extrabold text-[20px] tracking-[-0.5px]"
+        style={{ color: isDark ? '#FFFFFF' : '#111110' }}
+      >
+        TrueBid
+      </span>
+      <span
+        className="wordmark-cursive text-[11px] leading-[1.3] -mt-[1px]"
+        style={{ color: 'var(--signal)' }}
+      >
+        by Friends
+      </span>
     </div>
   )
 

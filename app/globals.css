@@ -100,10 +100,10 @@
   --ink-border: rgba(255,255,255,0.08);
   --signal: #F5C200;
   --signal-bg: rgba(245,194,0,0.10);
-  --canvas: #FAFAF9;
+  --canvas: #FBF9F5;
   --surface: #FFFFFF;
-  --surface-2: #F4F3EF;
-  --border: #E8E7E2;
+  --surface-2: #F0EDE6;
+  --border: #E5E2DA;
   --border-mid: #D4D3CE;
 
   /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -146,12 +146,12 @@
   --transition-exit: 150ms ease-in;
 
   /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-     Layout Constants
+     Layout Constants (Concept 1 — The Document)
      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
-  --nav-height: 44px;
-  --sidebar-width: 216px;
+  --nav-height: 56px;
+  --icon-rail-width: 56px;
+  --sidebar-width: 196px;
   --panel-width: 560px;
-  --tabs-height: 40px;
 
   /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
      Shadcn Compatibility Tokens (preserved)

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { LogOut, Settings, Sun, Moon, Monitor, LayoutDashboard } from 'lucide-react'
+import { Wordmark } from '@/components/ui/wordmark'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
 import {
@@ -97,25 +98,16 @@ export function DashboardTopBar() {
 
   return (
     <header
-      className="h-[52px] bg-surface sticky top-0 z-50"
-      style={{ borderBottom: '0.5px solid var(--border)' }}
+      className="h-[var(--nav-height)] sticky top-0 z-50"
+      style={{
+        backgroundColor: 'var(--canvas)',
+        borderBottom: '2px solid var(--ink)',
+      }}
     >
       <div className="h-full px-6 flex items-center justify-between max-w-7xl mx-auto">
         {/* Left side: Wordmark */}
         <div className="flex items-center gap-8">
-          {/* Wordmark - light variant inline since we need dark text */}
-          <Link
-            href="/dashboard"
-            className="flex flex-col leading-none focus-ring rounded-sm transition-fast hover:opacity-80"
-            aria-label="TrueBid - Go to dashboard"
-          >
-            <span className="wordmark-primary text-[14px] text-ink tracking-[-0.5px]">
-              TrueBid
-            </span>
-            <span className="wordmark-cursive text-[10px] leading-[1.4]">
-              by Friends
-            </span>
-          </Link>
+          <Wordmark variant="light" />
 
           {/* Nav links */}
           <nav className="hidden sm:flex items-center h-full" aria-label="Main navigation">
@@ -126,7 +118,7 @@ export function DashboardTopBar() {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    'h-full flex items-center px-3 text-[13px] border-b-2 -mb-[0.5px] transition-fast',
+                    'h-full flex items-center px-3 text-[13px] border-b-2 -mb-[2px] transition-fast',
                     isActive
                       ? 'text-text-primary border-signal font-medium'
                       : 'text-text-secondary border-transparent hover:text-text-primary'
