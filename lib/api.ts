@@ -260,6 +260,43 @@ export const publicBoeApi = {
     fetch(`${API_BASE}/boe/${token}`).then(handleResponse),
 }
 
+// Content Library
+export const contentLibraryApi = {
+  list: (type?: string) => {
+    const params = type ? `?type=${type}` : ''
+    return fetch(`${API_BASE}/content-library${params}`).then(handleResponse)
+  },
+
+  get: (itemId: string) =>
+    fetch(`${API_BASE}/content-library/${itemId}`).then(handleResponse),
+
+  create: (data: { type: string; title: string; content?: Record<string, unknown>; tags?: string[] }) =>
+    fetch(`${API_BASE}/content-library`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  update: (itemId: string, data: { title?: string; content?: Record<string, unknown>; tags?: string[]; is_active?: boolean }) =>
+    fetch(`${API_BASE}/content-library/${itemId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  delete: (itemId: string) =>
+    fetch(`${API_BASE}/content-library/${itemId}`, {
+      method: 'DELETE',
+    }).then(handleResponse),
+
+  recordUse: (itemId: string, proposalId: string) =>
+    fetch(`${API_BASE}/content-library/${itemId}/use`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ proposal_id: proposalId }),
+    }).then(handleResponse),
+}
+
 // Compliance Matrix
 export const complianceApi = {
   list: (proposalId: string) =>
