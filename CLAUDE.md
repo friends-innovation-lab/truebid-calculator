@@ -158,3 +158,7 @@ See `.env.example` for required keys:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon/public key
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role key (server only)
 - `ANTHROPIC_API_KEY` — Anthropic Claude API key (server only)
+
+## AI Features
+
+- **Shipley PDF:** Available via `SHIPLEY_PDF_URL` env var. Used as knowledge base for the Phase 4 coaching engine. Never commit the actual URL to the repository.
