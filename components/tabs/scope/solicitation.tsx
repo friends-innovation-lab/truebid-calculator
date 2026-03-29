@@ -886,27 +886,54 @@ export function Solicitation() {
 
   // Handle file upload
   const handleFileUpload = async (file: File) => {
-    // Create URL for PDF viewer
-    const url = URL.createObjectURL(file)
+    // Create temporary blob URL for immediate display
+    const tempUrl = URL.createObjectURL(file)
 
     // Get page count
     let numPages = 1
     try {
-      const pdf = await pdfjs.getDocument(url).promise
+      const pdf = await pdfjs.getDocument(tempUrl).promise
       numPages = pdf.numPages
     } catch (error) {
       console.error('Failed to get page count:', error)
     }
 
+    // Set state with temp URL for immediate display
     setPdfState({
       file,
-      url,
+      url: tempUrl,
       numPages,
       currentPage: 1,
       scale: 1,
       fileName: file.name,
       uploadDate: new Date().toISOString(),
     })
+
+    // Upload to storage in parallel with extraction
+    if (proposalId) {
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', file)
+
+      fetch(`/api/proposals/${proposalId}/upload-pdf`, {
+        method: 'POST',
+        body: uploadFormData,
+      })
+        .then(async (res) => {
+          if (res.ok) {
+            const data = await res.json()
+            // Update state with persistent URL
+            setPdfState(prev => ({
+              ...prev,
+              url: data.pdfUrl,
+            }))
+            // Clean up blob URL
+            URL.revokeObjectURL(tempUrl)
+          }
+        })
+        .catch((err) => {
+          console.warn('[Solicitation] Failed to persist PDF:', err)
+        })
+    }
 
     // Start AI extraction
     await extractRFP(file)
