@@ -120,8 +120,26 @@ export async function PUT(
       : body.periodOfPerformance
   }
   if (body.description !== undefined) updateData.description = body.description
-  if (body.working_data !== undefined) updateData.working_data = body.working_data
-  if (body.workingData !== undefined) updateData.working_data = body.workingData
+
+  // Merge working_data with existing data to preserve fields like solicitationRawText
+  const newWorkingData = body.working_data || body.workingData
+  if (newWorkingData !== undefined) {
+    // Fetch existing working_data to merge
+    const { data: existing } = await supabase
+      .from('proposals')
+      .select('working_data')
+      .eq('id', id)
+      .single()
+
+    const existingWorkingData = existing?.working_data || {}
+    updateData.working_data = {
+      ...existingWorkingData,
+      ...newWorkingData,
+    }
+    console.log('[PUT /api/proposals] Merged working_data, preserved keys:',
+      Object.keys(existingWorkingData).filter(k => !(k in newWorkingData)))
+  }
+
   if (body.strategy !== undefined) updateData.strategy = body.strategy
   if (body.ai_summary !== undefined) updateData.ai_summary = body.ai_summary
   if (body.aiSummary !== undefined) updateData.ai_summary = body.aiSummary
