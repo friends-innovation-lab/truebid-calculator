@@ -316,7 +316,7 @@ export async function POST(
 
           if (jsonStart !== -1 && jsonEnd !== -1) {
             const wbsLinks = JSON.parse(cleanedWbsLink.slice(jsonStart, jsonEnd + 1))
-            const wbsLinkMap = new Map(
+            const wbsLinkMap = new Map<string, string[]>(
               wbsLinks.map((link: { requirement_id: string; wbs_ids: string[] }) => [
                 link.requirement_id,
                 link.wbs_ids || [],
@@ -325,9 +325,9 @@ export async function POST(
 
             // Apply WBS links to itemsToInsert
             for (const item of itemsToInsert) {
-              const suggestedWbsIds = wbsLinkMap.get(item.requirement_id) || []
+              const suggestedWbsIds: string[] = wbsLinkMap.get(item.requirement_id) || []
               // Filter to only valid WBS IDs that exist
-              const validWbsIds = suggestedWbsIds.filter((wbsId: string) =>
+              const validWbsIds = suggestedWbsIds.filter((wbsId) =>
                 wbsElements.some(w => w.id === wbsId)
               )
               if (validWbsIds.length > 0) {
