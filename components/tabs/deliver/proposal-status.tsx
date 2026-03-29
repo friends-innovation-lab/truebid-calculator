@@ -41,6 +41,10 @@ export function ProposalStatus() {
   const [outlineStatus, setOutlineStatus] = useState<'none' | 'pending' | 'complete'>('none')
   const [outlineDescription, setOutlineDescription] = useState('No outline generated')
 
+  // Coaching status
+  const [coachingStatus, setCoachingStatus] = useState<'none' | 'pending' | 'complete'>('none')
+  const [coachingDescription, setCoachingDescription] = useState('No sections coached yet')
+
   // Load strategy data
   useEffect(() => {
     if (!proposalId) return
@@ -176,6 +180,69 @@ export function ProposalStatus() {
     checkOutline()
   }, [proposalId])
 
+  // Load coaching status
+  useEffect(() => {
+    if (!proposalId) return
+    async function checkCoaching() {
+      try {
+        // First get sections
+        const sectionsResponse = await sectionsApi.list(proposalId) as {
+          sections: { id: string }[]
+        }
+        const sections = sectionsResponse.sections || []
+
+        if (sections.length === 0) {
+          setCoachingStatus('none')
+          setCoachingDescription('No sections to coach')
+          return
+        }
+
+        // Fetch coaching for each section
+        let coachedCount = 0
+        let belowThresholdCount = 0
+
+        for (const section of sections) {
+          try {
+            const response = await fetch(
+              `/api/proposals/${proposalId}/sections/${section.id}/coach`
+            )
+            if (response.ok) {
+              const data = await response.json()
+              if (data.history?.length > 0) {
+                coachedCount++
+                const latest = data.history[0]
+                const scores = latest.scores || {}
+                const avgScore = Object.values(scores).reduce((a: number, b) => a + (b as number), 0) / 5
+                if (avgScore < 3.5) {
+                  belowThresholdCount++
+                }
+              }
+            }
+          } catch {
+            // Skip this section
+          }
+        }
+
+        if (coachedCount === 0) {
+          setCoachingStatus('none')
+          setCoachingDescription('No sections coached yet')
+        } else if (belowThresholdCount > 0) {
+          setCoachingStatus('pending')
+          setCoachingDescription(`${coachedCount} coached, ${belowThresholdCount} below 3.5 average`)
+        } else if (coachedCount === sections.length) {
+          setCoachingStatus('complete')
+          setCoachingDescription(`All ${coachedCount} sections coached and passing`)
+        } else {
+          setCoachingStatus('pending')
+          setCoachingDescription(`${coachedCount} of ${sections.length} sections coached`)
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    checkCoaching()
+  }, [proposalId])
+
   const totalValue = selectedRoles.reduce((sum, r) => {
     const activeYears = Object.values(r.years).filter(Boolean).length
     return sum + r.baseSalary * r.fte * activeYears
@@ -238,6 +305,12 @@ export function ProposalStatus() {
       description: outlineDescription,
       complete: outlineStatus === 'complete',
       pending: outlineStatus === 'pending',
+    },
+    {
+      label: 'Sections coached',
+      description: coachingDescription,
+      complete: coachingStatus === 'complete',
+      pending: coachingStatus === 'pending',
     },
   ]
 

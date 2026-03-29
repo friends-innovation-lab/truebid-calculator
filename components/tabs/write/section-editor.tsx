@@ -36,9 +36,11 @@ import {
   Lock,
   Unlock,
   User,
+  GraduationCap,
 } from 'lucide-react'
 import { sectionsApi, contentLibraryApi } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { CoachingPanel } from './coaching-panel'
 
 // ==================== TYPES ====================
 
@@ -120,6 +122,7 @@ export function SectionEditor({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [showLibrary, setShowLibrary] = useState(false)
   const [showConfirmDraft, setShowConfirmDraft] = useState(false)
+  const [showCoaching, setShowCoaching] = useState(false)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const isLocked = section.status === 'locked'
 
@@ -316,6 +319,14 @@ export function SectionEditor({
                 <Sparkles className="w-4 h-4 mr-1.5" />
                 {isGeneratingDraft ? 'Writing...' : 'Get AI Draft'}
               </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowCoaching(true)}
+              >
+                <GraduationCap className="w-4 h-4 mr-1.5" />
+                Coach
+              </Button>
             </>
           )}
         </div>
@@ -428,6 +439,17 @@ export function SectionEditor({
             editor.chain().focus().insertContent(text).run()
             setShowLibrary(false)
           }}
+        />
+      )}
+
+      {/* Coaching Panel */}
+      {showCoaching && (
+        <CoachingPanel
+          proposalId={proposalId}
+          sectionId={section.id}
+          sectionTitle={section.title}
+          hasContent={Boolean(section.contentText?.trim())}
+          onClose={() => setShowCoaching(false)}
         />
       )}
     </div>
