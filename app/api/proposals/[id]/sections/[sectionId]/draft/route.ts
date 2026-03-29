@@ -210,108 +210,113 @@ function createTipTapDocument(blocks: Array<{
 
 // Convert markdown-like text to TipTap JSON
 function markdownToTipTap(text: string): TipTapContent {
-  const lines = text.split('\n')
   const content: TipTapContent[] = []
   let currentList: TipTapContent | null = null
   let currentListType: 'bulletList' | 'orderedList' | null = null
 
-  for (const line of lines) {
-    const trimmedLine = line.trim()
+  // Split by double newlines to preserve paragraph breaks
+  const paragraphs = text.split(/\n\n+/)
 
-    // Empty line - close any open list
-    if (!trimmedLine) {
-      if (currentList) {
-        content.push(currentList)
-        currentList = null
-        currentListType = null
-      }
-      continue
-    }
+  for (const paragraph of paragraphs) {
+    const trimmedParagraph = paragraph.trim()
+    if (!trimmedParagraph) continue
 
-    // Heading 2
-    if (trimmedLine.startsWith('## ')) {
-      if (currentList) {
-        content.push(currentList)
-        currentList = null
-        currentListType = null
-      }
-      content.push({
-        type: 'heading',
-        attrs: { level: 2 },
-        content: [{ type: 'text', text: trimmedLine.slice(3) }],
-      })
-      continue
-    }
+    // Check if this paragraph contains list items or headings
+    const lines = trimmedParagraph.split('\n')
 
-    // Heading 3
-    if (trimmedLine.startsWith('### ')) {
-      if (currentList) {
-        content.push(currentList)
-        currentList = null
-        currentListType = null
-      }
-      content.push({
-        type: 'heading',
-        attrs: { level: 3 },
-        content: [{ type: 'text', text: trimmedLine.slice(4) }],
-      })
-      continue
-    }
+    for (const line of lines) {
+      const trimmedLine = line.trim()
+      if (!trimmedLine) continue
 
-    // Bullet list item
-    if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
-      if (currentListType !== 'bulletList') {
-        if (currentList) content.push(currentList)
-        currentList = { type: 'bulletList', content: [] }
-        currentListType = 'bulletList'
-      }
-      if (currentList && currentList.content) {
-        currentList.content.push({
-          type: 'listItem',
-          content: [{
-            type: 'paragraph',
-            content: parseInlineFormatting(trimmedLine.slice(2)),
-          }],
+      // Heading 2
+      if (trimmedLine.startsWith('## ')) {
+        if (currentList) {
+          content.push(currentList)
+          currentList = null
+          currentListType = null
+        }
+        content.push({
+          type: 'heading',
+          attrs: { level: 2 },
+          content: [{ type: 'text', text: trimmedLine.slice(3) }],
         })
+        continue
       }
-      continue
-    }
 
-    // Numbered list item
-    const numberedMatch = trimmedLine.match(/^\d+\.\s+(.*)$/)
-    if (numberedMatch) {
-      if (currentListType !== 'orderedList') {
-        if (currentList) content.push(currentList)
-        currentList = { type: 'orderedList', content: [] }
-        currentListType = 'orderedList'
-      }
-      if (currentList && currentList.content) {
-        currentList.content.push({
-          type: 'listItem',
-          content: [{
-            type: 'paragraph',
-            content: parseInlineFormatting(numberedMatch[1]),
-          }],
+      // Heading 3
+      if (trimmedLine.startsWith('### ')) {
+        if (currentList) {
+          content.push(currentList)
+          currentList = null
+          currentListType = null
+        }
+        content.push({
+          type: 'heading',
+          attrs: { level: 3 },
+          content: [{ type: 'text', text: trimmedLine.slice(4) }],
         })
+        continue
       }
-      continue
+
+      // Bullet list item
+      if (trimmedLine.startsWith('- ') || trimmedLine.startsWith('* ')) {
+        if (currentListType !== 'bulletList') {
+          if (currentList) content.push(currentList)
+          currentList = { type: 'bulletList', content: [] }
+          currentListType = 'bulletList'
+        }
+        if (currentList && currentList.content) {
+          currentList.content.push({
+            type: 'listItem',
+            content: [{
+              type: 'paragraph',
+              content: parseInlineFormatting(trimmedLine.slice(2)),
+            }],
+          })
+        }
+        continue
+      }
+
+      // Numbered list item
+      const numberedMatch = trimmedLine.match(/^\d+\.\s+(.*)$/)
+      if (numberedMatch) {
+        if (currentListType !== 'orderedList') {
+          if (currentList) content.push(currentList)
+          currentList = { type: 'orderedList', content: [] }
+          currentListType = 'orderedList'
+        }
+        if (currentList && currentList.content) {
+          currentList.content.push({
+            type: 'listItem',
+            content: [{
+              type: 'paragraph',
+              content: parseInlineFormatting(numberedMatch[1]),
+            }],
+          })
+        }
+        continue
+      }
+
+      // Regular text line - close any list first
+      if (currentList) {
+        content.push(currentList)
+        currentList = null
+        currentListType = null
+      }
+
+      // Add as paragraph
+      content.push({
+        type: 'paragraph',
+        content: parseInlineFormatting(trimmedLine),
+      })
     }
 
-    // Regular paragraph
+    // Close any list at end of paragraph block
     if (currentList) {
       content.push(currentList)
       currentList = null
       currentListType = null
     }
-    content.push({
-      type: 'paragraph',
-      content: parseInlineFormatting(trimmedLine),
-    })
-  }
-
-  // Close any remaining list
-  if (currentList) {
-    content.push(currentList)
   }
 
   return {

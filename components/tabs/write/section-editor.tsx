@@ -155,12 +155,17 @@ export function SectionEditor({
 
   // Update editor content when section changes
   useEffect(() => {
-    if (editor && section.content) {
-      const currentContent = JSON.stringify(editor.getJSON())
-      const parsedContent = parseContent(section.content)
-      const newContent = JSON.stringify(parsedContent)
-      if (currentContent !== newContent) {
-        editor.commands.setContent(parsedContent)
+    if (editor) {
+      if (section.content) {
+        const currentContent = JSON.stringify(editor.getJSON())
+        const parsedContent = parseContent(section.content)
+        const newContent = JSON.stringify(parsedContent)
+        if (currentContent !== newContent) {
+          editor.commands.setContent(parsedContent)
+        }
+      } else {
+        // Clear editor when section has no content
+        editor.commands.clearContent()
       }
     }
   }, [editor, section.id, section.content])
