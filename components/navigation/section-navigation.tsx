@@ -58,6 +58,7 @@ import { StrategyTab } from '@/components/tabs/scope/strategy-tab'
 import { SolicitationSummary } from '@/components/tabs/scope/solicitation-summary'
 import { ComplianceMatrix } from '@/components/tabs/scope/compliance-matrix'
 import { Outline } from '@/components/tabs/write/outline'
+import { TechnicalVolume } from '@/components/tabs/write/technical-volume'
 
 // ==================== TYPES ====================
 
@@ -79,6 +80,7 @@ type ViewId =
   | 'director-review'
   // Write
   | 'outline'
+  | 'technical-editor'
   // Deliver
   | 'proposal-status'
   | 'boe-preview'
@@ -162,6 +164,7 @@ const SECTIONS: SectionConfig[] = [
         label: 'Technical Volume',
         items: [
           { id: 'outline', label: 'Proposal Outline', icon: PenLine },
+          { id: 'technical-editor', label: 'Write Content', icon: FileText },
         ],
       },
     ],
@@ -548,6 +551,9 @@ export function SectionNavigation() {
               {/* WRITE views */}
               {activeView === 'outline' && activeSection === 'write' && (
                 <Outline />
+              )}
+              {activeView === 'technical-editor' && activeSection === 'write' && (
+                <TechnicalVolume />
               )}
 
               {/* DELIVER views */}

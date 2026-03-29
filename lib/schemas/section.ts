@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 // Status values for proposal sections
-export const sectionStatusSchema = z.enum(['draft', 'in_progress', 'review', 'complete'])
+export const sectionStatusSchema = z.enum(['draft', 'in_progress', 'review', 'complete', 'locked'])
 export type SectionStatus = z.infer<typeof sectionStatusSchema>
 
 // Create section schema
@@ -18,7 +18,9 @@ export const sectionCreateSchema = z.object({
   title: z.string().min(1, 'Title is required').max(500),
 
   summary: z.string().max(2000).optional(),
-  content: z.string().max(50000).optional(),
+  content: z.unknown().optional(), // JSONB - TipTap document
+  content_text: z.string().max(100000).optional(), // Plain text for search
+  contentText: z.string().max(100000).optional(),
   instructions: z.string().max(5000).optional(),
 
   compliance_item_ids: z.array(z.string()).optional(),
@@ -37,6 +39,12 @@ export const sectionCreateSchema = z.object({
 
   ai_generated: z.boolean().optional(),
   aiGenerated: z.boolean().optional(),
+
+  last_edited_by: z.string().max(200).optional(),
+  lastEditedBy: z.string().max(200).optional(),
+
+  last_edited_at: z.string().optional(),
+  lastEditedAt: z.string().optional(),
 })
 
 export const sectionUpdateSchema = sectionCreateSchema.partial()

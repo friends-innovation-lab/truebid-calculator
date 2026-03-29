@@ -10,7 +10,8 @@ function transformToDb(data: Record<string, unknown>) {
     section_number: data.sectionNumber ?? data.section_number,
     title: data.title,
     summary: data.summary,
-    content: data.content,
+    content: data.content, // JSONB - TipTap document
+    content_text: data.contentText ?? data.content_text, // Plain text for search
     instructions: data.instructions,
     compliance_item_ids: data.complianceItemIds ?? data.compliance_item_ids ?? [],
     requirement_refs: data.requirementRefs ?? data.requirement_refs ?? [],
@@ -19,6 +20,8 @@ function transformToDb(data: Record<string, unknown>) {
     owner: data.owner,
     notes: data.notes,
     ai_generated: data.aiGenerated ?? data.ai_generated ?? false,
+    last_edited_by: data.lastEditedBy ?? data.last_edited_by,
+    last_edited_at: data.lastEditedAt ?? data.last_edited_at,
   }
 }
 
@@ -32,7 +35,8 @@ function transformFromDb(row: Record<string, unknown>) {
     sectionNumber: row.section_number,
     title: row.title,
     summary: row.summary,
-    content: row.content,
+    content: row.content, // JSONB - TipTap document
+    contentText: row.content_text, // Plain text
     instructions: row.instructions,
     complianceItemIds: row.compliance_item_ids,
     requirementRefs: row.requirement_refs,
@@ -42,6 +46,8 @@ function transformFromDb(row: Record<string, unknown>) {
     owner: row.owner,
     notes: row.notes,
     aiGenerated: row.ai_generated,
+    lastEditedBy: row.last_edited_by,
+    lastEditedAt: row.last_edited_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -83,6 +89,7 @@ export async function GET(
     inProgress: transformedSections.filter(s => s.status === 'in_progress').length,
     review: transformedSections.filter(s => s.status === 'review').length,
     complete: transformedSections.filter(s => s.status === 'complete').length,
+    locked: transformedSections.filter(s => s.status === 'locked').length,
   }
 
   return NextResponse.json({ sections: transformedSections, stats })
@@ -208,9 +215,9 @@ export async function PUT(
     Object.entries(dbData).filter(([, v]) => v !== undefined)
   )
 
-  // Calculate actual word count if content is updated
-  if (filteredData.content) {
-    const wordCount = (filteredData.content as string).split(/\s+/).filter(Boolean).length
+  // Calculate actual word count from plain text content
+  if (filteredData.content_text) {
+    const wordCount = (filteredData.content_text as string).split(/\s+/).filter(Boolean).length
     filteredData.actual_word_count = wordCount
   }
 
