@@ -92,6 +92,7 @@ export async function PUT(request: Request) {
     .single()
 
   if (error) {
+    console.error('[Companies API] Update error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
