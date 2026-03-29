@@ -60,28 +60,51 @@ export async function POST(request: Request) {
 
   // Only include fields that were actually sent — prevents overwriting
   // existing values with null when a partial update is made
-  const upsertData: Record<string, unknown> = {
-    company_id: company.id,
+  const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   }
-  if (body.fringe_rate !== undefined) upsertData.fringe_rate = body.fringe_rate
-  if (body.overhead_rate !== undefined) upsertData.overhead_rate = body.overhead_rate
-  if (body.ga_rate !== undefined) upsertData.ga_rate = body.ga_rate
-  if (body.profit_rate !== undefined) upsertData.profit_rate = body.profit_rate
-  if (body.escalation_rate !== undefined) upsertData.escalation_rate = body.escalation_rate
-  if (body.salary_structure !== undefined) upsertData.salary_structure = body.salary_structure
-  if (body.step_increase_percent !== undefined) upsertData.step_increase_percent = body.step_increase_percent
-  if (body.writing_guide !== undefined) upsertData.writing_guide = body.writing_guide
+  if (body.fringe_rate !== undefined) updateData.fringe_rate = body.fringe_rate
+  if (body.overhead_rate !== undefined) updateData.overhead_rate = body.overhead_rate
+  if (body.ga_rate !== undefined) updateData.ga_rate = body.ga_rate
+  if (body.profit_rate !== undefined) updateData.profit_rate = body.profit_rate
+  if (body.escalation_rate !== undefined) updateData.escalation_rate = body.escalation_rate
+  if (body.salary_structure !== undefined) updateData.salary_structure = body.salary_structure
+  if (body.step_increase_percent !== undefined) updateData.step_increase_percent = body.step_increase_percent
+  if (body.writing_guide !== undefined) updateData.writing_guide = body.writing_guide
 
-  const { data, error } = await supabase
+  // Check if settings row exists
+  const { data: existing } = await supabase
     .from('company_settings')
-    .upsert(upsertData, {
-      onConflict: 'company_id'
-    })
-    .select()
+    .select('id')
+    .eq('company_id', company.id)
     .single()
 
+  let data
+  let error
+
+  if (existing) {
+    // Update existing row
+    const result = await supabase
+      .from('company_settings')
+      .update(updateData)
+      .eq('company_id', company.id)
+      .select()
+      .single()
+    data = result.data
+    error = result.error
+  } else {
+    // Insert new row
+    const result = await supabase
+      .from('company_settings')
+      .insert({ company_id: company.id, ...updateData })
+      .select()
+      .single()
+    data = result.data
+    error = result.error
+  }
+
   if (error) {
+    console.error('[Settings API] Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

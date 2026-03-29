@@ -57,8 +57,13 @@ export function CompanyPage() {
 
   // Save writing guide to settings API
   const handleSaveWritingGuide = useCallback(async (guide: WritingGuide) => {
-    await settingsApi.save({ writing_guide: guide })
-    setWritingGuide(guide)
+    try {
+      await settingsApi.save({ writing_guide: guide })
+      setWritingGuide(guide)
+    } catch (err) {
+      console.error('[CompanyPage] Failed to save writing guide:', err)
+      throw err // Re-throw so the form shows error state
+    }
   }, [])
 
   // Keep ref in sync

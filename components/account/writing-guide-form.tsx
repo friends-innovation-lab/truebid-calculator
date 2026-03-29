@@ -158,7 +158,8 @@ export function WritingGuideForm({ initialGuide, onSave }: WritingGuideFormProps
       try {
         await onSave(guide)
         setSaveStatus('saved')
-      } catch {
+      } catch (err) {
+        console.error('[WritingGuideForm] Save error:', err)
         setSaveStatus('error')
       }
     }, 1000)
