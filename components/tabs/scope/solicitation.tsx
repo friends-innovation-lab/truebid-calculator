@@ -925,8 +925,9 @@ export function Solicitation() {
         body: uploadFormData,
       })
         .then(async (res) => {
-          if (res.ok) {
-            const data = await res.json()
+          const data = await res.json()
+          if (res.ok && data.pdfUrl) {
+            console.log('[Solicitation] PDF persisted:', data.pdfUrl)
             // Update state with persistent URL
             setPdfState(prev => ({
               ...prev,
@@ -934,10 +935,12 @@ export function Solicitation() {
             }))
             // Clean up blob URL
             URL.revokeObjectURL(tempUrl)
+          } else {
+            console.error('[Solicitation] Upload failed:', data.error || 'Unknown error')
           }
         })
         .catch((err) => {
-          console.warn('[Solicitation] Failed to persist PDF:', err)
+          console.error('[Solicitation] Failed to persist PDF:', err)
         })
     }
 

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function POST(
@@ -6,6 +6,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const supabase = await createClient()
+  const serviceClient = createServiceClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
@@ -50,21 +51,22 @@ export async function POST(
     const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_')
     const filePath = `${proposal.company_id}/${proposalId}/${timestamp}-${sanitizedName}`
 
-    // Upload to Supabase Storage
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    // Upload to Supabase Storage (use service client to bypass RLS)
+    const fileBuffer = await file.arrayBuffer()
+    const { data: uploadData, error: uploadError } = await serviceClient.storage
       .from('solicitations')
-      .upload(filePath, file, {
+      .upload(filePath, fileBuffer, {
         contentType: 'application/pdf',
         upsert: true,
       })
 
     if (uploadError) {
       console.error('[upload-pdf] Storage upload error:', uploadError)
-      return NextResponse.json({ error: 'Failed to upload file' }, { status: 500 })
+      return NextResponse.json({ error: `Failed to upload file: ${uploadError.message}` }, { status: 500 })
     }
 
     // Get public URL
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = serviceClient.storage
       .from('solicitations')
       .getPublicUrl(uploadData.path)
 
