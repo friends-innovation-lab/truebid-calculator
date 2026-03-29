@@ -85,6 +85,7 @@ export async function PUT(request: Request) {
   if (body.ein !== undefined) updateData.ein = body.ein
   if (body.naics_codes !== undefined) updateData.naics_codes = body.naics_codes
   if (body.address !== undefined) updateData.address = body.address
+  if (body.gsa_config !== undefined) updateData.gsa_config = body.gsa_config
 
   const { data, error } = await supabase
     .from('companies')

@@ -1516,6 +1516,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const response = await companiesApi.get() as { company: Record<string, unknown> | null };
         if (response.company) {
           const c = response.company;
+          const gsaConfig = (c.gsa_config as Record<string, unknown>) || {};
           setCompanyProfileState({
             id: (c.id as string) || '',
             name: (c.name as string) || '',
@@ -1524,8 +1525,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             cageCode: (c.cage_code as string) || '',
             businessSize: ((c.address as Record<string, unknown>)?.businessSize as 'small' | 'other-than-small') || 'small',
             naicsCodes: (c.naics_codes as string[]) || [],
-            gsaContractNumber: '',
-            gsaMasSchedule: false,
+            gsaContractNumber: (gsaConfig.gsaContractNumber as string) || '',
+            gsaMasSchedule: (gsaConfig.gsaMasSchedule as boolean) || false,
+            gsaEscalationRate: (gsaConfig.gsaEscalationRate as number) || 0.052,
+            gsaBaseYear: (gsaConfig.gsaBaseYear as number) || new Date().getFullYear(),
+            gsaSins: (gsaConfig.gsaSins as GSASin[]) || [],
             streetAddress: ((c.address as Record<string, unknown>)?.street as string) || '',
             city: ((c.address as Record<string, unknown>)?.city as string) || '',
             state: ((c.address as Record<string, unknown>)?.state as string) || '',
@@ -1566,6 +1570,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         state: profile.state,
         zip: profile.zipCode,
         businessSize: profile.businessSize,
+      },
+      gsa_config: {
+        gsaMasSchedule: profile.gsaMasSchedule,
+        gsaContractNumber: profile.gsaContractNumber,
+        gsaEscalationRate: profile.gsaEscalationRate,
+        gsaBaseYear: profile.gsaBaseYear,
+        gsaSins: profile.gsaSins,
       },
     };
 
