@@ -14,7 +14,7 @@ import {
 import { Card } from '@/components/ui/card'
 import { SaveStatus } from '@/components/ui/save-status'
 import { toast } from 'sonner'
-import { WritingGuideForm, WritingGuide, defaultWritingGuide } from './writing-guide-form'
+import { WritingGuideForm, WritingGuide, defaultWritingGuide, TagInput } from './writing-guide-form'
 import { settingsApi } from '@/lib/api'
 
 // IDIQ Contract type
@@ -255,14 +255,13 @@ export function CompanyPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="naics-codes">NAICS Codes</Label>
-          <Input
-            id="naics-codes"
-            value={(companyProfile.naicsCodes || []).join(', ')}
-            onChange={(e) => handleChange('naicsCodes', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-            placeholder="541511, 541512, 541519"
+          <Label>NAICS Codes</Label>
+          <TagInput
+            tags={companyProfile.naicsCodes || []}
+            onChange={(tags) => handleChange('naicsCodes', tags)}
+            placeholder="Type a NAICS code and press Enter"
           />
-          <p className="text-xs text-gray-500">Comma-separated list of your registered NAICS codes</p>
+          <p className="text-xs text-gray-500">Press Enter or comma to add each code (e.g., 541511, 541512)</p>
         </div>
       </Card>
 

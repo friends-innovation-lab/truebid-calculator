@@ -59,27 +59,35 @@ const READING_LEVELS = [
 
 // ==================== TAG INPUT COMPONENT ====================
 
-interface TagInputProps {
+export interface TagInputProps {
   tags: string[]
   onChange: (tags: string[]) => void
   placeholder?: string
 }
 
-function TagInput({ tags, onChange, placeholder }: TagInputProps) {
+export function TagInput({ tags, onChange, placeholder }: TagInputProps) {
   const [inputValue, setInputValue] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+
+  const addTag = () => {
+    const value = inputValue.trim()
+    if (value && !tags.includes(value)) {
+      onChange([...tags, value])
+      setInputValue('')
+    }
+  }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault()
-      const value = inputValue.trim()
-      if (value && !tags.includes(value)) {
-        onChange([...tags, value])
-        setInputValue('')
-      }
+      addTag()
     } else if (e.key === 'Backspace' && !inputValue && tags.length > 0) {
       onChange(tags.slice(0, -1))
     }
+  }
+
+  const handleBlur = () => {
+    addTag()
   }
 
   const removeTag = (tagToRemove: string) => {
@@ -99,6 +107,7 @@ function TagInput({ tags, onChange, placeholder }: TagInputProps) {
         >
           {tag}
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation()
               removeTag(tag)
@@ -115,6 +124,7 @@ function TagInput({ tags, onChange, placeholder }: TagInputProps) {
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}
         onKeyDown={handleKeyDown}
+        onBlur={handleBlur}
         placeholder={tags.length === 0 ? placeholder : ''}
         className="flex-1 min-w-[120px] outline-none text-sm bg-transparent"
       />
