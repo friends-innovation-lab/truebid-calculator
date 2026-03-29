@@ -2135,16 +2135,48 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
 
   // ==================== ROLE MANAGEMENT ====================
 
-  const addCompanyRole = (role: CompanyRole) => {
-    setCompanyRoles([...companyRoles, role]);
+  const addCompanyRole = async (role: CompanyRole) => {
+    // Optimistic update - add to state immediately
+    setCompanyRoles(prev => [...prev, role]);
+
+    // Persist to API
+    try {
+      const response = await rolesApi.create(role as unknown as Record<string, unknown>) as { role: CompanyRole };
+      // Update the role with the server-generated ID
+      if (response.role?.id && response.role.id !== role.id) {
+        setCompanyRoles(prev => prev.map(r => r.id === role.id ? { ...r, id: response.role.id } : r));
+      }
+    } catch (e) {
+      console.error('Failed to create role in API:', e);
+      // Optionally rollback: setCompanyRoles(prev => prev.filter(r => r.id !== role.id));
+    }
   };
 
-  const updateCompanyRole = (id: string, updates: Partial<CompanyRole>) => {
-    setCompanyRoles(companyRoles.map(r => r.id === id ? { ...r, ...updates } : r));
+  const updateCompanyRole = async (id: string, updates: Partial<CompanyRole>) => {
+    // Optimistic update
+    setCompanyRoles(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+
+    // Persist to API
+    try {
+      const updatedRole = companyRoles.find(r => r.id === id);
+      if (updatedRole) {
+        await rolesApi.update({ ...updatedRole, ...updates, id } as unknown as Record<string, unknown>);
+      }
+    } catch (e) {
+      console.error('Failed to update role in API:', e);
+    }
   };
 
-  const removeCompanyRole = (id: string) => {
-    setCompanyRoles(companyRoles.filter(r => r.id !== id));
+  const removeCompanyRole = async (id: string) => {
+    // Optimistic update
+    setCompanyRoles(prev => prev.filter(r => r.id !== id));
+
+    // Persist to API
+    try {
+      await rolesApi.delete(id);
+    } catch (e) {
+      console.error('Failed to delete role from API:', e);
+    }
   };
 
   const addRole = (role: Role) => {
