@@ -27,8 +27,7 @@ import { CollabManager } from '@/components/tabs/staff/collab-manager'
 import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { EmptyState } from '@/components/ui/empty-state'
 import { StrategyTab } from '@/components/tabs/scope/strategy-tab'
-import { SolicitationSummary } from '@/components/tabs/scope/solicitation-summary'
-import { ComplianceMatrix } from '@/components/tabs/scope/compliance-matrix'
+import { Solicitation } from '@/components/tabs/scope/solicitation'
 import { Outline } from '@/components/tabs/write/outline'
 import { TechnicalVolume } from '@/components/tabs/write/technical-volume'
 
@@ -36,10 +35,9 @@ import { TechnicalVolume } from '@/components/tabs/write/technical-volume'
 
 type ViewId =
   // Scope
+  | 'solicitation'
   | 'strategy'
-  | 'solicitation-summary'
   | 'requirements'
-  | 'compliance-matrix'
   // Staff
   | 'wbs-elements'
   | 'labor-matrix'
@@ -59,7 +57,8 @@ type ViewId =
 
 // Map old tab IDs to new view IDs for URL compatibility
 const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
-  'upload': { section: 'scope', view: 'solicitation-summary' },
+  'upload': { section: 'scope', view: 'solicitation' },
+  'solicitation': { section: 'scope', view: 'solicitation' },
   'estimate': { section: 'staff', view: 'wbs-elements' },
   'roles': { section: 'staff', view: 'roles-pricing' },
   'rate-justification': { section: 'staff', view: 'rate-justification' },
@@ -72,7 +71,7 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
 
 export function SectionNavigation() {
   const [activeSection, setActiveSection] = useState<SectionId>('scope')
-  const [activeView, setActiveView] = useState<ViewId>('strategy')
+  const [activeView, setActiveView] = useState<ViewId>('solicitation')
   const [rateJustificationOpen, setRateJustificationOpen] = useState(false)
   const [isVersionsSlideoutOpen, setIsVersionsSlideoutOpen] = useState(false)
   const [newVersionName, setNewVersionName] = useState('')
@@ -130,8 +129,8 @@ export function SectionNavigation() {
 
     // Sync with old context for components that read activeMainTab
     const viewToTab: Record<string, string> = {
+      'solicitation': 'upload',
       'strategy': 'upload',
-      'solicitation-summary': 'upload',
       'requirements': 'estimate',
       'wbs-elements': 'estimate',
       'labor-matrix': 'estimate',
@@ -201,17 +200,14 @@ export function SectionNavigation() {
         {/* Main content area */}
         <div className="max-w-5xl mx-auto">
           {/* SCOPE views */}
+          {activeView === 'solicitation' && activeSection === 'scope' && (
+            <Solicitation />
+          )}
           {activeView === 'strategy' && activeSection === 'scope' && (
             <StrategyTab />
           )}
-          {activeView === 'solicitation-summary' && activeSection === 'scope' && (
-            <SolicitationSummary onContinue={() => { handleSectionChange('staff') }} />
-          )}
           {activeView === 'requirements' && activeSection === 'scope' && (
             <EstimateTab />
-          )}
-          {activeView === 'compliance-matrix' && activeSection === 'scope' && (
-            <ComplianceMatrix />
           )}
 
           {/* STAFF views */}

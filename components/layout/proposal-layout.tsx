@@ -18,7 +18,6 @@ import {
   Link2,
   PenLine,
   Target,
-  ListChecks,
   Eye,
 } from 'lucide-react'
 
@@ -34,12 +33,11 @@ const SECTION_ICONS: IconRailItem[] = [
 const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
   scope: [
     {
-      label: 'Documents',
+      label: 'Scope',
       items: [
+        { id: 'solicitation', label: 'Solicitation', icon: FileText },
         { id: 'strategy', label: 'Strategy', icon: Target },
-        { id: 'solicitation-summary', label: 'Solicitation Summary', icon: FileText },
         { id: 'requirements', label: 'Requirements', icon: Search },
-        { id: 'compliance-matrix', label: 'Compliance Matrix', icon: ListChecks },
       ],
     },
   ],
@@ -101,7 +99,7 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
 
 // Default view for each section
 const SECTION_DEFAULT_VIEWS: Record<SectionId, string> = {
-  scope: 'strategy',
+  scope: 'solicitation',
   staff: 'wbs-elements',
   write: 'outline',
   deliver: 'proposal-status',
