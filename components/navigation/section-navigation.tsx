@@ -21,6 +21,7 @@ import {
   ChevronRight,
   X,
   Pencil,
+  PenLine,
   History,
   Save,
   RotateCcw,
@@ -56,10 +57,11 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { StrategyTab } from '@/components/tabs/scope/strategy-tab'
 import { SolicitationSummary } from '@/components/tabs/scope/solicitation-summary'
 import { ComplianceMatrix } from '@/components/tabs/scope/compliance-matrix'
+import { Outline } from '@/components/tabs/write/outline'
 
 // ==================== TYPES ====================
 
-type SectionId = 'scope' | 'staff' | 'deliver'
+type SectionId = 'scope' | 'staff' | 'write' | 'deliver'
 
 type ViewId =
   // Scope
@@ -75,6 +77,8 @@ type ViewId =
   | 'rate-justification'
   | 'subs-partners'
   | 'director-review'
+  // Write
+  | 'outline'
   // Deliver
   | 'proposal-status'
   | 'boe-preview'
@@ -151,6 +155,18 @@ const SECTIONS: SectionConfig[] = [
     ],
   },
   {
+    id: 'write',
+    label: 'Write',
+    groups: [
+      {
+        label: 'Technical Volume',
+        items: [
+          { id: 'outline', label: 'Proposal Outline', icon: PenLine },
+        ],
+      },
+    ],
+  },
+  {
     id: 'deliver',
     label: 'Deliver',
     groups: [
@@ -179,6 +195,7 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
   'roles': { section: 'staff', view: 'roles-pricing' },
   'rate-justification': { section: 'staff', view: 'rate-justification' },
   'teaming-partners': { section: 'staff', view: 'subs-partners' },
+  'write': { section: 'write', view: 'outline' },
   'export': { section: 'deliver', view: 'export-documents' },
 }
 
@@ -526,6 +543,11 @@ export function SectionNavigation() {
               )}
               {activeView === 'director-review' && activeSection === 'staff' && (
                 <CollabManager />
+              )}
+
+              {/* WRITE views */}
+              {activeView === 'outline' && activeSection === 'write' && (
+                <Outline />
               )}
 
               {/* DELIVER views */}
