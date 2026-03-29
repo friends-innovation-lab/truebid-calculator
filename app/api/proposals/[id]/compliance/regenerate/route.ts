@@ -69,6 +69,21 @@ Focus on: page limits, font/margin requirements, required sections, required cer
 
 Return only a JSON array. No preamble, no explanation.`
 
+const WBS_LINK_PROMPT = `You are a government proposal traceability expert.
+Given requirements and WBS (Work Breakdown Structure) elements, suggest which WBS elements best address each requirement.
+
+For each requirement, return the requirement_id and an array of suggested WBS element IDs that would address that requirement.
+Only link WBS elements that are genuinely relevant to the requirement.
+A requirement may have 0-3 linked WBS elements.
+
+Return only a JSON array:
+[
+  { "requirement_id": "uuid", "wbs_ids": ["wbs-uuid-1", "wbs-uuid-2"] },
+  ...
+]
+
+No preamble, no explanation.`
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -135,15 +150,26 @@ export async function POST(
       )
     }
 
-    // Fetch proposal working_data for Section L extraction
-    const { data: proposal } = await supabase
-      .from('proposals')
-      .select('working_data')
-      .eq('id', id)
-      .single()
+    // Fetch proposal working_data and WBS elements
+    const [proposalResult, wbsResult] = await Promise.all([
+      supabase
+        .from('proposals')
+        .select('working_data')
+        .eq('id', id)
+        .single(),
+      supabase
+        .from('wbs_elements')
+        .select('id, wbs_number, title, description')
+        .eq('proposal_id', id)
+        .order('wbs_number', { ascending: true }),
+    ])
 
-    const workingData = proposal?.working_data || {}
+    const workingData = proposalResult.data?.working_data || {}
     const solicitationText = workingData.solicitationRawText || ''
+    const wbsElements = wbsResult.data || []
+
+    console.log('[regenerate] working_data keys:', Object.keys(workingData))
+    console.log('[regenerate] solicitationRawText length:', solicitationText.length)
 
     // Build requirements array with actual text for Claude
     const requirementsForPrompt = requirements.map((req, index) => {
@@ -256,6 +282,80 @@ export async function POST(
       }
     }
 
+    // Suggest WBS links for requirement items if WBS elements exist
+    let wbsLinksGenerated = false
+    if (wbsElements.length > 0 && itemsToInsert.length > 0) {
+      console.log('[regenerate] Suggesting WBS links...')
+      try {
+        // Build requirement summary for AI
+        const requirementSummary = itemsToInsert.map(item => ({
+          requirement_id: item.requirement_id,
+          ref: item.requirement_ref,
+          text: item.requirement_text.substring(0, 500),
+        }))
+
+        // Build WBS summary for AI
+        const wbsSummary = wbsElements.map(w => ({
+          id: w.id,
+          number: w.wbs_number,
+          title: w.title,
+          description: w.description?.substring(0, 200) || '',
+        }))
+
+        const wbsLinkResponse = await anthropic.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 8192,
+          messages: [
+            {
+              role: 'user',
+              content: `${WBS_LINK_PROMPT}\n\nRequirements:\n${JSON.stringify(requirementSummary, null, 2)}\n\nWBS Elements:\n${JSON.stringify(wbsSummary, null, 2)}`
+            }
+          ],
+        })
+
+        const wbsLinkText = wbsLinkResponse.content[0].type === 'text'
+          ? wbsLinkResponse.content[0].text
+          : ''
+
+        if (wbsLinkText && wbsLinkResponse.stop_reason !== 'max_tokens') {
+          let cleanedWbsLink = wbsLinkText
+            .replace(/```json\s*/gi, '')
+            .replace(/```\s*/g, '')
+            .trim()
+
+          const jsonStart = cleanedWbsLink.indexOf('[')
+          const jsonEnd = cleanedWbsLink.lastIndexOf(']')
+
+          if (jsonStart !== -1 && jsonEnd !== -1) {
+            const wbsLinks = JSON.parse(cleanedWbsLink.slice(jsonStart, jsonEnd + 1))
+            const wbsLinkMap = new Map(
+              wbsLinks.map((link: { requirement_id: string; wbs_ids: string[] }) => [
+                link.requirement_id,
+                link.wbs_ids || [],
+              ])
+            )
+
+            // Apply WBS links to itemsToInsert
+            for (const item of itemsToInsert) {
+              const suggestedWbsIds = wbsLinkMap.get(item.requirement_id) || []
+              // Filter to only valid WBS IDs that exist
+              const validWbsIds = suggestedWbsIds.filter((wbsId: string) =>
+                wbsElements.some(w => w.id === wbsId)
+              )
+              if (validWbsIds.length > 0) {
+                (item as Record<string, unknown>).linked_wbs_ids = validWbsIds
+              }
+            }
+            console.log('[regenerate] WBS links suggested for', wbsLinks.length, 'requirements')
+            wbsLinksGenerated = true
+          }
+        }
+      } catch (wbsLinkError) {
+        console.warn('[regenerate] WBS link suggestion failed:', wbsLinkError)
+        // Continue without WBS links - not a fatal error
+      }
+    }
+
     // Track what sections were generated
     let instructionsExtracted = false
     let instructionsSkippedReason: string | null = null
@@ -340,6 +440,12 @@ export async function POST(
     // Build response with generation metadata
     const sectionsGenerated = ['requirements']
     const skipped: string[] = []
+
+    if (wbsLinksGenerated) {
+      sectionsGenerated.push('wbsLinks')
+    } else if (wbsElements.length === 0) {
+      skipped.push('wbsLinks')
+    }
 
     if (instructionsExtracted) {
       sectionsGenerated.push('instructions')

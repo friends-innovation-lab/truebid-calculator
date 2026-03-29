@@ -25,13 +25,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ListChecks, Plus, RefreshCw, Search, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ListChecks, Plus, RefreshCw, Search, ChevronDown, ChevronUp, AlertCircle, Link2 } from 'lucide-react'
 
 // ==================== TYPES ====================
 
 type ComplianceStatus = 'unaddressed' | 'compliant' | 'partial' | 'exception' | 'not_applicable'
 
 type SourceType = 'requirement' | 'instruction'
+
+interface WBSElement {
+  id: string
+  wbs_number: string
+  title: string
+}
 
 interface ComplianceItem {
   id: string
@@ -44,6 +51,8 @@ interface ComplianceItem {
   compliance_status: ComplianceStatus
   notes: string | null
   source: SourceType
+  linked_wbs_ids?: string[]
+  linkedWbs?: WBSElement[]
   created_at: string
   updated_at: string
 }
@@ -55,6 +64,7 @@ interface ComplianceStats {
   unaddressed: number
   exception: number
   not_applicable: number
+  unlinkedRequirements: number
 }
 
 const PROPOSAL_SECTIONS = [
@@ -83,6 +93,7 @@ export function ComplianceMatrix() {
 
   const [items, setItems] = useState<ComplianceItem[]>([])
   const [stats, setStats] = useState<ComplianceStats | null>(null)
+  const [wbsElements, setWbsElements] = useState<WBSElement[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -110,13 +121,15 @@ export function ComplianceMatrix() {
         }
         setHasRequirements((reqResponse.requirements?.length || 0) > 0)
 
-        // Load compliance items
+        // Load compliance items and WBS elements
         const response = await complianceApi.list(proposalId) as {
           items: ComplianceItem[]
           stats: ComplianceStats
+          wbsElements: WBSElement[]
         }
         setItems(response.items || [])
         setStats(response.stats || null)
+        setWbsElements(response.wbsElements || [])
       } catch (err) {
         console.warn('[ComplianceMatrix] Failed to load:', err)
       } finally {
@@ -146,11 +159,13 @@ export function ComplianceMatrix() {
       if (response.skipped?.includes('instructions') && response.skipReason) {
         setInstructionsSkipReason(response.skipReason)
       }
-      // Refresh stats
+      // Refresh stats and WBS elements
       const statsResponse = await complianceApi.list(proposalId) as {
         stats: ComplianceStats
+        wbsElements: WBSElement[]
       }
       setStats(statsResponse.stats)
+      setWbsElements(statsResponse.wbsElements || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate matrix')
     } finally {
@@ -176,11 +191,13 @@ export function ComplianceMatrix() {
       if (response.skipped?.includes('instructions') && response.skipReason) {
         setInstructionsSkipReason(response.skipReason)
       }
-      // Refresh stats
+      // Refresh stats and WBS elements
       const statsResponse = await complianceApi.list(proposalId) as {
         stats: ComplianceStats
+        wbsElements: WBSElement[]
       }
       setStats(statsResponse.stats)
+      setWbsElements(statsResponse.wbsElements || [])
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to regenerate matrix')
     } finally {
@@ -323,6 +340,9 @@ export function ComplianceMatrix() {
           <StatBadge label="Unaddressed" value={stats.unaddressed} color="gray" />
           <StatBadge label="Exception" value={stats.exception} color="red" />
           <StatBadge label="N/A" value={stats.not_applicable} color="gray" />
+          {stats.unlinkedRequirements > 0 && (
+            <StatBadge label="Unlinked Reqs" value={stats.unlinkedRequirements} color="amber" />
+          )}
         </div>
       )}
 
@@ -431,6 +451,7 @@ export function ComplianceMatrix() {
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-24">Ref</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Requirement</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-56">Section</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-40">Linked WBS</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">Owner</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">Status</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-48">Notes</th>
@@ -443,6 +464,7 @@ export function ComplianceMatrix() {
                   item={item}
                   proposalId={proposalId}
                   isInstruction={item.source === 'instruction'}
+                  wbsElements={wbsElements}
                   onUpdate={(updated) => {
                     setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
                   }}
@@ -516,18 +538,21 @@ interface ComplianceRowProps {
   item: ComplianceItem
   proposalId: string
   isInstruction?: boolean
+  wbsElements: WBSElement[]
   onUpdate: (item: ComplianceItem) => void
 }
 
-function ComplianceRow({ item, proposalId, isInstruction, onUpdate }: ComplianceRowProps) {
+function ComplianceRow({ item, proposalId, isInstruction, wbsElements, onUpdate }: ComplianceRowProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [showWbsDialog, setShowWbsDialog] = useState(false)
+  const [selectedWbsIds, setSelectedWbsIds] = useState<string[]>(item.linked_wbs_ids || [])
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const statusConfig = STATUS_CONFIG[item.compliance_status]
 
-  const updateField = useCallback(async (field: string, value: string) => {
+  const updateField = useCallback(async (field: string, value: string | string[]) => {
     setSaveStatus('saving')
 
     if (saveTimeoutRef.current) {
@@ -593,6 +618,117 @@ function ComplianceRow({ item, proposalId, isInstruction, onUpdate }: Compliance
             ))}
           </SelectContent>
         </Select>
+      </td>
+
+      {/* Linked WBS */}
+      <td className="px-3 py-2">
+        {isInstruction ? (
+          <span className="text-xs text-gray-400 italic">N/A</span>
+        ) : (
+          <div className="flex flex-wrap gap-1">
+            {item.linkedWbs && item.linkedWbs.length > 0 ? (
+              <>
+                {item.linkedWbs.slice(0, 2).map(wbs => (
+                  <span
+                    key={wbs.id}
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
+                    style={{
+                      backgroundColor: '#E1F5EE',
+                      color: '#0F6E56',
+                      border: '0.5px solid #5DCAA5',
+                    }}
+                    title={`${wbs.wbs_number}: ${wbs.title}`}
+                  >
+                    {wbs.wbs_number}
+                  </span>
+                ))}
+                {item.linkedWbs.length > 2 && (
+                  <span className="text-xs text-gray-500">+{item.linkedWbs.length - 2}</span>
+                )}
+              </>
+            ) : (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs text-gray-500 bg-gray-100">
+                No WBS linked
+              </span>
+            )}
+            <button
+              onClick={() => {
+                setSelectedWbsIds(item.linked_wbs_ids || [])
+                setShowWbsDialog(true)
+              }}
+              className="ml-1 p-0.5 text-gray-400 hover:text-gray-600"
+              title="Edit linked WBS"
+            >
+              <Link2 className="w-3 h-3" />
+            </button>
+          </div>
+        )}
+
+        {/* WBS Selection Dialog */}
+        <Dialog open={showWbsDialog} onOpenChange={setShowWbsDialog}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Link WBS Elements</DialogTitle>
+              <DialogDescription>
+                Select WBS elements that address this requirement.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="max-h-64 overflow-y-auto space-y-2 py-4">
+              {wbsElements.length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-4">
+                  No WBS elements available. Generate WBS first.
+                </p>
+              ) : (
+                wbsElements.map(wbs => (
+                  <label
+                    key={wbs.id}
+                    className="flex items-start gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={selectedWbsIds.includes(wbs.id)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedWbsIds(prev => [...prev, wbs.id])
+                        } else {
+                          setSelectedWbsIds(prev => prev.filter(id => id !== wbs.id))
+                        }
+                      }}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
+                          style={{
+                            backgroundColor: '#E1F5EE',
+                            color: '#0F6E56',
+                            border: '0.5px solid #5DCAA5',
+                          }}
+                        >
+                          {wbs.wbs_number}
+                        </span>
+                        <span className="text-sm text-gray-900 truncate">{wbs.title}</span>
+                      </div>
+                    </div>
+                  </label>
+                ))
+              )}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowWbsDialog(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  await updateField('linked_wbs_ids', selectedWbsIds)
+                  setShowWbsDialog(false)
+                }}
+              >
+                Save
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </td>
 
       {/* Owner */}

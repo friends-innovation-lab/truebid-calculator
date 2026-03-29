@@ -15,6 +15,7 @@ const updateComplianceItemSchema = z.object({
     'not_applicable'
   ]).optional(),
   notes: z.string().optional(),
+  linked_wbs_ids: z.array(z.string().uuid()).optional(),
 })
 
 // PUT - Update a compliance item
@@ -63,7 +64,28 @@ export async function PUT(
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ item })
+  // Enrich with linked WBS data if linked_wbs_ids exists
+  let enrichedItem = item
+  if (item.linked_wbs_ids && item.linked_wbs_ids.length > 0) {
+    const { data: wbsElements } = await supabase
+      .from('wbs_elements')
+      .select('id, wbs_number, title')
+      .in('id', item.linked_wbs_ids)
+
+    if (wbsElements) {
+      enrichedItem = {
+        ...item,
+        linkedWbs: wbsElements,
+      }
+    }
+  } else {
+    enrichedItem = {
+      ...item,
+      linkedWbs: [],
+    }
+  }
+
+  return NextResponse.json({ item: enrichedItem })
 }
 
 // DELETE - Remove a compliance item

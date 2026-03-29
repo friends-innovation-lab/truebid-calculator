@@ -49,7 +49,23 @@ interface WorkingData {
   perDiem?: unknown[]
   extractedRequirements?: unknown[]
   lastSaved?: string
+  // Extra fields not managed by context (e.g., solicitationRawText)
+  [key: string]: unknown
 }
+
+// Fields managed by context - used to preserve extra fields when saving
+const MANAGED_FIELDS = [
+  'solicitation',
+  'selectedRoles',
+  'subcontractors',
+  'teamingPartners',
+  'estimateWbsElements',
+  'rateJustifications',
+  'odcs',
+  'perDiem',
+  'extractedRequirements',
+  'lastSaved',
+]
 
 // Uses ReturnType to get exact setter signatures from useAppContext
 type ContextSetters = Pick<
@@ -117,6 +133,8 @@ export function useProposalSync(proposalId: string) {
   const lastSavedRef = useRef<string>('')
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastProposalIdRef = useRef<string>('')
+  // Store extra fields from DB that aren't managed by context (e.g., solicitationRawText)
+  const extraFieldsRef = useRef<Record<string, unknown>>({})
 
   const setters = {
     setSolicitation, updateSolicitation, setSelectedRoles, setSubcontractors,
@@ -167,10 +185,19 @@ export function useProposalSync(proposalId: string) {
           const proposal = response.proposal
           const workingData: WorkingData = proposal.workingData || {}
 
+          // Extract extra fields not managed by context (e.g., solicitationRawText)
+          const extraFields: Record<string, unknown> = {}
+          for (const key of Object.keys(workingData)) {
+            if (!MANAGED_FIELDS.includes(key)) {
+              extraFields[key] = workingData[key]
+            }
+          }
+          extraFieldsRef.current = extraFields
+
           // If API has working_data, use it
           if (workingData && Object.keys(workingData).length > 0) {
             hydrateContext(workingData, setters, proposal)
-            console.log('[ProposalSync] Loaded working data from API:', proposalId)
+            console.log('[ProposalSync] Loaded working data from API:', proposalId, 'Extra fields:', Object.keys(extraFields))
           } else {
             // API has no working_data yet — check localStorage for migration
             const localData = loadFromLocalStorage(proposalId)
@@ -236,7 +263,9 @@ export function useProposalSync(proposalId: string) {
   useEffect(() => {
     if (isInitialLoad.current || !proposalId) return
 
+    // Merge managed fields with extra fields from DB (e.g., solicitationRawText)
     const workingData = {
+      ...extraFieldsRef.current,
       solicitation,
       selectedRoles,
       subcontractors,
@@ -249,8 +278,19 @@ export function useProposalSync(proposalId: string) {
       lastSaved: new Date().toISOString(),
     }
 
-    // Skip if nothing changed
-    const dataHash = JSON.stringify(workingData)
+    // Skip if nothing changed (only compare managed fields to avoid churn from extra fields)
+    const managedData = {
+      solicitation,
+      selectedRoles,
+      subcontractors,
+      teamingPartners,
+      estimateWbsElements,
+      rateJustifications,
+      odcs,
+      perDiem,
+      extractedRequirements,
+    }
+    const dataHash = JSON.stringify(managedData)
     if (dataHash === lastSavedRef.current) return
     lastSavedRef.current = dataHash
 
