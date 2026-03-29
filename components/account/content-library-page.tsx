@@ -32,12 +32,13 @@ import {
   Lightbulb,
   Trophy,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import type { ContentLibraryItem, ContentType } from '@/lib/schemas/content-library'
 
 // ==================== CONSTANTS ====================
 
-const CONTENT_TYPES: { value: ContentType; label: string; icon: React.ElementType; color: string; bgColor: string }[] = [
+const CONTENT_TYPES: { value: ContentType; label: string; icon: LucideIcon; color: string; bgColor: string }[] = [
   { value: 'past_performance', label: 'Past Performance', icon: Briefcase, color: 'text-blue-700', bgColor: 'bg-blue-100' },
   { value: 'key_personnel', label: 'Key Personnel', icon: User, color: 'text-purple-700', bgColor: 'bg-purple-100' },
   { value: 'capability_statement', label: 'Capability Statement', icon: FileText, color: 'text-teal-700', bgColor: 'bg-teal-100' },
