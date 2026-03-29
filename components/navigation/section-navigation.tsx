@@ -198,65 +198,114 @@ export function SectionNavigation() {
         onSectionChange={handleSectionChange}
         onViewChange={handleViewChange}
       >
-        {/* Main content area */}
-        <div className="max-w-5xl mx-auto">
-          {/* SCOPE views */}
-          {activeView === 'solicitation' && activeSection === 'scope' && (
-            <Solicitation />
-          )}
-          {activeView === 'strategy' && activeSection === 'scope' && (
+        {/* Full-height views (fill entire content area) */}
+        {activeView === 'solicitation' && activeSection === 'scope' && (
+          <Solicitation />
+        )}
+        {activeView === 'requirements' && activeSection === 'scope' && (
+          <Requirements />
+        )}
+
+        {/* Scrollable single-column views */}
+        {activeView === 'strategy' && activeSection === 'scope' && (
+          <div className="flex-1 overflow-y-auto">
             <Strategy />
-          )}
-          {activeView === 'requirements' && activeSection === 'scope' && (
-            <Requirements />
-          )}
+          </div>
+        )}
 
-          {/* STAFF views */}
-          {activeView === 'wbs-elements' && activeSection === 'staff' && (
-            <EstimateTab />
-          )}
-          {activeView === 'labor-matrix' && activeSection === 'staff' && (
-            <LaborMatrix />
-          )}
-          {activeView === 'timeline' && activeSection === 'staff' && (
-            <EmptyState
-              icon={Calendar}
-              title="Timeline available after staffing is complete"
-              description="Once WBS elements have roles and hours assigned, the timeline will show FTE loading by month across the contract period."
-            />
-          )}
-          {activeView === 'roles-pricing' && activeSection === 'staff' && (
-            <RolesAndPricingTab />
-          )}
-          {activeView === 'subs-partners' && activeSection === 'staff' && (
-            <TeamingPartnersTab />
-          )}
-          {activeView === 'director-review' && activeSection === 'staff' && (
-            <CollabManager />
-          )}
+        {/* STAFF views - scrollable with padding */}
+        {activeView === 'wbs-elements' && activeSection === 'staff' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <EstimateTab />
+            </div>
+          </div>
+        )}
+        {activeView === 'labor-matrix' && activeSection === 'staff' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <LaborMatrix />
+            </div>
+          </div>
+        )}
+        {activeView === 'timeline' && activeSection === 'staff' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <EmptyState
+                icon={Calendar}
+                title="Timeline available after staffing is complete"
+                description="Once WBS elements have roles and hours assigned, the timeline will show FTE loading by month across the contract period."
+              />
+            </div>
+          </div>
+        )}
+        {activeView === 'roles-pricing' && activeSection === 'staff' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <RolesAndPricingTab />
+            </div>
+          </div>
+        )}
+        {activeView === 'subs-partners' && activeSection === 'staff' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <TeamingPartnersTab />
+            </div>
+          </div>
+        )}
+        {activeView === 'director-review' && activeSection === 'staff' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <CollabManager />
+            </div>
+          </div>
+        )}
 
-          {/* WRITE views */}
-          {activeView === 'outline' && activeSection === 'write' && (
-            <Outline />
-          )}
-          {activeView === 'technical-editor' && activeSection === 'write' && (
-            <TechnicalVolume />
-          )}
+        {/* WRITE views - scrollable with padding */}
+        {activeView === 'outline' && activeSection === 'write' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <Outline />
+            </div>
+          </div>
+        )}
+        {activeView === 'technical-editor' && activeSection === 'write' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <TechnicalVolume />
+            </div>
+          </div>
+        )}
 
-          {/* DELIVER views */}
-          {activeView === 'proposal-status' && activeSection === 'deliver' && (
-            <ProposalStatus />
-          )}
-          {activeView === 'boe-preview' && activeSection === 'deliver' && (
-            <ExportTab />
-          )}
-          {activeView === 'export-documents' && activeSection === 'deliver' && (
-            <ExportTab />
-          )}
-          {activeView === 'share-link' && activeSection === 'deliver' && (
-            <ShareLink />
-          )}
-        </div>
+        {/* DELIVER views - scrollable with padding */}
+        {activeView === 'proposal-status' && activeSection === 'deliver' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <ProposalStatus />
+            </div>
+          </div>
+        )}
+        {activeView === 'boe-preview' && activeSection === 'deliver' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <ExportTab />
+            </div>
+          </div>
+        )}
+        {activeView === 'export-documents' && activeSection === 'deliver' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <ExportTab />
+            </div>
+          </div>
+        )}
+        {activeView === 'share-link' && activeSection === 'deliver' && (
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="max-w-5xl mx-auto">
+              <ShareLink />
+            </div>
+          </div>
+        )}
       </ProposalLayout>
 
       {/* Rate Justification side panel */}

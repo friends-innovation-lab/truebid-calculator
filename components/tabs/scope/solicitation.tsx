@@ -381,13 +381,23 @@ function AISummaryPanel({
   error,
   onRegenerate,
   onRetry,
+  hasCompanyProfile,
 }: {
   summary: AISummary | null
   status: SummaryStatus
   error: string | null
   onRegenerate: () => void
   onRetry: () => void
+  hasCompanyProfile: boolean
 }) {
+  // Get the primary due date
+  const primaryDueDate = summary?.keyDates?.find(d =>
+    d.label.toLowerCase().includes('proposal') ||
+    d.label.toLowerCase().includes('due')
+  ) || summary?.keyDates?.[0]
+
+  // Get other dates (not the primary one)
+  const otherDates = summary?.keyDates?.filter(d => d !== primaryDueDate) || []
   // Status indicator
   const renderStatusIndicator = () => {
     switch (status) {
@@ -463,6 +473,43 @@ function AISummaryPanel({
           )}
         </div>
       </div>
+
+      {/* Due Date Row - always visible when complete */}
+      {status === 'complete' && primaryDueDate && (
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '12px 16px',
+            backgroundColor: '#FAFAF8',
+            borderBottom: '0.5px solid #E8E7E2',
+            flexShrink: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 10,
+              fontWeight: 600,
+              color: '#9B9A95',
+              textTransform: 'uppercase',
+              letterSpacing: '1px',
+            }}
+          >
+            {primaryDueDate.label}
+          </span>
+          <span
+            style={{
+              fontSize: 14,
+              fontWeight: 800,
+              color: primaryDueDate.urgent ? '#A32D2D' : '#111110',
+              letterSpacing: '-0.3px',
+            }}
+          >
+            {primaryDueDate.value}
+          </span>
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
@@ -584,9 +631,9 @@ function AISummaryPanel({
             </SummarySection>
 
             {/* FFTC relevance */}
-            <SummarySection label="FFTC relevance">
-              {summary.fftcRelevance ? (
-                <p className="text-[13px] leading-[1.6]" style={{ color: '#111110' }}>
+            <SummarySection label="FFTC relevance" noDivider={otherDates.length === 0}>
+              {hasCompanyProfile && summary.fftcRelevance ? (
+                <p style={{ fontSize: 13, fontWeight: 400, color: '#111110', lineHeight: 1.6 }}>
                   {summary.fftcRelevance}
                 </p>
               ) : (
@@ -598,10 +645,10 @@ function AISummaryPanel({
                     padding: '10px 14px',
                   }}
                 >
-                  <div style={{ fontSize: 11, fontWeight: 600, color: '#412402', marginBottom: 2 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#412402', marginBottom: 3 }}>
                     Company profile not configured
                   </div>
-                  <div style={{ fontSize: 11, fontWeight: 400, color: '#633806', marginBottom: 6 }}>
+                  <div style={{ fontSize: 11, fontWeight: 400, color: '#633806', lineHeight: 1.5, marginBottom: 8 }}>
                     Add your capabilities and past performance in Account → Company Settings to generate a relevance assessment.
                   </div>
                   <Link
@@ -619,10 +666,11 @@ function AISummaryPanel({
               )}
             </SummarySection>
 
-            {/* Key dates */}
-            <SummarySection label="Key dates" noDivider>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                {(summary.keyDates || []).map((date, index) => (
+            {/* Other dates - only if there are additional dates beyond the primary */}
+            {otherDates.length > 0 && (
+              <SummarySection label="Other dates" noDivider>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  {otherDates.map((date, index) => (
                   <div
                     key={index}
                     style={{
@@ -655,8 +703,9 @@ function AISummaryPanel({
                     </div>
                   </div>
                 ))}
-              </div>
-            </SummarySection>
+                </div>
+              </SummarySection>
+            )}
           </div>
         )}
 
@@ -1076,13 +1125,10 @@ export function Solicitation() {
 
   return (
     <>
-      {/* Split screen container - fill available space */}
-      <div
-        className="flex flex-col lg:flex-row h-[calc(100vh-var(--nav-height)-100px)]"
-        style={{ margin: '-24px', marginTop: '-24px' }}
-      >
+      {/* Split screen container - fills parent via flex */}
+      <div className="flex flex-col lg:flex-row flex-1 min-h-0 overflow-hidden">
         {/* Left Panel - PDF Viewer */}
-        <div className="flex-1 flex flex-col min-h-[300px] lg:min-h-0" style={{ backgroundColor: '#FFFFFF' }}>
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ backgroundColor: '#FFFFFF' }}>
           <PDFViewer
             pdfState={pdfState}
             onFileUpload={handleFileUpload}
@@ -1093,18 +1139,19 @@ export function Solicitation() {
 
         {/* Divider */}
         <div
-          className="w-full h-px lg:w-px lg:h-full shrink-0"
+          className="w-full h-px lg:w-px lg:h-auto shrink-0"
           style={{ backgroundColor: '#E8E7E2' }}
         />
 
         {/* Right Panel - AI Summary */}
-        <div className="flex-1 flex flex-col min-h-[300px] lg:min-h-0" style={{ backgroundColor: '#FAFAF9' }}>
+        <div className="flex-1 flex flex-col min-h-0 overflow-hidden" style={{ backgroundColor: '#FAFAF9' }}>
           <AISummaryPanel
             summary={summary}
             status={summaryStatus}
             error={summaryError}
             onRegenerate={handleRegenerate}
             onRetry={handleRetry}
+            hasCompanyProfile={false}
           />
         </div>
       </div>

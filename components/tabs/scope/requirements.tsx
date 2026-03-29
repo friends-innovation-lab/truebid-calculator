@@ -545,10 +545,10 @@ export function Requirements() {
   }
 
   return (
-    <div className="flex flex-col h-full -mx-6 -mt-6">
-      {/* Sticky Header */}
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      {/* Fixed Header - doesn't scroll */}
       <div
-        className="sticky top-0 z-10"
+        className="shrink-0"
         style={{
           backgroundColor: '#FFFFFF',
           borderBottom: '0.5px solid #E8E7E2',
