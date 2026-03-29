@@ -44,6 +44,9 @@ export async function GET() {
     year3Rate: r.year_3_rate,
     year4Rate: r.year_4_rate,
     year5Rate: r.year_5_rate,
+    yearsExperience: r.years_experience,
+    education: r.education,
+    educationSubstitution: r.education_substitution,
     notes: r.notes,
   }))
 
@@ -84,6 +87,9 @@ export async function POST(request: Request) {
       year_3_rate: body.year3Rate,
       year_4_rate: body.year4Rate,
       year_5_rate: body.year5Rate,
+      years_experience: body.yearsExperience,
+      education: body.education,
+      education_substitution: body.educationSubstitution,
       notes: body.notes,
     })
     .select()
@@ -105,6 +111,9 @@ export async function POST(request: Request) {
       year3Rate: data.year_3_rate,
       year4Rate: data.year_4_rate,
       year5Rate: data.year_5_rate,
+      yearsExperience: data.years_experience,
+      education: data.education,
+      educationSubstitution: data.education_substitution,
       notes: data.notes,
     }
   }, { status: 201 })
@@ -137,6 +146,9 @@ export async function PUT(request: Request) {
   if (body.year3Rate !== undefined) updateData.year_3_rate = body.year3Rate
   if (body.year4Rate !== undefined) updateData.year_4_rate = body.year4Rate
   if (body.year5Rate !== undefined) updateData.year_5_rate = body.year5Rate
+  if (body.yearsExperience !== undefined) updateData.years_experience = body.yearsExperience
+  if (body.education !== undefined) updateData.education = body.education
+  if (body.educationSubstitution !== undefined) updateData.education_substitution = body.educationSubstitution
   if (body.notes !== undefined) updateData.notes = body.notes
 
   const { data, error } = await supabase
@@ -162,6 +174,9 @@ export async function PUT(request: Request) {
       year3Rate: data.year_3_rate,
       year4Rate: data.year_4_rate,
       year5Rate: data.year_5_rate,
+      yearsExperience: data.years_experience,
+      education: data.education,
+      educationSubstitution: data.education_substitution,
       notes: data.notes,
     }
   })
