@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
+import Link from 'next/link'
 import { useAppContext } from '@/contexts/app-context'
 import { proposalsApi, requirementsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -24,9 +25,9 @@ import {
 } from 'lucide-react'
 import * as pdfjs from 'pdfjs-dist'
 
-// Configure PDF.js worker
+// Configure PDF.js worker - use local file for reliability
 if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.mjs`
+  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
 }
 
 // ============================================================================
@@ -521,48 +522,59 @@ function AISummaryPanel({
           <div className="p-5">
             {/* What they want */}
             <SummarySection label="What they want">
-              <p className="text-[13px] leading-[1.6]" style={{ color: 'var(--ink)' }}>
+              <p style={{ fontSize: 13, fontWeight: 400, color: '#111110', lineHeight: 1.6 }}>
                 {summary.whatTheyWant}
               </p>
             </SummarySection>
 
             {/* Why it matters */}
             <SummarySection label="Why it matters">
-              <p className="text-[13px] leading-[1.6]" style={{ color: 'var(--ink)' }}>
+              <p style={{ fontSize: 13, fontWeight: 400, color: '#111110', lineHeight: 1.6 }}>
                 {summary.whyItMatters}
               </p>
             </SummarySection>
 
             {/* Key challenges */}
             <SummarySection label="Key challenges">
-              <div className="flex flex-wrap gap-2">
-                {(summary.keyChallenges || []).map((challenge, index) => (
-                  <span
-                    key={index}
-                    className="text-[11px] font-medium px-2.5 py-1 rounded-full"
-                    style={{
-                      backgroundColor: 'var(--warning-bg)',
-                      color: 'var(--warning-text)',
-                      border: '0.5px solid var(--warning-border)',
-                    }}
-                  >
-                    {challenge}
-                  </span>
-                ))}
+              <div className="flex flex-wrap gap-1.5">
+                {(summary.keyChallenges || []).map((challenge, index) => {
+                  // Cycle through semantic colors: red, amber, blue
+                  const colorSchemes = [
+                    { bg: '#FCEBEB', text: '#501313', border: '#F09595' },
+                    { bg: '#FAEEDA', text: '#412402', border: '#EF9F27' },
+                    { bg: '#E6F1FB', text: '#042C53', border: '#85B7EB' },
+                  ]
+                  const colors = colorSchemes[index % colorSchemes.length]
+                  return (
+                    <span
+                      key={index}
+                      className="text-[11px] font-medium rounded-full"
+                      style={{
+                        padding: '4px 10px',
+                        backgroundColor: colors.bg,
+                        color: colors.text,
+                        border: `0.5px solid ${colors.border}`,
+                      }}
+                    >
+                      {challenge}
+                    </span>
+                  )
+                })}
               </div>
             </SummarySection>
 
             {/* Evaluation emphasis */}
             <SummarySection label="Evaluation emphasis">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 {(summary.evaluationEmphasis || []).map((factor, index) => (
                   <span
                     key={index}
-                    className="text-[11px] font-medium px-2.5 py-1 rounded-full"
+                    className="text-[11px] font-medium rounded-full"
                     style={{
-                      backgroundColor: 'var(--info-bg)',
-                      color: 'var(--info-text)',
-                      border: '0.5px solid var(--info-border)',
+                      padding: '4px 10px',
+                      backgroundColor: '#E6F1FB',
+                      color: '#042C53',
+                      border: '0.5px solid #85B7EB',
                     }}
                   >
                     {factor}
@@ -574,40 +586,73 @@ function AISummaryPanel({
             {/* FFTC relevance */}
             <SummarySection label="FFTC relevance">
               {summary.fftcRelevance ? (
-                <p className="text-[13px] leading-[1.6]" style={{ color: 'var(--ink)' }}>
+                <p className="text-[13px] leading-[1.6]" style={{ color: '#111110' }}>
                   {summary.fftcRelevance}
                 </p>
               ) : (
-                <p className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
-                  Configure your company profile in Account → Settings to see relevance.
-                </p>
+                <div
+                  style={{
+                    backgroundColor: '#FAEEDA',
+                    borderLeft: '2px solid #BA7517',
+                    borderRadius: '0 6px 6px 0',
+                    padding: '10px 14px',
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#412402', marginBottom: 2 }}>
+                    Company profile not configured
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 400, color: '#633806', marginBottom: 6 }}>
+                    Add your capabilities and past performance in Account → Company Settings to generate a relevance assessment.
+                  </div>
+                  <Link
+                    href="/account"
+                    style={{
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: '#412402',
+                      textDecoration: 'none',
+                    }}
+                  >
+                    Configure now →
+                  </Link>
+                </div>
               )}
             </SummarySection>
 
             {/* Key dates */}
             <SummarySection label="Key dates" noDivider>
-              <div className="grid grid-cols-2 gap-2">
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                 {(summary.keyDates || []).map((date, index) => (
                   <div
                     key={index}
-                    className="p-2 rounded-md"
                     style={{
                       backgroundColor: '#FFFFFF',
                       border: '0.5px solid #E8E7E2',
+                      borderRadius: 6,
+                      padding: '8px 10px',
                     }}
                   >
-                    <p
-                      className="text-[9px] uppercase tracking-[1px] mb-0.5"
-                      style={{ color: 'var(--text-tertiary)' }}
+                    <div
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 500,
+                        color: '#9B9A95',
+                        textTransform: 'uppercase',
+                        letterSpacing: '1px',
+                        marginBottom: 2,
+                      }}
                     >
                       {date.label}
-                    </p>
-                    <p
-                      className="text-[12px] font-bold"
-                      style={{ color: date.urgent ? '#A32D2D' : 'var(--ink)' }}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 12,
+                        fontWeight: 700,
+                        color: date.urgent ? '#A32D2D' : '#111110',
+                      }}
                     >
                       {date.value}
-                    </p>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -653,16 +698,25 @@ function SummarySection({
   return (
     <div>
       <p
-        className="text-[9px] font-bold uppercase tracking-[2px] mb-1.5"
-        style={{ color: '#C4C3BE' }}
+        style={{
+          fontSize: 9,
+          fontWeight: 700,
+          letterSpacing: '2px',
+          textTransform: 'uppercase',
+          color: '#C4C3BE',
+          marginBottom: 6,
+        }}
       >
         {label}
       </p>
       {children}
       {!noDivider && (
         <div
-          className="my-4"
-          style={{ borderBottom: '0.5px solid #E8E7E2' }}
+          style={{
+            height: '0.5px',
+            backgroundColor: '#E8E7E2',
+            margin: '16px 0',
+          }}
         />
       )}
     </div>
