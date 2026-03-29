@@ -2,11 +2,20 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
-import { ClipboardList, Search, Download, Plus, Check, ChevronDown } from 'lucide-react'
+import { toast } from 'sonner'
+import { ClipboardList, Search, Download, Plus, Check, ChevronDown, RefreshCw } from 'lucide-react'
 import { useAppContext } from '@/contexts/app-context'
-import { requirementsApi, complianceApi, sectionsApi } from '@/lib/api'
+import { requirementsApi, complianceApi, sectionsApi, proposalsApi } from '@/lib/api'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 // ==================== TYPES ====================
 
@@ -376,6 +385,9 @@ export function Requirements() {
   const [editingWbs, setEditingWbs] = useState<string | null>(null)
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [hasPdf, setHasPdf] = useState(false)
+  const [isReExtracting, setIsReExtracting] = useState(false)
+  const [showReExtractConfirm, setShowReExtractConfirm] = useState(false)
 
   const highlightedRowRef = useRef<HTMLDivElement>(null)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -386,9 +398,10 @@ export function Requirements() {
 
     async function loadData() {
       try {
-        const [reqResponse, sectionsResponse] = await Promise.all([
+        const [reqResponse, sectionsResponse, proposalResponse] = await Promise.all([
           requirementsApi.list(proposalId),
           sectionsApi.list(proposalId).catch(() => ({ sections: [] })),
+          proposalsApi.get(proposalId).catch(() => ({ proposal: null })),
         ])
 
         // Transform API data to our format
@@ -403,6 +416,10 @@ export function Requirements() {
 
         const sectData = (sectionsResponse as { sections: ProposalSection[] }).sections || []
         setSections(sectData)
+
+        // Check if PDF exists
+        const proposal = (proposalResponse as { proposal?: { workingData?: { pdfUrl?: string } } }).proposal
+        setHasPdf(!!proposal?.workingData?.pdfUrl)
       } catch (error) {
         console.warn('[Requirements] Failed to load:', error)
       } finally {
@@ -506,6 +523,63 @@ export function Requirements() {
       console.error('[Requirements] Generate failed:', error)
     } finally {
       setIsGenerating(false)
+    }
+  }
+
+  // Re-extract requirements from PDF
+  const handleReExtract = async () => {
+    setShowReExtractConfirm(false)
+    setIsReExtracting(true)
+
+    // Store previous requirements for rollback on failure
+    const previousRequirements = [...requirements]
+
+    try {
+      const response = await fetch(`/api/proposals/${proposalId}/re-extract`, {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Re-extraction failed')
+      }
+
+      // Reload requirements from database
+      const reqResponse = await requirementsApi.list(proposalId)
+      const reqData = (reqResponse as { requirements: Requirement[] }).requirements || []
+      setRequirements(reqData.map((r: Requirement) => ({
+        ...r,
+        status: r.status || 'unaddressed',
+        proposalSection: r.proposalSection || null,
+        wbsLinks: r.wbsLinks || [],
+        owner: r.owner || null,
+      })))
+
+      // Success toast
+      toast.success('Requirements re-extracted', {
+        description: `${data.count || reqData.length} requirements found`,
+      })
+    } catch (error) {
+      console.error('[Requirements] Re-extract failed:', error)
+
+      // Restore previous requirements
+      setRequirements(previousRequirements)
+
+      // Error toast with action
+      toast.error('Re-extraction failed', {
+        description: 'Your existing requirements were not changed. Try again or replace the PDF on the Solicitation page.',
+        action: {
+          label: 'Go to Solicitation →',
+          onClick: () => {
+            // Navigate via link click since we're in a toast
+            window.location.href = `/proposals/${proposalId}?tab=scope&subtab=solicitation`
+          },
+        },
+        duration: Infinity,
+      })
+    } finally {
+      setIsReExtracting(false)
     }
   }
 
@@ -645,6 +719,9 @@ export function Requirements() {
           borderBottom: '0.5px solid #F4F3EF',
           padding: '10px 20px',
           gap: 8,
+          opacity: isReExtracting ? 0.4 : 1,
+          pointerEvents: isReExtracting ? 'none' : 'auto',
+          transition: 'opacity 200ms',
         }}
       >
         {activeTab === 'requirements' ? (
@@ -686,6 +763,26 @@ export function Requirements() {
               }}
             />
           </div>
+          {/* Re-extract button - only on requirements tab when PDF exists */}
+          {activeTab === 'requirements' && hasPdf && (
+            <button
+              onClick={() => setShowReExtractConfirm(true)}
+              style={{
+                padding: '5px 10px',
+                fontSize: 11,
+                fontWeight: 500,
+                color: '#5F5E5A',
+                backgroundColor: '#FFFFFF',
+                border: '0.5px solid #E8E7E2',
+                borderRadius: 5,
+                cursor: 'pointer',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#F4F3EF' }}
+              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#FFFFFF' }}
+            >
+              Re-extract
+            </button>
+          )}
           <Button variant="ghost" size="sm" className="h-[30px] px-3 text-xs">
             <Download className="w-3.5 h-3.5 mr-1" />
             Export
@@ -710,7 +807,48 @@ export function Requirements() {
 
       {/* Table Content */}
       <div className="flex-1 overflow-auto">
-        {filteredRequirements.length === 0 ? (
+        {/* Re-extraction loading state */}
+        {isReExtracting ? (
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '60px 24px',
+              gap: 12,
+            }}
+          >
+            <div
+              className="animate-spin"
+              style={{
+                width: 24,
+                height: 24,
+                border: '2px solid rgba(245,194,0,0.2)',
+                borderTopColor: '#F5C200',
+                borderRadius: '50%',
+              }}
+            />
+            <div
+              style={{
+                fontSize: 14,
+                fontWeight: 600,
+                color: '#111110',
+              }}
+            >
+              Re-extracting requirements...
+            </div>
+            <div
+              style={{
+                fontSize: 12,
+                color: '#9B9A95',
+                textAlign: 'center',
+              }}
+            >
+              Reading the RFP and identifying what needs to be addressed
+            </div>
+          </div>
+        ) : filteredRequirements.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
             <p style={{ fontSize: 13, color: '#9B9A95', marginBottom: 4 }}>
               No {typeFilter !== 'all' ? typeFilter : ''} requirements match
@@ -743,6 +881,45 @@ export function Requirements() {
           />
         )}
       </div>
+
+      {/* Re-extract confirmation dialog */}
+      <Dialog open={showReExtractConfirm} onOpenChange={setShowReExtractConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 7,
+                backgroundColor: '#F4F3EF',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: 12,
+              }}
+            >
+              <RefreshCw style={{ width: 22, height: 22, color: '#5F5E5A' }} />
+            </div>
+            <DialogTitle style={{ fontSize: 16, fontWeight: 600, color: '#111110' }}>
+              Re-extract requirements?
+            </DialogTitle>
+            <DialogDescription style={{ fontSize: 13, color: '#5F5E5A', lineHeight: 1.6 }}>
+              This will replace all {requirements.length} current requirements with a fresh extraction from the uploaded PDF. Any manual edits to status, section assignments, or WBS links will be lost.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReExtractConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleReExtract}
+              style={{ backgroundColor: '#111110', color: '#FFFFFF' }}
+            >
+              Re-extract
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
