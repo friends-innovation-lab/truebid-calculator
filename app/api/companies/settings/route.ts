@@ -42,21 +42,28 @@ export async function POST(request: Request) {
   const { data: { user }, error: authError } = await supabase.auth.getUser()
 
   if (authError || !user) {
+    console.error('[Settings API] Auth error:', authError)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   // Get the company
-  const { data: company } = await supabase
+  const { data: company, error: companyError } = await supabase
     .from('companies')
     .select('id')
     .eq('owner_id', user.id)
     .single()
 
+  if (companyError) {
+    console.error('[Settings API] Company lookup error:', companyError)
+  }
+
   if (!company) {
+    console.error('[Settings API] No company found for user:', user.id)
     return NextResponse.json({ error: 'No company found' }, { status: 404 })
   }
 
   const body = await request.json()
+  console.log('[Settings API] Saving settings for company:', company.id, 'Fields:', Object.keys(body))
 
   // Only include fields that were actually sent — prevents overwriting
   // existing values with null when a partial update is made
@@ -104,9 +111,10 @@ export async function POST(request: Request) {
   }
 
   if (error) {
-    console.error('[Settings API] Error:', error)
+    console.error('[Settings API] Save error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  console.log('[Settings API] Save successful')
   return NextResponse.json({ settings: data })
 }
