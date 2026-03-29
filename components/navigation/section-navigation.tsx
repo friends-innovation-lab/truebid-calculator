@@ -28,6 +28,7 @@ import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Strategy } from '@/components/tabs/scope/strategy'
 import { Solicitation } from '@/components/tabs/scope/solicitation'
+import { Requirements } from '@/components/tabs/scope/requirements'
 import { Outline } from '@/components/tabs/write/outline'
 import { TechnicalVolume } from '@/components/tabs/write/technical-volume'
 
@@ -207,7 +208,7 @@ export function SectionNavigation() {
             <Strategy />
           )}
           {activeView === 'requirements' && activeSection === 'scope' && (
-            <EstimateTab />
+            <Requirements />
           )}
 
           {/* STAFF views */}
