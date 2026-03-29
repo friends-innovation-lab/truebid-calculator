@@ -26,7 +26,7 @@ import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
 import { CollabManager } from '@/components/tabs/staff/collab-manager'
 import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { EmptyState } from '@/components/ui/empty-state'
-import { StrategyTab } from '@/components/tabs/scope/strategy-tab'
+import { Strategy } from '@/components/tabs/scope/strategy'
 import { Solicitation } from '@/components/tabs/scope/solicitation'
 import { Outline } from '@/components/tabs/write/outline'
 import { TechnicalVolume } from '@/components/tabs/write/technical-volume'
@@ -204,7 +204,7 @@ export function SectionNavigation() {
             <Solicitation />
           )}
           {activeView === 'strategy' && activeSection === 'scope' && (
-            <StrategyTab />
+            <Strategy />
           )}
           {activeView === 'requirements' && activeSection === 'scope' && (
             <EstimateTab />
