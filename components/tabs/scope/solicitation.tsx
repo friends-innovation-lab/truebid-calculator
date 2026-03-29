@@ -852,27 +852,12 @@ export function Solicitation() {
             uploadDate: workingData.pdfUploadDate || null,
             numPages: 1, // Will be updated when PDF loads
           }))
-        }
 
-        // Load summary from working_data or aiSummary
-        if (workingData?.solicitationSummary) {
-          setSummary(workingData.solicitationSummary)
-          setSummaryStatus('complete')
-        } else if (proposal?.aiSummary) {
-          // Convert old format to new format
-          const oldSummary = proposal.aiSummary
-          setSummary({
-            whatTheyWant: oldSummary.what_they_want || '',
-            whyItMatters: oldSummary.why_it_matters || '',
-            keyChallenges: oldSummary.key_challenges || [],
-            evaluationEmphasis: typeof oldSummary.evaluation_emphasis === 'string'
-              ? [oldSummary.evaluation_emphasis]
-              : [],
-            fftcRelevance: oldSummary.fftc_relevance || null,
-            keyDates: [],
-            generatedAt: oldSummary.generated_at || new Date().toISOString(),
-          })
-          setSummaryStatus('complete')
+          // Only load summary if PDF exists (summary is tied to the uploaded document)
+          if (workingData?.solicitationSummary) {
+            setSummary(workingData.solicitationSummary)
+            setSummaryStatus('complete')
+          }
         }
 
         // Check if we have analyzed document
