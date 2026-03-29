@@ -3,13 +3,22 @@ import Anthropic from '@anthropic-ai/sdk'
 import { extractText } from 'unpdf'
 import { extractionResponseSchema, type ExtractionResponse } from '@/lib/schemas/rfp'
 
+// Dynamic ceiling based on page count
+const getRequirementsCeiling = (pageCount: number): number => {
+  if (pageCount <= 15) return 20   // Simple task order
+  if (pageCount <= 30) return 30   // Medium RFP
+  if (pageCount <= 60) return 40   // Standard RFP (e.g., CAMP = 49 pages)
+  if (pageCount <= 100) return 55  // Large RFP
+  return 70                         // Very large full RFP
+}
+
 // System prompt for extraction
-const EXTRACTION_SYSTEM_PROMPT = `You are a senior proposal manager at a government contracting firm. Your job is to extract only the requirements that directly affect how the proposal is written and evaluated.
+const EXTRACTION_SYSTEM_PROMPT = (ceiling: number) => `You are a senior proposal manager at a government contracting firm. Your job is to extract only the requirements that directly affect how the proposal is written and evaluated.
 
 Think like someone who has to write a response to this RFP. What are the distinct things you need to address, prove, or comply with? Extract those — nothing else.
 
 STRICT RULES:
-1. Maximum 25 requirements total
+1. Maximum ${ceiling} requirements total
 2. Each requirement must be meaningfully distinct — no overlaps, no sub-clauses of another requirement
 3. Consolidate related items — if there are 5 bullets about security, that is ONE requirement: the security requirement
 4. Skip entirely:
@@ -19,9 +28,11 @@ STRICT RULES:
    - General statements of work that don't add a distinct compliance obligation
 5. Ask yourself: 'If I missed this, would the proposal be non-compliant or score lower?' If no — skip it.
 
-Target: 15–25 requirements for a typical scoped federal RFP. If you are finding more, you are being too granular. Consolidate.`
+Target: 15–${ceiling} requirements. If you are finding more, you are being too granular. Consolidate.`
 
-const EXTRACTION_USER_PROMPT = `Extract the key proposal requirements and metadata from this RFP. Be selective — aim for 15 to 25 total requirements maximum.
+const EXTRACTION_USER_PROMPT = (ceiling: number, pageCount: number) => `Extract the key proposal requirements and metadata from this RFP. Be selective — aim for 15 to ${ceiling} total requirements maximum for a ${pageCount}-page RFP.
+
+If you return more than ${ceiling} items, start over and consolidate further.
 
 Return ONLY valid JSON with this structure:
 
@@ -68,7 +79,7 @@ TYPE VALUES:
 SOURCE FORMAT: 'Section [LETTER] · p.[N]'
 Use section letter, not heading name. Examples: 'Section C · p.8', 'Section L · p.31'
 
-If you find more than 25 requirements, consolidate further until you are at 25 or fewer. Response must start with { and end with }`
+If you find more than ${ceiling} requirements, consolidate further until you are at ${ceiling} or fewer. Response must start with { and end with }`
 
 export async function POST(request: NextRequest) {
   try {
@@ -119,9 +130,12 @@ export async function POST(request: NextRequest) {
 
     // Extract text using unpdf
     let pdfText: string
+    let pdfPageCount: number
     try {
-      const { text } = await extractText(buffer, { mergePages: true })
+      const { text, totalPages } = await extractText(buffer, { mergePages: true })
       pdfText = text
+      pdfPageCount = totalPages
+      console.log(`[extract-rfp] PDF has ${pdfPageCount} pages`)
     } catch (pdfError) {
       console.error('PDF parsing error:', pdfError)
       return NextResponse.json(
@@ -129,6 +143,10 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Calculate dynamic ceiling based on page count
+    const ceiling = getRequirementsCeiling(pdfPageCount)
+    console.log(`[extract-rfp] Requirements ceiling: ${ceiling} (for ${pdfPageCount} pages)`)
 
     // Truncate text if too long (Claude can handle 150k+ chars)
     const MAX_CHARS = 150000
@@ -148,11 +166,11 @@ export async function POST(request: NextRequest) {
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 8192,
-      system: EXTRACTION_SYSTEM_PROMPT,
+      system: EXTRACTION_SYSTEM_PROMPT(ceiling),
       messages: [
         {
           role: 'user',
-          content: `${EXTRACTION_USER_PROMPT}\n\nDocument to analyze:\n\n${truncatedText}`
+          content: `${EXTRACTION_USER_PROMPT(ceiling, pdfPageCount)}\n\nDocument to analyze:\n\n${truncatedText}`
         }
       ],
     })
@@ -206,13 +224,13 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Guard rail: max 25 requirements
-    if (validated.data.requirements.length > 25) {
-      console.error(`[extract-rfp] Too many requirements: ${validated.data.requirements.length}`)
+    // Guard rail: dynamic ceiling based on page count
+    if (validated.data.requirements.length > ceiling) {
+      console.error(`[extract-rfp] Too many requirements: ${validated.data.requirements.length} (ceiling: ${ceiling} for ${pdfPageCount} pages)`)
       return NextResponse.json(
         {
           success: false,
-          error: `Extraction returned ${validated.data.requirements.length} requirements. Maximum is 25. Please re-extract with a more consolidated approach.`
+          error: `Extraction returned ${validated.data.requirements.length} requirements. Maximum for a ${pdfPageCount}-page RFP is ${ceiling}. Consolidate further.`
         },
         { status: 400 }
       )
