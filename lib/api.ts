@@ -375,3 +375,28 @@ export const complianceApi = {
       method: 'DELETE',
     }).then(handleResponse),
 }
+
+// GSA Rates
+export const gsaRatesApi = {
+  list: () =>
+    fetch(`${API_BASE}/companies/gsa-rates`).then(handleResponse),
+
+  create: (data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/companies/gsa-rates`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  update: (data: Record<string, unknown>) =>
+    fetch(`${API_BASE}/companies/gsa-rates`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(handleResponse),
+
+  delete: (id: string) =>
+    fetch(`${API_BASE}/companies/gsa-rates?id=${id}`, {
+      method: 'DELETE',
+    }).then(handleResponse),
+}

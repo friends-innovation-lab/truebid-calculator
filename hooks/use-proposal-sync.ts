@@ -48,6 +48,7 @@ interface WorkingData {
   odcs?: unknown[]
   perDiem?: unknown[]
   extractedRequirements?: unknown[]
+  gsaEnabled?: boolean
   lastSaved?: string
   // Extra fields not managed by context (e.g., solicitationRawText)
   [key: string]: unknown
@@ -64,6 +65,7 @@ const MANAGED_FIELDS = [
   'odcs',
   'perDiem',
   'extractedRequirements',
+  'gsaEnabled',
   'lastSaved',
 ]
 
@@ -71,7 +73,7 @@ const MANAGED_FIELDS = [
 type ContextSetters = Pick<
   ReturnType<typeof useAppContext>,
   'setSolicitation' | 'updateSolicitation' | 'setSelectedRoles' | 'setSubcontractors' |
-  'setTeamingPartners' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements'
+  'setTeamingPartners' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType'
 >
 
 function hydrateContext(
@@ -103,6 +105,11 @@ function hydrateContext(
   } else if (data.solicitation) {
     setters.setSolicitation(data.solicitation as unknown as Parameters<ContextSetters['setSolicitation']>[0])
   }
+
+  // Restore GSA mode toggle from working_data
+  if (data.gsaEnabled !== undefined) {
+    setters.setContractType(data.gsaEnabled ? 'gsa' : 'tm')
+  }
 }
 
 export function useProposalSync(proposalId: string) {
@@ -116,6 +123,7 @@ export function useProposalSync(proposalId: string) {
     odcs,
     perDiem,
     extractedRequirements,
+    contractType,
     setSolicitation,
     updateSolicitation,
     setSelectedRoles,
@@ -126,6 +134,7 @@ export function useProposalSync(proposalId: string) {
     setODCs,
     setPerDiem,
     setExtractedRequirements,
+    setContractType,
     resetSolicitation,
   } = useAppContext()
 
@@ -138,7 +147,7 @@ export function useProposalSync(proposalId: string) {
 
   const setters = {
     setSolicitation, updateSolicitation, setSelectedRoles, setSubcontractors,
-    setTeamingPartners, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements,
+    setTeamingPartners, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType,
   }
 
   // Clear all working data state (call when proposal changes)
@@ -152,6 +161,7 @@ export function useProposalSync(proposalId: string) {
     setODCs([])
     setPerDiem([])
     setExtractedRequirements([])
+    setContractType('tm')
     lastSavedRef.current = ''
     console.log('[ProposalSync] Cleared working data')
   }
@@ -263,6 +273,9 @@ export function useProposalSync(proposalId: string) {
   useEffect(() => {
     if (isInitialLoad.current || !proposalId) return
 
+    // GSA mode toggle persisted as boolean in working_data
+    const gsaEnabled = contractType === 'gsa'
+
     // Merge managed fields with extra fields from DB (e.g., solicitationRawText)
     const workingData = {
       ...extraFieldsRef.current,
@@ -275,6 +288,7 @@ export function useProposalSync(proposalId: string) {
       odcs,
       perDiem,
       extractedRequirements,
+      gsaEnabled,
       lastSaved: new Date().toISOString(),
     }
 
@@ -289,6 +303,7 @@ export function useProposalSync(proposalId: string) {
       odcs,
       perDiem,
       extractedRequirements,
+      gsaEnabled,
     }
     const dataHash = JSON.stringify(managedData)
     if (dataHash === lastSavedRef.current) return
@@ -339,6 +354,7 @@ export function useProposalSync(proposalId: string) {
     odcs,
     perDiem,
     extractedRequirements,
+    contractType,
   ])
 }
 
