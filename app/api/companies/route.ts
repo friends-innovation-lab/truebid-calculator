@@ -18,6 +18,7 @@ export async function GET() {
     .single()
 
   if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+    console.error('[Companies API] Get error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
     .single()
 
   if (error) {
+    console.error('[Companies API] Create error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 

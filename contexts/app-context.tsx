@@ -1569,13 +1569,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
       },
     };
 
-    if (profile.id) {
-      await companiesApi.update(apiData);
-    } else {
-      const response = await companiesApi.create(apiData) as { company: { id: string } };
-      if (response.company?.id) {
-        setCompanyProfileState(prev => ({ ...prev, id: response.company.id }));
+    try {
+      if (profile.id) {
+        await companiesApi.update(apiData);
+      } else {
+        const response = await companiesApi.create(apiData) as { company: { id: string } };
+        if (response.company?.id) {
+          setCompanyProfileState(prev => ({ ...prev, id: response.company.id }));
+        }
       }
+    } catch (err) {
+      console.error('[AppContext] Failed to save company profile:', err);
+      throw err;
     }
   };
 
