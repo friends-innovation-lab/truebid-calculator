@@ -3,10 +3,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { LogOut, Settings, Sun, Moon, Monitor, LayoutDashboard } from 'lucide-react'
+import { LogOut, Settings, Sun, Moon, Monitor, LayoutDashboard, Plus } from 'lucide-react'
 import { Wordmark } from '@/components/ui/wordmark'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
+import { proposalsApi } from '@/lib/api'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -80,6 +81,26 @@ export function DashboardTopBar() {
     router.push('/login')
   }
 
+  const handleNewProposal = async () => {
+    try {
+      const response = await proposalsApi.create({
+        title: 'New Proposal',
+        status: 'draft',
+        total_value: 0,
+        team_size: 0,
+        progress: 0,
+        starred: false,
+        archived: false,
+        contract_type: 'tm',
+      }) as { proposal: { id: string } }
+      router.push(`/${response.proposal.id}?tab=upload`)
+    } catch (error) {
+      console.error('Failed to create proposal:', error)
+      const newId = `prop-${Date.now()}`
+      router.push(`/${newId}?tab=upload`)
+    }
+  }
+
   const getInitials = (name: string) => {
     return name
       .split(' ')
@@ -101,13 +122,15 @@ export function DashboardTopBar() {
       className="h-[var(--nav-height)] sticky top-0 z-50"
       style={{
         backgroundColor: 'var(--canvas)',
-        borderBottom: '2px solid var(--ink)',
+        borderBottom: '2.5px solid var(--ink)',
       }}
     >
-      <div className="h-full px-6 flex items-center justify-between max-w-7xl mx-auto">
-        {/* Left side: Wordmark */}
-        <div className="flex items-center gap-8">
-          <Wordmark variant="light" />
+      <div className="h-full px-10 flex items-center justify-between">
+        {/* Left side: Wordmark + Nav */}
+        <div className="flex items-center">
+          <div className="mr-12">
+            <Wordmark variant="light" />
+          </div>
 
           {/* Nav links */}
           <nav className="hidden sm:flex items-center h-full" aria-label="Main navigation">
@@ -118,11 +141,14 @@ export function DashboardTopBar() {
                   key={link.href}
                   href={link.href}
                   className={cn(
-                    'h-full flex items-center px-3 text-[13px] border-b-2 -mb-[2px] transition-fast',
+                    'h-full flex items-center px-3.5 text-[13px] border-b-[2.5px] -mb-[2.5px] transition-fast',
                     isActive
-                      ? 'text-text-primary border-signal font-medium'
-                      : 'text-text-secondary border-transparent hover:text-text-primary'
+                      ? 'font-semibold border-ink'
+                      : 'font-normal border-transparent hover:text-text-primary'
                   )}
+                  style={{
+                    color: isActive ? 'var(--ink)' : 'var(--text-tertiary)',
+                  }}
                 >
                   {link.label}
                 </Link>
@@ -131,128 +157,144 @@ export function DashboardTopBar() {
           </nav>
         </div>
 
-        {/* Right side: Avatar */}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className="focus-ring rounded-full"
-              aria-label="Account menu"
-            >
-              {userProfile.avatarUrl ? (
-                <img
-                  src={userProfile.avatarUrl}
-                  alt={userProfile.name}
-                  className="w-8 h-8 rounded-full object-cover"
-                />
-              ) : (
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold"
-                  style={{ backgroundColor: 'var(--signal)', color: 'var(--ink)' }}
-                >
-                  {getInitials(userProfile.name)}
-                </div>
-              )}
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-64">
-            {/* User Identity */}
-            <div className="px-3 py-3 border-b border-border">
-              <div className="flex items-center gap-3">
+        {/* Right side: New Proposal + Avatar */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={handleNewProposal}
+            className="flex items-center gap-1.5 px-3.5 py-[7px] text-[13px] font-semibold rounded-md transition-fast"
+            style={{
+              backgroundColor: 'var(--ink)',
+              color: '#FFFFFF',
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1C1C1A'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--ink)'}
+          >
+            <Plus className="w-4 h-4" />
+            New Proposal
+          </button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                className="focus-ring rounded-full"
+                aria-label="Account menu"
+              >
                 {userProfile.avatarUrl ? (
                   <img
                     src={userProfile.avatarUrl}
                     alt={userProfile.name}
-                    className="w-10 h-10 rounded-full object-cover"
+                    className="w-[30px] h-[30px] rounded-full object-cover"
                   />
                 ) : (
                   <div
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
+                    className="w-[30px] h-[30px] rounded-full flex items-center justify-center text-[11px] font-extrabold"
                     style={{ backgroundColor: 'var(--signal)', color: 'var(--ink)' }}
                   >
                     {getInitials(userProfile.name)}
                   </div>
                 )}
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-text-primary truncate">
-                    {userProfile.name}
-                  </p>
-                  <p className="text-xs text-text-tertiary truncate">
-                    {userProfile.email}
-                  </p>
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-64">
+              {/* User Identity */}
+              <div className="px-3 py-3 border-b border-border">
+                <div className="flex items-center gap-3">
+                  {userProfile.avatarUrl ? (
+                    <img
+                      src={userProfile.avatarUrl}
+                      alt={userProfile.name}
+                      className="w-10 h-10 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-medium"
+                      style={{ backgroundColor: 'var(--signal)', color: 'var(--ink)' }}
+                    >
+                      {getInitials(userProfile.name)}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-text-primary truncate">
+                      {userProfile.name}
+                    </p>
+                    <p className="text-xs text-text-tertiary truncate">
+                      {userProfile.email}
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Navigation */}
-            <div className="py-1">
-              <DropdownMenuItem asChild>
-                <Link href="/dashboard" className="flex items-center">
-                  <LayoutDashboard className="w-4 h-4 mr-2" />
-                  Dashboard
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/account" className="flex items-center">
-                  <Settings className="w-4 h-4 mr-2" />
-                  Account Settings
-                </Link>
-              </DropdownMenuItem>
-            </div>
-
-            <DropdownMenuSeparator />
-
-            {/* Theme Toggle */}
-            <div className="px-2 py-2">
-              <p className="text-xs text-text-tertiary px-2 mb-2">Theme</p>
-              <div className="flex items-center gap-1 p-1 bg-surface-2 rounded-lg">
-                <button
-                  onClick={() => handleThemeChange('light')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-fast ${
-                    theme === 'light'
-                      ? 'bg-surface text-text-primary shadow-sm'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  <Sun className="w-3.5 h-3.5" />
-                  Light
-                </button>
-                <button
-                  onClick={() => handleThemeChange('dark')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-fast ${
-                    theme === 'dark'
-                      ? 'bg-surface text-text-primary shadow-sm'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  <Moon className="w-3.5 h-3.5" />
-                  Dark
-                </button>
-                <button
-                  onClick={() => handleThemeChange('system')}
-                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-fast ${
-                    theme === 'system'
-                      ? 'bg-surface text-text-primary shadow-sm'
-                      : 'text-text-secondary hover:text-text-primary'
-                  }`}
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                  System
-                </button>
+              {/* Navigation */}
+              <div className="py-1">
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard" className="flex items-center">
+                    <LayoutDashboard className="w-4 h-4 mr-2" />
+                    Dashboard
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/account" className="flex items-center">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Account Settings
+                  </Link>
+                </DropdownMenuItem>
               </div>
-            </div>
 
-            <DropdownMenuSeparator />
+              <DropdownMenuSeparator />
 
-            {/* Logout */}
-            <DropdownMenuItem
-              onClick={handleLogout}
-              className="text-danger focus:text-danger focus:bg-danger-bg"
-            >
-              <LogOut className="w-4 h-4 mr-2" />
-              Log out
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              {/* Theme Toggle */}
+              <div className="px-2 py-2">
+                <p className="text-xs text-text-tertiary px-2 mb-2">Theme</p>
+                <div className="flex items-center gap-1 p-1 bg-surface-2 rounded-lg">
+                  <button
+                    onClick={() => handleThemeChange('light')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-fast ${
+                      theme === 'light'
+                        ? 'bg-surface text-text-primary shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    <Sun className="w-3.5 h-3.5" />
+                    Light
+                  </button>
+                  <button
+                    onClick={() => handleThemeChange('dark')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-fast ${
+                      theme === 'dark'
+                        ? 'bg-surface text-text-primary shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    <Moon className="w-3.5 h-3.5" />
+                    Dark
+                  </button>
+                  <button
+                    onClick={() => handleThemeChange('system')}
+                    className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-fast ${
+                      theme === 'system'
+                        ? 'bg-surface text-text-primary shadow-sm'
+                        : 'text-text-secondary hover:text-text-primary'
+                    }`}
+                  >
+                    <Monitor className="w-3.5 h-3.5" />
+                    System
+                  </button>
+                </div>
+              </div>
+
+              <DropdownMenuSeparator />
+
+              {/* Logout */}
+              <DropdownMenuItem
+                onClick={handleLogout}
+                className="text-danger focus:text-danger focus:bg-danger-bg"
+              >
+                <LogOut className="w-4 h-4 mr-2" />
+                Log out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   )
