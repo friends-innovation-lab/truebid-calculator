@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useAppContext } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,6 +14,8 @@ import {
 import { Card } from '@/components/ui/card'
 import { SaveStatus } from '@/components/ui/save-status'
 import { toast } from 'sonner'
+import { WritingGuideForm, WritingGuide, defaultWritingGuide } from './writing-guide-form'
+import { settingsApi } from '@/lib/api'
 
 // IDIQ Contract type
 interface IDIQContract {
@@ -30,6 +32,34 @@ export function CompanyPage() {
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
   const latestProfile = useRef(companyProfile)
   const isInitialMount = useRef(true)
+
+  // Writing guide state
+  const [writingGuide, setWritingGuide] = useState<WritingGuide | undefined>(undefined)
+  const [writingGuideLoaded, setWritingGuideLoaded] = useState(false)
+
+  // Load writing guide from settings API
+  useEffect(() => {
+    async function loadWritingGuide() {
+      try {
+        const response = await settingsApi.get() as {
+          settings?: { writing_guide?: WritingGuide }
+        }
+        if (response.settings?.writing_guide) {
+          setWritingGuide(response.settings.writing_guide)
+        }
+      } catch {
+        // Silently fail - will use defaults
+      }
+      setWritingGuideLoaded(true)
+    }
+    loadWritingGuide()
+  }, [])
+
+  // Save writing guide to settings API
+  const handleSaveWritingGuide = useCallback(async (guide: WritingGuide) => {
+    await settingsApi.save({ writing_guide: guide })
+    setWritingGuide(guide)
+  }, [])
 
   // Keep ref in sync
   useEffect(() => { latestProfile.current = companyProfile }, [companyProfile])
@@ -262,6 +292,14 @@ export function CompanyPage() {
         {/* Other IDIQs */}
         <IDIQContracts />
       </Card>
+
+      {/* Writing Guide Card */}
+      {writingGuideLoaded && (
+        <WritingGuideForm
+          initialGuide={writingGuide || defaultWritingGuide}
+          onSave={handleSaveWritingGuide}
+        />
+      )}
     </div>
   )
 }

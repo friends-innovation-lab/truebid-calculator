@@ -71,6 +71,7 @@ export async function POST(request: Request) {
   if (body.escalation_rate !== undefined) upsertData.escalation_rate = body.escalation_rate
   if (body.salary_structure !== undefined) upsertData.salary_structure = body.salary_structure
   if (body.step_increase_percent !== undefined) upsertData.step_increase_percent = body.step_increase_percent
+  if (body.writing_guide !== undefined) upsertData.writing_guide = body.writing_guide
 
   const { data, error } = await supabase
     .from('company_settings')

@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { buildShipleyDocumentSource } from '@/lib/shipley'
+import { getWritingGuideForCoaching } from '@/lib/writing-guide'
 import crypto from 'crypto'
 
 // Initialize Anthropic client
@@ -113,6 +114,22 @@ export async function POST(
   // Format evaluation emphasis
   const evaluationEmphasis = aiSummary?.evaluation_emphasis || 'Not specified'
 
+  // Fetch company writing guide
+  const { prompt: writingGuidePrompt, guide: writingGuide } = await getWritingGuideForCoaching()
+
+  // Build writing guide evaluation criteria
+  let writingGuideEvaluation = ''
+  if (writingGuide) {
+    const wordsToAvoidList = writingGuide.words_to_avoid?.length
+      ? writingGuide.words_to_avoid.join(', ')
+      : ''
+    writingGuideEvaluation = `
+Company Writing Guide to evaluate against:
+${writingGuidePrompt}
+${wordsToAvoidList ? `Flag any use of these forbidden words: ${wordsToAvoidList}` : ''}
+`
+  }
+
   // Check for API key
   if (!process.env.ANTHROPIC_API_KEY) {
     // Return mock data for testing
@@ -201,6 +218,12 @@ Shipley criteria to evaluate against:
 - Proof: Are claims backed by evidence, examples, metrics, or past performance?
 - Risk Mitigation: Are risks acknowledged and mitigation strategies described?
 - Win Theme Alignment: Does the section reinforce the company's discriminators?
+${writingGuideEvaluation}
+Additionally check for:
+- Passive voice usage (flag and suggest active alternatives)
+- Generic language or buzzwords
+- Overly long sentences (flag sentences over 30 words)
+- Compliance with structural rules if provided
 
 Be specific and actionable. Identify gaps, not generic suggestions.
 Return only valid JSON. No preamble.`

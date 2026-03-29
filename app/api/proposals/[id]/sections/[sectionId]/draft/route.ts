@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { getWritingGuidePrompt } from '@/lib/writing-guide'
 
 // Initialize Anthropic client
 const anthropic = new Anthropic({
@@ -90,6 +91,9 @@ ${complianceItems.map(item =>
     })
   }
 
+  // Fetch the company's writing guide
+  const writingGuidePrompt = await getWritingGuidePrompt()
+
   // Build the prompt
   const systemPrompt = `You are an expert government contracting proposal writer. Your task is to write technical proposal content that:
 
@@ -113,7 +117,7 @@ WRITING GUIDELINES:
 - Include action verbs for deliverables
 - Reference compliance with requirements when applicable
 - Target word count: ${section.target_word_count || 500} words
-
+${writingGuidePrompt}
 OUTPUT FORMAT:
 Respond with ONLY the prose content in plain text. Use markdown-style headings with ## for H2 and ### for H3.
 Do NOT include JSON or code blocks - just write the proposal content directly.
