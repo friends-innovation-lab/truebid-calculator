@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import { toast } from 'sonner'
 import { useAppContext } from '@/contexts/app-context'
 import { proposalsApi, requirementsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -22,6 +23,7 @@ import {
   ChevronRight,
   Minus,
   Plus,
+  Check,
 } from 'lucide-react'
 import * as pdfjs from 'pdfjs-dist'
 
@@ -59,6 +61,20 @@ interface PDFState {
 }
 
 type SummaryStatus = 'waiting' | 'generating' | 'complete' | 'error'
+
+type ExtractionStepStatus = 'pending' | 'active' | 'complete' | 'error'
+
+interface ExtractionStep {
+  id: 'upload' | 'summary' | 'requirements'
+  label: string
+  status: ExtractionStepStatus
+}
+
+const initialExtractionSteps: ExtractionStep[] = [
+  { id: 'upload', label: 'Uploading document', status: 'pending' },
+  { id: 'summary', label: 'Generating summary', status: 'pending' },
+  { id: 'requirements', label: 'Extracting requirements', status: 'pending' },
+]
 
 // ============================================================================
 // UTILITIES
@@ -382,6 +398,8 @@ function AISummaryPanel({
   onRegenerate,
   onRetry,
   hasCompanyProfile,
+  isExtracting,
+  extractionSteps,
 }: {
   summary: AISummary | null
   status: SummaryStatus
@@ -389,6 +407,8 @@ function AISummaryPanel({
   onRegenerate: () => void
   onRetry: () => void
   hasCompanyProfile: boolean
+  isExtracting: boolean
+  extractionSteps: ExtractionStep[]
 }) {
   // Get the primary due date
   const primaryDueDate = summary?.keyDates?.find(d =>
@@ -513,7 +533,28 @@ function AISummaryPanel({
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto">
-        {status === 'waiting' && (
+        {/* Extraction in progress - show step tracker */}
+        {isExtracting && (
+          <div className="h-full flex items-center justify-center">
+            <div className="max-w-[280px]">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles
+                  className="w-5 h-5"
+                  style={{ color: 'var(--signal)' }}
+                />
+                <span
+                  className="text-[14px] font-semibold"
+                  style={{ color: 'var(--ink)' }}
+                >
+                  Analyzing document
+                </span>
+              </div>
+              <ProcessingSteps steps={extractionSteps} />
+            </div>
+          </div>
+        )}
+
+        {!isExtracting && status === 'waiting' && (
           <div className="h-full flex items-center justify-center">
             <div className="text-center max-w-[200px]">
               <Sparkles
@@ -536,7 +577,7 @@ function AISummaryPanel({
           </div>
         )}
 
-        {status === 'generating' && (
+        {!isExtracting && status === 'generating' && (
           <div className="p-5 space-y-4">
             {[100, 85, 90, 75, 80, 70].map((width, i) => (
               <div key={i} className="space-y-2">
@@ -565,7 +606,7 @@ function AISummaryPanel({
           </div>
         )}
 
-        {status === 'complete' && summary && (
+        {!isExtracting && status === 'complete' && summary && (
           <div className="p-5">
             {/* What they want */}
             <SummarySection label="What they want">
@@ -701,7 +742,7 @@ function AISummaryPanel({
           </div>
         )}
 
-        {status === 'error' && (
+        {!isExtracting && status === 'error' && (
           <div className="h-full flex items-center justify-center">
             <div className="text-center max-w-[240px]">
               <p
@@ -765,6 +806,74 @@ function SummarySection({
 }
 
 // ============================================================================
+// PROCESSING STEPS COMPONENT
+// ============================================================================
+
+function ProcessingSteps({ steps }: { steps: ExtractionStep[] }) {
+  return (
+    <div className="flex flex-col gap-3 py-2">
+      {steps.map((step) => {
+        const isComplete = step.status === 'complete'
+        const isActive = step.status === 'active'
+        const isError = step.status === 'error'
+        const isPending = step.status === 'pending'
+
+        return (
+          <div key={step.id} className="flex items-center gap-3">
+            {/* Status indicator */}
+            <div className="relative w-5 h-5 flex items-center justify-center shrink-0">
+              {isComplete && (
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: '#639922' }}
+                >
+                  <Check className="w-3 h-3 text-white" />
+                </div>
+              )}
+              {isActive && (
+                <div
+                  className="w-5 h-5 rounded-full border-2 animate-spin"
+                  style={{
+                    borderColor: '#E8E7E2',
+                    borderTopColor: 'var(--signal)',
+                  }}
+                />
+              )}
+              {isError && (
+                <div
+                  className="w-5 h-5 rounded-full flex items-center justify-center"
+                  style={{ backgroundColor: '#A32D2D' }}
+                >
+                  <span className="text-white text-xs font-bold">!</span>
+                </div>
+              )}
+              {isPending && (
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: '#E8E7E2' }}
+                />
+              )}
+            </div>
+
+            {/* Label */}
+            <span
+              className="text-[13px]"
+              style={{
+                color: isComplete ? '#639922' : isActive ? 'var(--ink)' : isError ? '#A32D2D' : '#9B9A95',
+                fontWeight: isActive ? 600 : 400,
+              }}
+            >
+              {step.label}
+              {isComplete && step.id === 'requirements' && ' (complete)'}
+            </span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ============================================================================
 // MAIN COMPONENT
 // ============================================================================
 
@@ -797,6 +906,12 @@ export function Solicitation() {
 
   // Dialogs
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
+  const [showReplaceConfirm, setShowReplaceConfirm] = useState(false)
+  const [pendingReplaceFile, setPendingReplaceFile] = useState<File | null>(null)
+
+  // Extraction steps
+  const [extractionSteps, setExtractionSteps] = useState<ExtractionStep[]>(initialExtractionSteps)
+  const [isExtracting, setIsExtracting] = useState(false)
 
   // File input ref for replace
   const replaceInputRef = useRef<HTMLInputElement>(null)
@@ -861,8 +976,24 @@ export function Solicitation() {
     loadExistingData()
   }, [proposalId, solicitation.analyzedFromDocument])
 
+  // Helper to update a specific extraction step
+  const updateExtractionStep = (stepId: ExtractionStep['id'], status: ExtractionStepStatus) => {
+    setExtractionSteps(prev =>
+      prev.map(step =>
+        step.id === stepId ? { ...step, status } : step
+      )
+    )
+  }
+
   // Handle file upload
   const handleFileUpload = async (file: File) => {
+    // Reset extraction steps and start processing
+    setExtractionSteps(initialExtractionSteps.map(step => ({ ...step, status: 'pending' })))
+    setIsExtracting(true)
+
+    // Step 1: Upload - set to active
+    updateExtractionStep('upload', 'active')
+
     // Create temporary blob URL for immediate display
     const tempUrl = URL.createObjectURL(file)
 
@@ -886,36 +1017,52 @@ export function Solicitation() {
       uploadDate: new Date().toISOString(),
     })
 
-    // Upload to storage in parallel with extraction
+    // Upload to storage
     if (proposalId) {
       const uploadFormData = new FormData()
       uploadFormData.append('file', file)
 
-      fetch(`/api/proposals/${proposalId}/upload-pdf`, {
-        method: 'POST',
-        body: uploadFormData,
-      })
-        .then(async (res) => {
-          const data = await res.json()
-          if (res.ok && data.pdfUrl) {
-            console.log('[Solicitation] PDF persisted:', data.pdfUrl)
-            // Update state with persistent URL
-            setPdfState(prev => ({
-              ...prev,
-              url: data.pdfUrl,
-            }))
-            // Clean up blob URL
-            URL.revokeObjectURL(tempUrl)
-          } else {
-            console.error('[Solicitation] Upload failed:', data.error || 'Unknown error')
-          }
+      try {
+        const res = await fetch(`/api/proposals/${proposalId}/upload-pdf`, {
+          method: 'POST',
+          body: uploadFormData,
         })
-        .catch((err) => {
-          console.error('[Solicitation] Failed to persist PDF:', err)
+        const data = await res.json()
+        if (res.ok && data.pdfUrl) {
+          console.log('[Solicitation] PDF persisted:', data.pdfUrl)
+          // Update state with persistent URL
+          setPdfState(prev => ({
+            ...prev,
+            url: data.pdfUrl,
+          }))
+          // Clean up blob URL
+          URL.revokeObjectURL(tempUrl)
+          // Mark upload complete
+          updateExtractionStep('upload', 'complete')
+        } else {
+          console.error('[Solicitation] Upload failed:', data.error || 'Unknown error')
+          updateExtractionStep('upload', 'error')
+          setIsExtracting(false)
+          toast.error('Upload failed', {
+            description: data.error || 'Could not upload the document.',
+          })
+          return
+        }
+      } catch (err) {
+        console.error('[Solicitation] Failed to persist PDF:', err)
+        updateExtractionStep('upload', 'error')
+        setIsExtracting(false)
+        toast.error('Upload failed', {
+          description: 'Could not upload the document.',
         })
+        return
+      }
+    } else {
+      // No proposalId, just mark upload complete
+      updateExtractionStep('upload', 'complete')
     }
 
-    // Start AI extraction
+    // Start AI extraction (which handles summary and requirements steps)
     await extractRFP(file)
   }
 
@@ -923,6 +1070,9 @@ export function Solicitation() {
   const extractRFP = async (file: File) => {
     setSummaryStatus('generating')
     setSummaryError(null)
+
+    // Step 2: Summary - set to active (extraction includes summary generation)
+    updateExtractionStep('summary', 'active')
 
     try {
       const formData = new FormData()
@@ -943,6 +1093,10 @@ export function Solicitation() {
       if (!data.success) {
         throw new Error(data.error || 'Extraction failed')
       }
+
+      // Mark summary complete, start requirements
+      updateExtractionStep('summary', 'complete')
+      updateExtractionStep('requirements', 'active')
 
       const { metadata, requirements, suggestedRoles } = data
 
@@ -975,7 +1129,9 @@ export function Solicitation() {
       })
 
       // Store requirements
+      let requirementCount = 0
       if (requirements && requirements.length > 0) {
+        requirementCount = requirements.length
         setExtractedRequirements(requirements)
         if (proposalId) {
           try {
@@ -1009,6 +1165,15 @@ export function Solicitation() {
         setRecommendedRoles(mappedRoles)
       }
 
+      // Mark requirements complete
+      updateExtractionStep('requirements', 'complete')
+      setIsExtracting(false)
+
+      // Show completion toast
+      toast.success('Extraction complete', {
+        description: `Extracted ${requirementCount} requirement${requirementCount !== 1 ? 's' : ''} from your RFP.`,
+      })
+
       // Now generate the summary
       await generateSummary()
 
@@ -1016,6 +1181,17 @@ export function Solicitation() {
       console.error('RFP extraction error:', error)
       setSummaryStatus('error')
       setSummaryError(error instanceof Error ? error.message : 'Failed to analyze document')
+
+      // Mark current step as error
+      setExtractionSteps(prev => prev.map(step =>
+        step.status === 'active' ? { ...step, status: 'error' } : step
+      ))
+      setIsExtracting(false)
+
+      // Show error toast
+      toast.error('Extraction failed', {
+        description: error instanceof Error ? error.message : 'Could not analyze the document.',
+      })
     }
   }
 
@@ -1096,8 +1272,42 @@ export function Solicitation() {
   const handleReplaceSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0 && files[0].type === 'application/pdf') {
-      handleFileUpload(files[0])
+      // Store the file and show confirmation dialog
+      setPendingReplaceFile(files[0])
+      setShowReplaceConfirm(true)
     }
+    // Reset the input so the same file can be selected again
+    e.target.value = ''
+  }
+
+  const handleConfirmReplace = async () => {
+    if (!pendingReplaceFile) return
+
+    setShowReplaceConfirm(false)
+
+    // Clear existing data
+    setSummary(null)
+    setSummaryStatus('waiting')
+    setExtractedRequirements([])
+    setRecommendedRoles([])
+
+    // Delete existing requirements from database
+    if (proposalId) {
+      try {
+        await requirementsApi.deleteAll(proposalId)
+      } catch (error) {
+        console.warn('[Solicitation] Failed to delete existing requirements:', error)
+      }
+    }
+
+    // Upload the new file
+    await handleFileUpload(pendingReplaceFile)
+    setPendingReplaceFile(null)
+  }
+
+  const handleCancelReplace = () => {
+    setShowReplaceConfirm(false)
+    setPendingReplaceFile(null)
   }
 
   const handleDownload = () => {
@@ -1159,6 +1369,8 @@ export function Solicitation() {
             onRegenerate={handleRegenerate}
             onRetry={handleRetry}
             hasCompanyProfile={false}
+            isExtracting={isExtracting}
+            extractionSteps={extractionSteps}
           />
         </div>
       </div>
@@ -1187,6 +1399,26 @@ export function Solicitation() {
             </Button>
             <Button onClick={handleConfirmRegenerate}>
               Regenerate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Replace confirmation dialog */}
+      <Dialog open={showReplaceConfirm} onOpenChange={setShowReplaceConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Replace solicitation?</DialogTitle>
+            <DialogDescription>
+              This will delete all extracted requirements and the AI summary. You&apos;ll need to re-extract everything from the new document.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleCancelReplace}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleConfirmReplace}>
+              Replace
             </Button>
           </DialogFooter>
         </DialogContent>
