@@ -29,15 +29,20 @@ export function CompanyPage() {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
   const latestProfile = useRef(companyProfile)
+  const isInitialMount = useRef(true)
+
+  // Keep ref in sync
   useEffect(() => { latestProfile.current = companyProfile }, [companyProfile])
 
-  const handleChange = (field: string, value: string | boolean | string[] | number) => {
-    // Update state immediately so UI reflects the change
-    const updated = { ...companyProfile, [field]: value }
-    setCompanyProfile(updated)
-    latestProfile.current = updated
+  // Auto-save when companyProfile changes (debounced)
+  // This handles changes from both this component and child components (like IDIQContracts)
+  useEffect(() => {
+    // Skip initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
 
-    // Debounce the API save
     setSaveStatus('saving')
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(async () => {
@@ -48,6 +53,14 @@ export function CompanyPage() {
         setSaveStatus('error')
       }
     }, 1000)
+
+    return () => {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    }
+  }, [companyProfile, saveCompanyProfile])
+
+  const handleChange = (field: string, value: string | boolean | string[] | number) => {
+    setCompanyProfile({ ...companyProfile, [field]: value })
   }
 
   return (
