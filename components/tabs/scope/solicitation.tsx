@@ -615,25 +615,11 @@ function AISummaryPanel({
 
             {/* Evaluation emphasis */}
             <SummarySection label="Evaluation emphasis">
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                {(summary.evaluationEmphasis || []).map((factor, index) => (
-                  <span
-                    key={index}
-                    style={{
-                      fontSize: '11px',
-                      fontWeight: 500,
-                      padding: '4px 10px',
-                      borderRadius: '20px',
-                      background: '#E6F1FB',
-                      color: '#042C53',
-                      border: '0.5px solid #85B7EB',
-                      display: 'inline-block',
-                    }}
-                  >
-                    {factor}
-                  </span>
-                ))}
-              </div>
+              <p style={{ fontSize: 13, fontWeight: 400, color: '#111110', lineHeight: 1.6 }}>
+                {Array.isArray(summary.evaluationEmphasis)
+                  ? summary.evaluationEmphasis.join('. ') + (summary.evaluationEmphasis.length > 0 ? '.' : '')
+                  : summary.evaluationEmphasis || ''}
+              </p>
             </SummarySection>
 
             {/* FFTC relevance */}
