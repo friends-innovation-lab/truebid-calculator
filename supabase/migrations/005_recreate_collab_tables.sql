@@ -3,6 +3,9 @@
 -- Safe to run — drops and recreates. No production data in these tables yet.
 -- ============================================================================
 
+-- Ensure pgcrypto extension is available for gen_random_bytes
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 DROP TABLE IF EXISTS wbs_submissions CASCADE;
 DROP TABLE IF EXISTS collab_sessions CASCADE;
 
@@ -13,7 +16,7 @@ CREATE TABLE collab_sessions (
   reviewer_name TEXT NOT NULL,
   reviewer_title TEXT,
   token TEXT NOT NULL UNIQUE
-    DEFAULT encode(gen_random_bytes(32), 'hex'),
+    DEFAULT encode(extensions.gen_random_bytes(32), 'hex'),
   assigned_wbs_ids TEXT[] NOT NULL DEFAULT '{}',
   status TEXT NOT NULL DEFAULT 'open'
     CHECK (status IN ('open', 'closed', 'expired')),
