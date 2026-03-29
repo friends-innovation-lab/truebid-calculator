@@ -45,6 +45,10 @@ export function ProposalStatus() {
   const [coachingStatus, setCoachingStatus] = useState<'none' | 'pending' | 'complete'>('none')
   const [coachingDescription, setCoachingDescription] = useState('No sections coached yet')
 
+  // Technical volume locked status
+  const [lockedStatus, setLockedStatus] = useState<'none' | 'pending' | 'complete'>('none')
+  const [lockedDescription, setLockedDescription] = useState('No sections locked')
+
   // Load strategy data
   useEffect(() => {
     if (!proposalId) return
@@ -243,6 +247,35 @@ export function ProposalStatus() {
     checkCoaching()
   }, [proposalId])
 
+  // Load technical volume locked status
+  useEffect(() => {
+    if (!proposalId) return
+    async function checkLocked() {
+      try {
+        const response = await fetch(`/api/proposals/${proposalId}/export/technical-volume`)
+        if (response.ok) {
+          const data = await response.json()
+          if (data.total === 0) {
+            setLockedStatus('none')
+            setLockedDescription('No sections created yet')
+          } else if (data.allLocked) {
+            setLockedStatus('complete')
+            setLockedDescription(`All ${data.locked} sections locked`)
+          } else if (data.locked > 0) {
+            setLockedStatus('pending')
+            setLockedDescription(`${data.locked} of ${data.total} sections locked`)
+          } else {
+            setLockedStatus('none')
+            setLockedDescription('No sections locked')
+          }
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    checkLocked()
+  }, [proposalId])
+
   const totalValue = selectedRoles.reduce((sum, r) => {
     const activeYears = Object.values(r.years).filter(Boolean).length
     return sum + r.baseSalary * r.fte * activeYears
@@ -311,6 +344,12 @@ export function ProposalStatus() {
       description: coachingDescription,
       complete: coachingStatus === 'complete',
       pending: coachingStatus === 'pending',
+    },
+    {
+      label: 'Technical volume locked',
+      description: lockedDescription,
+      complete: lockedStatus === 'complete',
+      pending: lockedStatus === 'pending',
     },
   ]
 

@@ -2,10 +2,11 @@
 'use client'
 
 import { useState, useMemo, useEffect, useCallback } from 'react'
+import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
-import { 
-  generateExport, 
-  downloadBlob, 
+import {
+  generateExport,
+  downloadBlob,
   uploadToGoogleDrive,
   type ExportData,
   type ExportOptions,
@@ -17,11 +18,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { 
-  FileSpreadsheet, 
-  FileText, 
-  Download, 
-  CheckCircle2, 
+import {
+  FileSpreadsheet,
+  FileText,
+  Download,
+  CheckCircle2,
   AlertCircle,
   Loader2,
   Calculator,
@@ -33,7 +34,10 @@ import {
   Settings,
   Eye,
   AlertTriangle,
-  ArrowRight
+  ArrowRight,
+  Lock,
+  Unlock,
+  BookOpen
 } from 'lucide-react'
 
 // ============================================================================
@@ -902,6 +906,9 @@ function SettingsSlideout_REMOVED() {
 // ============================================================================
 
 export function ExportTab() {
+  const params = useParams()
+  const proposalId = params?.id as string
+
   const {
     companyProfile,
     indirectRates,
@@ -922,6 +929,71 @@ export function ExportTab() {
   const [exportStatus, setExportStatus] = useState<ExportStatus>('idle')
   const [exportResult, setExportResult] = useState<{ fileName?: string } | null>(null)
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
+
+  // Technical Volume export state
+  const [tvExportStatus, setTvExportStatus] = useState<ExportStatus>('idle')
+  const [tvSectionStats, setTvSectionStats] = useState<{
+    total: number
+    locked: number
+    notLocked: number
+    allLocked: boolean
+  } | null>(null)
+
+  // Fetch section lock status for Technical Volume
+  useEffect(() => {
+    if (!proposalId) return
+    async function fetchSectionStatus() {
+      try {
+        const response = await fetch(`/api/proposals/${proposalId}/export/technical-volume`)
+        if (response.ok) {
+          const data = await response.json()
+          setTvSectionStats(data)
+        }
+      } catch {
+        // Silently fail
+      }
+    }
+    fetchSectionStatus()
+  }, [proposalId])
+
+  // Handle Technical Volume export
+  const handleTechnicalVolumeExport = async () => {
+    if (!proposalId) return
+    setTvExportStatus('generating')
+
+    try {
+      const response = await fetch(`/api/proposals/${proposalId}/export/technical-volume`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Export failed')
+      }
+
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get('Content-Disposition')
+      let filename = 'Technical-Volume.docx'
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/)
+        if (match) {
+          filename = match[1]
+        }
+      }
+
+      const blob = await response.blob()
+      downloadBlob(blob, filename)
+      setTvExportStatus('success')
+
+      // Reset after 3 seconds
+      setTimeout(() => setTvExportStatus('idle'), 3000)
+    } catch (error) {
+      console.error('Technical Volume export failed:', error)
+      setTvExportStatus('error')
+      setTimeout(() => setTvExportStatus('idle'), 3000)
+    }
+  }
+
   const [config, setConfig] = useState<ExportConfig>({
     solicitation: '',
     client: '',
@@ -1225,7 +1297,7 @@ export function ExportTab() {
         </TabsList>
 
         {/* SECTIONS TAB */}
-        <TabsContent value="sections" className="mt-4">
+        <TabsContent value="sections" className="mt-4 space-y-6">
           {selectedRoles.length === 0 ? (
             <div className="text-center py-12 bg-amber-50 border border-amber-200 rounded-lg">
               <AlertTriangle className="w-10 h-10 text-amber-400 mx-auto mb-3" />
@@ -1247,6 +1319,80 @@ export function ExportTab() {
               ))}
             </div>
           )}
+
+          {/* Technical Volume Export */}
+          <div className="pt-6 border-t border-gray-200">
+            <div className="flex items-center gap-2 mb-4">
+              <BookOpen className="w-5 h-5 text-gray-500" />
+              <h3 className="text-sm font-semibold text-gray-900">Technical Volume</h3>
+            </div>
+
+            <div className="bg-white border border-gray-200 rounded-lg p-5">
+              <div className="flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <h4 className="font-medium text-gray-900">Technical Volume (Word)</h4>
+                    <Badge variant="secondary" className="text-[10px]">InDesign-Ready</Badge>
+                  </div>
+                  <p className="text-sm text-gray-500 mb-3">
+                    Paragraph styles match your FFTC template. Place directly in InDesign without reformatting.
+                  </p>
+
+                  {/* Section lock status */}
+                  {tvSectionStats && tvSectionStats.total > 0 && (
+                    <div className="flex items-center gap-3 mb-4">
+                      {tvSectionStats.allLocked ? (
+                        <div className="flex items-center gap-1.5 text-sm text-green-600">
+                          <Lock className="w-4 h-4" />
+                          <span>All {tvSectionStats.locked} sections locked</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-sm text-amber-600">
+                          <Unlock className="w-4 h-4" />
+                          <span>{tvSectionStats.notLocked} of {tvSectionStats.total} sections not locked</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {tvSectionStats && tvSectionStats.total === 0 && (
+                    <p className="text-sm text-gray-500 mb-4">
+                      No outline sections created yet. Create an outline in Write → Proposal Outline first.
+                    </p>
+                  )}
+
+                  {/* Warning for unlocked sections */}
+                  {tvSectionStats && tvSectionStats.notLocked > 0 && (
+                    <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-4">
+                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                      <div className="text-sm text-amber-800">
+                        <p className="font-medium">Unlocked sections detected</p>
+                        <p className="text-xs mt-0.5">
+                          Lock all sections in Write → Proposal Outline before exporting to ensure content is final.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Button
+                  variant="outline"
+                  onClick={handleTechnicalVolumeExport}
+                  disabled={tvExportStatus === 'generating' || !tvSectionStats || tvSectionStats.total === 0}
+                >
+                  {tvExportStatus === 'generating' ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Generating...</>
+                  ) : tvExportStatus === 'success' ? (
+                    <><CheckCircle2 className="w-4 h-4 mr-2" />Downloaded!</>
+                  ) : tvExportStatus === 'error' ? (
+                    <><AlertCircle className="w-4 h-4 mr-2" />Failed</>
+                  ) : (
+                    <><Download className="w-4 h-4 mr-2" />Export Word</>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
         </TabsContent>
 
         {/* PREVIEW TAB */}

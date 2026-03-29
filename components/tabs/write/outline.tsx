@@ -39,11 +39,13 @@ import {
   Clock,
   Edit3,
   AlignLeft,
+  Lock,
+  Loader2,
 } from 'lucide-react'
 
 // ==================== TYPES ====================
 
-type SectionStatus = 'draft' | 'in_progress' | 'review' | 'complete'
+type SectionStatus = 'draft' | 'in_progress' | 'review' | 'complete' | 'locked'
 
 interface Section {
   id: string
@@ -73,6 +75,7 @@ interface SectionStats {
   inProgress: number
   review: number
   complete: number
+  locked: number
 }
 
 const STATUS_CONFIG: Record<SectionStatus, { label: string; color: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -80,6 +83,7 @@ const STATUS_CONFIG: Record<SectionStatus, { label: string; color: string; icon:
   in_progress: { label: 'In Progress', color: 'bg-blue-100 text-blue-700', icon: Clock },
   review: { label: 'Review', color: 'bg-amber-100 text-amber-700', icon: AlignLeft },
   complete: { label: 'Complete', color: 'bg-green-100 text-green-700', icon: CheckCircle2 },
+  locked: { label: 'Locked', color: 'bg-purple-100 text-purple-700', icon: Lock },
 }
 
 // ==================== MAIN COMPONENT ====================
@@ -92,9 +96,11 @@ export function Outline() {
   const [stats, setStats] = useState<SectionStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isLocking, setIsLocking] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [hasComplianceMatrix, setHasComplianceMatrix] = useState(false)
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
+  const [showLockConfirm, setShowLockConfirm] = useState(false)
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
   const [editingSection, setEditingSection] = useState<string | null>(null)
@@ -195,6 +201,39 @@ export function Outline() {
       setIsGenerating(false)
     }
   }
+
+  const lockAllSections = async () => {
+    setShowLockConfirm(false)
+    setIsLocking(true)
+    setError(null)
+
+    try {
+      // Lock all sections that are not already locked
+      const sectionsToLock = sections.filter(s => s.status !== 'locked')
+
+      await Promise.all(
+        sectionsToLock.map(section =>
+          sectionsApi.update(proposalId, section.id, { status: 'locked' })
+        )
+      )
+
+      // Update local state
+      setSections(prev => prev.map(s => ({ ...s, status: 'locked' as SectionStatus })))
+
+      // Refresh stats
+      const statsResponse = await sectionsApi.list(proposalId) as {
+        stats: SectionStats
+      }
+      setStats(statsResponse.stats)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to lock sections')
+    } finally {
+      setIsLocking(false)
+    }
+  }
+
+  const allSectionsLocked = sections.length > 0 && sections.every(s => s.status === 'locked')
+  const unlockedCount = sections.filter(s => s.status !== 'locked').length
 
   const toggleExpand = (sectionId: string) => {
     setExpandedSections(prev => {
@@ -329,6 +368,20 @@ export function Outline() {
             <Plus className="w-4 h-4 mr-1.5" />
             Add Section
           </Button>
+          <Button
+            size="sm"
+            variant={allSectionsLocked ? "outline" : "default"}
+            onClick={() => setShowLockConfirm(true)}
+            disabled={isLocking || allSectionsLocked}
+          >
+            {isLocking ? (
+              <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Locking...</>
+            ) : allSectionsLocked ? (
+              <><Lock className="w-4 h-4 mr-1.5" />All Locked</>
+            ) : (
+              <><Lock className="w-4 h-4 mr-1.5" />Lock All Sections</>
+            )}
+          </Button>
         </div>
       </div>
 
@@ -340,6 +393,7 @@ export function Outline() {
           <StatBadge label="In Progress" value={stats.inProgress} color="blue" />
           <StatBadge label="Review" value={stats.review} color="amber" />
           <StatBadge label="Complete" value={stats.complete} color="green" />
+          <StatBadge label="Locked" value={stats.locked || 0} color="purple" />
         </div>
       )}
 
@@ -384,6 +438,28 @@ export function Outline() {
         </DialogContent>
       </Dialog>
 
+      {/* Lock All Sections Confirmation Dialog */}
+      <Dialog open={showLockConfirm} onOpenChange={setShowLockConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Lock all sections?</DialogTitle>
+            <DialogDescription>
+              This will lock {unlockedCount} section{unlockedCount !== 1 ? 's' : ''} to mark them as final.
+              Locked sections can still be unlocked individually if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowLockConfirm(false)}>
+              Cancel
+            </Button>
+            <Button onClick={lockAllSections}>
+              <Lock className="w-4 h-4 mr-1.5" />
+              Lock All
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Add Section Dialog */}
       <AddSectionDialog
         open={showAddDialog}
@@ -413,6 +489,7 @@ function StatBadge({ label, value, color }: { label: string; value: number; colo
     blue: 'text-blue-600',
     amber: 'text-amber-600',
     green: 'text-green-600',
+    purple: 'text-purple-600',
   }
 
   return (
