@@ -71,45 +71,80 @@ Response must start with { and end with }`
 // Everything the proposal document must address or respond to
 // ============================================================================
 
-const COMPLIANCE_SYSTEM_PROMPT = `You are a senior proposal manager building a compliance matrix for a federal RFP.
+const COMPLIANCE_SYSTEM_PROMPT = `You are building a compliance matrix for a federal proposal. A compliance matrix tracks EVERYTHING the proposal document must address or respond to — not just what the solution needs to do.
 
-A compliance matrix tracks everything the proposal DOCUMENT must address or respond to — from formatting rules to evaluation criteria to technical requirements.
+Extract items from ALL of these sections:
 
-Extract items from ALL sections:
-  Section C — technical/performance requirements
-  Section H — special contract requirements
-  Section J — deliverables and attachments
-  Section K — certifications and representations
-  Section L — instructions to offerors (formatting, page limits, volumes)
-  Section M — evaluation factors and criteria
+SECTION L — Instructions to Offerors:
+  These are formatting and submission rules. Examples:
+  - Page limits ("Technical volume shall not exceed 20 pages")
+  - Font requirements ("12-point Times New Roman")
+  - Margin requirements ("1-inch margins")
+  - Required volumes ("Submit Volume I Technical, Volume II Management, Volume III Price")
+  - Submission method ("Submit via SAM.gov")
+  - Deadline and format ("Submit by 4pm EST, PDF")
+  - Required attachments to complete
 
-For Section C and H items: use the same ref numbers as the requirements extraction (REQ-001 etc.) so they can be linked.
-For Section L: use L.1, L.2, L.3...
-For Section M: use M.1, M.2, M.3...
-For Section K: use K.1, K.2...
-For Section J: use J.1, J.2...
+SECTION M — Evaluation Factors:
+  These are the criteria the government uses to score proposals. Examples:
+  - "Technical Approach — Most Important Factor"
+  - "Management Approach — equally important to Past Performance"
+  - "Past Performance — evaluated on recency and relevance"
+  - "Price — evaluated for reasonableness"
+  - Any subfactors listed under each factor
 
-A compliance matrix for a standard RFP has 20–40 total items.`
+SECTION K — Certifications:
+  Certifications the offeror must make. Examples:
+  - "Offeror must certify SAM.gov registration"
+  - "8(a) certification required"
+  - "Conflict of interest certification"
+
+SECTION J — Attachments/Deliverables:
+  Required forms and attachments. Examples:
+  - "Complete Attachment 2 — Pricing Template"
+  - "Submit signed representations"
+  - "Past performance questionnaire required"
+
+SECTION C — Technical Requirements:
+  Use the SAME ref numbers as the requirements extraction (REQ-001 etc.) so they can be linked.
+  Include a brief summary of each requirement.
+
+SECTION H — Special Requirements:
+  Any special clauses requiring acknowledgment. Examples:
+  - Security clearance requirements
+  - Subcontracting plan requirements
+  - Small business goals
+
+A complete compliance matrix for a standard federal RFP should have 25–50 total items.`
 
 const COMPLIANCE_USER_PROMPT = `Build a compliance matrix from this RFP.
-Include all sections. Return ONLY a valid JSON array:
+Extract items from ALL sections (L, M, K, J, C, H). Return ONLY a valid JSON array:
 
 [{
-  "ref": "L.5.1",
+  "ref": "L.1",
   "rfpSection": "L",
   "type": "instruction",
-  "text": "Full text of what's required",
+  "text": "Full text of the instruction or requirement",
   "source": "Section L · p.44"
 }]
 
-rfpSection: C | H | J | K | L | M
-type:
-  'technical'    — Section C requirements
-  'special'      — Section H requirements
-  'deliverable'  — Section J items
-  'certification'— Section K items
-  'instruction'  — Section L formatting rules
-  'evaluation'   — Section M factors
+IMPORTANT ref numbering:
+  Section L items: L.1, L.2, L.3...
+  Section M items: M.1, M.2, M.3...
+  Section K items: K.1, K.2...
+  Section J items: J.1, J.2...
+  Section C items: REQ-001, REQ-002... (same refs as requirements extraction)
+  Section H items: H.1, H.2...
+
+type values:
+  "instruction"   — Section L formatting rules
+  "evaluation"    — Section M evaluation factors
+  "certification" — Section K certifications
+  "deliverable"   — Section J attachments
+  "technical"     — Section C requirements
+  "special"       — Section H requirements
+
+source format: "Section L · p.44" — Always use section letter and page number.
 
 Return only the JSON array. No preamble, no explanation.`
 
