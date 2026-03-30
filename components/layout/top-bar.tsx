@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { LogOut, Settings, LayoutDashboard, Sun, Moon, Monitor } from 'lucide-react'
 import { Wordmark } from '@/components/ui/wordmark'
 import { useAuth } from '@/contexts/auth-context'
@@ -15,6 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { SetupPanel } from '@/components/proposals/setup-panel'
 
 export type SectionId = 'scope' | 'staff' | 'write' | 'deliver'
 
@@ -57,9 +58,12 @@ export function TopBar({
   onDueDateChange,
 }: TopBarProps) {
   const router = useRouter()
+  const params = useParams()
+  const proposalId = params?.id as string | undefined
   const { user } = useAuth()
 
   const [theme, setTheme] = useState<Theme>('system')
+  const [setupOpen, setSetupOpen] = useState(false)
   const [userProfile, setUserProfile] = useState({
     name: 'User',
     email: 'user@company.com',
@@ -182,12 +186,13 @@ export function TopBar({
                   }
                   return (
                     <span
-                      onClick={onContractTypeClick}
-                      className="px-2 py-0.5 text-[10px] font-medium rounded bg-surface-2 text-text-secondary"
-                      style={{ cursor: onContractTypeClick ? 'pointer' : 'default' }}
+                      onClick={() => setSetupOpen(true)}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded bg-surface-2 text-text-secondary hover:bg-surface-3 transition-fast"
+                      style={{ cursor: 'pointer' }}
                       title="Edit proposal setup"
                     >
                       {labelMap[contractType] || contractType}
+                      <span style={{ fontSize: 8, marginLeft: 3, opacity: 0.6 }}>▾</span>
                     </span>
                   )
                 })()}
@@ -332,6 +337,15 @@ export function TopBar({
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Setup Panel */}
+      {proposalId && (
+        <SetupPanel
+          open={setupOpen}
+          onClose={() => setSetupOpen(false)}
+          proposalId={proposalId}
+        />
+      )}
     </header>
   )
 }
