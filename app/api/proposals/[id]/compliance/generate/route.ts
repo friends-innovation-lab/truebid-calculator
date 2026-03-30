@@ -215,7 +215,7 @@ export async function POST(
     let parsedItems
     try {
       // Strip markdown code blocks if present
-      let cleanedResponse = responseText
+      const cleanedResponse = responseText
         .replace(/```json\s*/gi, '')
         .replace(/```\s*/g, '')
         .trim()
@@ -306,7 +306,7 @@ export async function POST(
           : ''
 
         if (wbsLinkText && wbsLinkResponse.stop_reason !== 'max_tokens') {
-          let cleanedWbsLink = wbsLinkText
+          const cleanedWbsLink = wbsLinkText
             .replace(/```json\s*/gi, '')
             .replace(/```\s*/g, '')
             .trim()
@@ -368,7 +368,7 @@ export async function POST(
           : ''
 
         if (sectionLText && sectionLResponse.stop_reason !== 'max_tokens') {
-          let cleanedSectionL = sectionLText
+          const cleanedSectionL = sectionLText
             .replace(/```json\s*/gi, '')
             .replace(/```\s*/g, '')
             .trim()
