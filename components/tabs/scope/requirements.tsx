@@ -57,7 +57,7 @@ const STATUS_BADGE_STYLES = {
   compliant: { bg: '#EAF3DE', text: '#27500A', border: '#97C459' },
   partial: { bg: '#FAEEDA', text: '#412402', border: '#EF9F27' },
   gap: { bg: '#FCEBEB', text: '#501313', border: '#F09595' },
-  unaddressed: { bg: '#F4F3EF', text: '#9B9A95', border: '#D4D3CE' },
+  unaddressed: { bg: '#F4F3EF', text: '#6B6A65', border: '#D4D3CE' },
 }
 
 const TYPE_BADGE_STYLES = {
@@ -232,7 +232,7 @@ function SectionDropdown({ value, sections, onUpdate, onClose }: SectionDropdown
           style={{
             padding: '8px 10px',
             fontSize: 11,
-            color: '#9B9A95',
+            color: '#6B6A65',
             fontStyle: 'italic',
           }}
         >
@@ -251,7 +251,7 @@ function SectionDropdown({ value, sections, onUpdate, onClose }: SectionDropdown
               backgroundColor: value === section.id ? '#FBF9F0' : 'transparent',
             }}
           >
-            <span style={{ color: '#9B9A95', marginRight: 6 }}>{section.number}</span>
+            <span style={{ color: '#6B6A65', marginRight: 6 }}>{section.number}</span>
             {section.title}
           </div>
         ))}
@@ -538,7 +538,7 @@ export function Requirements() {
 
           {/* Coverage Bar */}
           <div className="flex items-center gap-2 ml-auto">
-            <span style={{ fontSize: 11, color: '#9B9A95' }}>Coverage</span>
+            <span style={{ fontSize: 11, color: '#6B6A65' }}>Coverage</span>
             <div
               style={{
                 width: 140,
@@ -711,7 +711,7 @@ export function Requirements() {
             <div
               style={{
                 fontSize: 12,
-                color: '#9B9A95',
+                color: '#6B6A65',
                 textAlign: 'center',
               }}
             >
@@ -720,7 +720,7 @@ export function Requirements() {
           </div>
         ) : filteredRequirements.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16">
-            <p style={{ fontSize: 13, color: '#9B9A95', marginBottom: 4 }}>
+            <p style={{ fontSize: 13, color: '#6B6A65', marginBottom: 4 }}>
               No {typeFilter !== 'all' ? typeFilter : ''} requirements match
             </p>
             <button
@@ -817,7 +817,7 @@ function StatItem({ value, label, color, bold, isLast }: StatItemProps) {
       <span
         style={{
           fontSize: 11,
-          color: '#9B9A95',
+          color: '#6B6A65',
           fontWeight: bold ? 700 : 400,
         }}
       >
@@ -845,7 +845,7 @@ function InnerTabButton({ label, count, active, onClick }: InnerTabButtonProps) 
         padding: '10px 20px',
         fontSize: 12,
         fontWeight: active ? 700 : 500,
-        color: active ? '#111110' : '#9B9A95',
+        color: active ? '#111110' : '#6B6A65',
         borderBottom: `2px solid ${active ? '#F5C200' : 'transparent'}`,
         background: 'none',
         cursor: 'pointer',
@@ -860,7 +860,7 @@ function InnerTabButton({ label, count, active, onClick }: InnerTabButtonProps) 
           fontSize: 10,
           fontWeight: 700,
           backgroundColor: active ? '#F5C200' : '#F4F3EF',
-          color: active ? '#111110' : '#9B9A95',
+          color: active ? '#111110' : '#6B6A65',
         }}
       >
         {count}
@@ -911,7 +911,7 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
           }}
         >
           <TableCell>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#9B9A95' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#6B6A65' }}>
               {req.ref}
             </span>
           </TableCell>
@@ -1035,7 +1035,7 @@ function _ComplianceTable_DEAD({
             }}
           >
             <TableCell>
-              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#9B9A95' }}>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#6B6A65' }}>
                 {req.ref}
               </span>
             </TableCell>

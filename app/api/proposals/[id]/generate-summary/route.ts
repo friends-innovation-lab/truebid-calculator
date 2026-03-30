@@ -12,19 +12,21 @@ const aiSummarySchema = z.object({
   evaluation_emphasis: z.string(),
 })
 
-const SUMMARY_PROMPT = `You are a government proposal expert helping a small business understand a federal solicitation. Analyze the provided RFP document and return a JSON object with exactly these fields:
+const SUMMARY_PROMPT = `You are a government proposal expert helping a small business understand a federal solicitation. Generate a detailed plain-language summary of this RFP. Return ONLY valid JSON with exactly these fields:
 
-- problem_statement: In 2-3 sentences, what problem is the government trying to solve? Write this as if explaining to someone who has never seen the RFP.
+{
+  "problem_statement": "3-5 sentence paragraph. Describe the full scope of what's being procured — the system, its purpose, key capabilities required, who will use it, and the operational context. Be specific about scale, integrations, and technical environment. Do not summarize in one sentence.",
 
-- what_they_want: In 3-4 sentences, what does the government want the contractor to actually do? Focus on outcomes, not technical requirements.
+  "what_they_want": "3-5 sentence paragraph. What does the government want the contractor to actually deliver? Focus on outcomes, deliverables, and operational expectations. Mention specific systems, platforms, or capabilities referenced in the SOW.",
 
-- why_it_matters: In 1-2 sentences, why does this work matter to the agency's mission?
+  "why_it_matters": "2-4 sentence paragraph. Explain the mission impact and strategic importance of this contract. What happens if this isn't done well? Who is affected and how? Why is the government prioritizing this now?",
 
-- key_challenges: An array of 3-5 short strings identifying the hardest parts of this contract — technical complexity, coordination requirements, compliance challenges, or delivery risks.
+  "key_challenges": ["5-8 specific technical or operational challenges this contract presents. Each item should be a distinct, specific challenge — not generic. Examples: security clearance requirements, legacy system migration, multi-timezone operations, FedRAMP authorization, integration with existing agency systems, Section 508 accessibility compliance."],
 
-- evaluation_emphasis: In 2-3 sentences, based on the evaluation criteria and their weights, what does the government care most about when selecting a contractor?
+  "evaluation_emphasis": "2-4 sentence paragraph. Based on Section M and the overall solicitation tone, what does the government actually care most about? What type of offeror are they trying to attract? What will differentiate winning proposals from losing ones?"
+}
 
-Return only valid JSON. No preamble, no explanation.`
+Be substantive. A proposal manager reading this summary should understand the full scope and context of the opportunity without reading the original RFP. Thin one-sentence summaries are not acceptable. Return only valid JSON, no other text.`
 
 const RELEVANCE_PROMPT = `Given these win themes:
 {WIN_THEMES}
@@ -102,7 +104,7 @@ export async function POST(
     // Generate the main summary
     const summaryResponse = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 2048,
+      max_tokens: 4096,
       messages: [
         {
           role: 'user',

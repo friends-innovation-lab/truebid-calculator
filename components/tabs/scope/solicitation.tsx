@@ -526,7 +526,7 @@ function AISummaryPanel({
             style={{
               fontSize: 10,
               fontWeight: 600,
-              color: '#9B9A95',
+              color: '#6B6A65',
               textTransform: 'uppercase',
               letterSpacing: '1px',
             }}
@@ -732,7 +732,7 @@ function AISummaryPanel({
                       style={{
                         fontSize: 9,
                         fontWeight: 500,
-                        color: '#9B9A95',
+                        color: '#6B6A65',
                         textTransform: 'uppercase',
                         letterSpacing: '1px',
                         marginBottom: 2,
@@ -875,7 +875,7 @@ function ProcessingSteps({ steps }: { steps: ExtractionStep[] }) {
               <span
                 className="text-[13px]"
                 style={{
-                  color: isComplete ? '#639922' : isActive ? 'var(--ink)' : isError ? '#A32D2D' : '#9B9A95',
+                  color: isComplete ? '#639922' : isActive ? 'var(--ink)' : isError ? '#A32D2D' : '#6B6A65',
                   fontWeight: isActive ? 600 : 400,
                 }}
               >
@@ -884,7 +884,7 @@ function ProcessingSteps({ steps }: { steps: ExtractionStep[] }) {
               {step.description && isActive && (
                 <span
                   className="text-[11px]"
-                  style={{ color: '#9B9A95' }}
+                  style={{ color: '#6B6A65' }}
                 >
                   {step.description}
                 </span>

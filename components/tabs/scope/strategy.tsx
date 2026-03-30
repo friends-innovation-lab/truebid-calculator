@@ -81,9 +81,9 @@ function DecisionCard({ type, selected, onClick }: DecisionCardProps) {
       activeBg: '#FAFAF9',
       activeBorder: '#D4D3CE',
       activeIconBg: 'rgba(155,154,149,0.15)',
-      activeIconColor: '#9B9A95',
+      activeIconColor: '#6B6A65',
       activeLabel: '#111110',
-      activeSubtitle: '#9B9A95',
+      activeSubtitle: '#6B6A65',
     },
   }
 
@@ -128,7 +128,7 @@ function DecisionCard({ type, selected, onClick }: DecisionCardProps) {
       >
         <Icon
           className="w-5 h-5"
-          style={{ color: selected ? config.activeIconColor : '#9B9A95' }}
+          style={{ color: selected ? config.activeIconColor : '#6B6A65' }}
         />
       </div>
 
@@ -149,7 +149,7 @@ function DecisionCard({ type, selected, onClick }: DecisionCardProps) {
         style={{
           fontSize: 11,
           lineHeight: 1.4,
-          color: selected ? config.activeSubtitle : '#9B9A95',
+          color: selected ? config.activeSubtitle : '#6B6A65',
         }}
       >
         {config.subtitle}
@@ -190,7 +190,7 @@ function EditableBox({ label, value, onChange, placeholder = 'Not specified' }: 
         style={{
           fontSize: 10,
           fontWeight: 600,
-          color: '#9B9A95',
+          color: '#6B6A65',
           textTransform: 'uppercase',
           letterSpacing: '1px',
           marginBottom: 6,
@@ -430,7 +430,7 @@ export function Strategy() {
           style={{
             fontSize: 14,
             fontWeight: 400,
-            color: '#9B9A95',
+            color: '#6B6A65',
             lineHeight: 1.5,
           }}
         >
@@ -446,7 +446,7 @@ export function Strategy() {
             fontWeight: 700,
             letterSpacing: '1.5px',
             textTransform: 'uppercase',
-            color: '#9B9A95',
+            color: '#6B6A65',
             marginBottom: 14,
           }}
         >
@@ -484,7 +484,7 @@ export function Strategy() {
               fontWeight: 700,
               letterSpacing: '1.5px',
               textTransform: 'uppercase',
-              color: '#9B9A95',
+              color: '#6B6A65',
             }}
           >
             Win themes
@@ -495,7 +495,7 @@ export function Strategy() {
         <p
           style={{
             fontSize: 13,
-            color: '#9B9A95',
+            color: '#6B6A65',
             lineHeight: 1.5,
             marginBottom: 16,
           }}
@@ -614,7 +614,7 @@ export function Strategy() {
               fontWeight: 700,
               letterSpacing: '1.5px',
               textTransform: 'uppercase',
-              color: '#9B9A95',
+              color: '#6B6A65',
             }}
           >
             Competitive context
@@ -625,7 +625,7 @@ export function Strategy() {
         <p
           style={{
             fontSize: 13,
-            color: '#9B9A95',
+            color: '#6B6A65',
             lineHeight: 1.5,
             marginBottom: 16,
           }}
@@ -669,7 +669,7 @@ export function Strategy() {
               fontWeight: 700,
               letterSpacing: '1.5px',
               textTransform: 'uppercase',
-              color: '#9B9A95',
+              color: '#6B6A65',
             }}
           >
             Notes

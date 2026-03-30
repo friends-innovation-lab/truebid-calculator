@@ -321,9 +321,9 @@ function ProposalCard({
 
   // Due date chip styling
   const getDueDateChipStyle = () => {
-    if (daysUntilDue === null) return { bg: '#F4F3EF', color: '#9B9A95' }
+    if (daysUntilDue === null) return { bg: '#F4F3EF', color: '#6B6A65' }
     if (daysUntilDue < 30) return { bg: '#FAEEDA', color: '#412402' }
-    return { bg: '#F4F3EF', color: '#9B9A95' }
+    return { bg: '#F4F3EF', color: '#6B6A65' }
   }
   const dueDateStyle = getDueDateChipStyle()
 
