@@ -153,55 +153,39 @@ export function ScopeOfWork() {
   }
 
   const handleGenerate = async () => {
-    if (wbsElements.length > 0) {
-      if (!confirm(`This will replace your ${wbsElements.length} existing work packages. Continue?`)) return
+    // Check requirements exist
+    if (!extractedRequirements || extractedRequirements.length === 0) {
+      toast.warning('No requirements found. Extract requirements from your RFP first.')
+      return
     }
+
+    // Confirm if elements already exist
+    if (wbsElements.length > 0) {
+      if (!confirm(`This will replace your ${wbsElements.length} existing work packages and clear all hour assignments. This cannot be undone. Continue?`)) return
+    }
+
     setIsGenerating(true)
     try {
-      // Call the existing generate-wbs API
-      const response = await fetch('/api/generate-wbs', {
+      const response = await fetch(`/api/proposals/${proposalId}/generate-wbs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          requirements: extractedRequirements.map((r: { id: string; title: string; text?: string; description?: string; type: string; referenceNumber?: string; source?: string; sourceSection?: string; category?: string }) => ({
-            id: r.id,
-            referenceNumber: r.referenceNumber || r.id,
-            title: r.title,
-            description: r.description || r.text || '',
-            type: r.type || 'shall',
-            category: r.category || 'other',
-            source: r.source || r.sourceSection || '',
-          })),
-          availableRoles: [],
-          existingWbsNumbers: [],
-          contractContext: {
-            title: 'Government Contract',
-            agency: '',
-            contractType: 'tm',
-            periodOfPerformance: { baseYear: true, optionYears: 2 },
-          },
-        }),
       })
-      if (!response.ok) throw new Error('Generation failed')
-      const data = await response.json()
 
-      if (data.wbsElements) {
-        const mapped = data.wbsElements.map((el: { wbsNumber: string; title: string; why: string; what: string; assumptions: string[]; laborEstimates: unknown[] }, i: number) => ({
-          id: `wbs-${crypto.randomUUID()}`,
-          wbsNumber: el.wbsNumber || `${i + 1}.0`,
-          title: el.title,
-          description: el.why || '',
-          why: el.why || '',
-          what: el.what || '',
-          assumptions: el.assumptions || [],
-          laborEstimates: el.laborEstimates || [],
-          dependencies: [],
-        }))
-        setEstimateWbsElements(mapped as never)
-        toast.success(`${mapped.length} work packages generated · Review and adjust as needed`)
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || `Generation failed (${response.status})`)
       }
-    } catch {
-      toast.error('Generation failed · Try again')
+
+      const { wbsElements: generated, count } = await response.json()
+
+      if (generated && generated.length > 0) {
+        setEstimateWbsElements(generated as never)
+        toast.success(`${count} work packages generated from ${extractedRequirements.length} requirements`)
+      } else {
+        toast.error('No work packages were generated')
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Generation failed · Try again')
     } finally {
       setIsGenerating(false)
     }
@@ -245,7 +229,7 @@ export function ScopeOfWork() {
               style={{ background: '#F5C200', color: '#111110', fontSize: 11, fontWeight: 600, padding: '5px 12px', borderRadius: 5, border: 'none', cursor: 'pointer' }}
             >
               {isGenerating ? <Loader2 className="w-3.5 h-3.5 inline mr-1 animate-spin" style={{ verticalAlign: '-2px' }} /> : <Sparkles className="w-3.5 h-3.5 inline mr-1" style={{ verticalAlign: '-2px' }} />}
-              Generate from RFP
+              Generate from requirements
             </button>
           </div>
         </div>
@@ -277,8 +261,8 @@ export function ScopeOfWork() {
           {isGenerating ? (
             <div className="flex flex-col items-center justify-center py-20">
               <Loader2 className="w-6 h-6 animate-spin" style={{ color: '#F5C200' }} />
-              <div style={{ fontSize: 14, fontWeight: 600, color: '#111110', marginTop: 12 }}>Generating work packages from RFP...</div>
-              <div style={{ fontSize: 12, color: '#6B6A65', marginTop: 4 }}>Reading requirements and building work breakdown structure</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: '#111110', marginTop: 12 }}>Generating work packages...</div>
+              <div style={{ fontSize: 12, color: '#6B6A65', marginTop: 4 }}>Reading {extractedRequirements.length} requirements and building your work breakdown structure</div>
             </div>
           ) : wbsElements.length === 0 ? (
             <div className="flex items-center justify-center py-20">
@@ -286,7 +270,7 @@ export function ScopeOfWork() {
                 icon={Layers}
                 title="No work packages yet"
                 description="Generate from the RFP or add manually. Work packages define what gets built and who builds it."
-                action={{ label: 'Generate from RFP', onClick: handleGenerate }}
+                action={{ label: 'Generate from requirements', onClick: handleGenerate }}
                 secondaryAction={{ label: 'Add manually', onClick: handleAddPackage }}
               />
             </div>
@@ -342,7 +326,8 @@ function WBSRow({
 }) {
   const totalHours = getTotalHours(element)
   const tasks = getTasksFromLabor(element)
-  const status = getStatusDot(element, 0)
+  const reqLinks = (element as { requirementLinks?: string[] }).requirementLinks || []
+  const status = getStatusDot(element, reqLinks.length)
 
   return (
     <div>
@@ -373,8 +358,27 @@ function WBSRow({
 
         {/* Requirement Chips */}
         <div className="flex gap-1 flex-wrap" style={{ maxWidth: 200 }}>
-          {/* Placeholder — requirements linking will show chips here */}
-          <span style={{ fontSize: 10, fontStyle: 'italic', color: '#C4C3BE' }}>No reqs linked</span>
+          {(() => {
+            const links = (element as { requirementLinks?: string[] }).requirementLinks || []
+            if (links.length === 0) return <span style={{ fontSize: 10, fontStyle: 'italic', color: '#C4C3BE' }}>No reqs linked</span>
+            const chips = links.slice(0, 3).map(reqId => {
+              const req = requirements.find(r => r.id === reqId)
+              const ref = req?.referenceNumber || req?.reference_number || reqId.slice(0, 7)
+              return (
+                <span key={reqId} style={{ fontSize: 9, fontWeight: 600, background: '#E1F5EE', color: '#085041', border: '0.5px solid #5DCAA5', padding: '1px 6px', borderRadius: 3 }}>
+                  {ref}
+                </span>
+              )
+            })
+            if (links.length > 3) {
+              chips.push(
+                <span key="more" style={{ fontSize: 9, fontWeight: 600, background: '#E1F5EE', color: '#085041', border: '0.5px solid #5DCAA5', padding: '1px 6px', borderRadius: 3 }}>
+                  +{links.length - 3} more
+                </span>
+              )
+            }
+            return chips
+          })()}
         </div>
 
         {/* Hours */}
