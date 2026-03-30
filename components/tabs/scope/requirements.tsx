@@ -269,7 +269,7 @@ export function Requirements() {
   const [requirements, setRequirements] = useState<Requirement[]>([])
   const [, setSections] = useState<ProposalSection[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<InnerTab>('requirements')
+  const [activeTab, setActiveTab] = useState<InnerTab>('compliance')
   const [typeFilter, setTypeFilter] = useState<FilterType>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -567,16 +567,16 @@ export function Requirements() {
         {/* Inner Tabs */}
         <div className="flex" style={{ marginBottom: -1 }}>
           <InnerTabButton
-            label="Requirements"
-            count={requirements.length}
-            active={activeTab === 'requirements'}
-            onClick={() => setActiveTab('requirements')}
-          />
-          <InnerTabButton
             label="Compliance Matrix"
             count={complianceCount}
             active={activeTab === 'compliance'}
             onClick={() => setActiveTab('compliance')}
+          />
+          <InnerTabButton
+            label="Requirements"
+            count={requirements.length}
+            active={activeTab === 'requirements'}
+            onClick={() => setActiveTab('requirements')}
           />
         </div>
       </div>

@@ -72,7 +72,7 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
 
 export function SectionNavigation() {
   const [activeSection, setActiveSection] = useState<SectionId>('scope')
-  const [activeView, setActiveView] = useState<ViewId>('solicitation')
+  const [activeView, setActiveView] = useState<ViewId>('strategy')
   const [rateJustificationOpen, setRateJustificationOpen] = useState(false)
   const [isVersionsSlideoutOpen, setIsVersionsSlideoutOpen] = useState(false)
   const [newVersionName, setNewVersionName] = useState('')
