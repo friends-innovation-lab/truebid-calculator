@@ -65,6 +65,28 @@ function getTotalHours(el: WBSElementData): number {
   }, 0)
 }
 
+interface HoursByYear {
+  base: number
+  oy1: number
+  oy2: number
+  oy3: number
+  oy4: number
+}
+
+function getHoursByYear(el: WBSElementData): HoursByYear {
+  if (!el.laborEstimates) return { base: 0, oy1: 0, oy2: 0, oy3: 0, oy4: 0 }
+  return el.laborEstimates.reduce(
+    (acc, le) => ({
+      base: acc.base + le.hoursByPeriod.base,
+      oy1: acc.oy1 + le.hoursByPeriod.option1,
+      oy2: acc.oy2 + le.hoursByPeriod.option2,
+      oy3: acc.oy3 + le.hoursByPeriod.option3,
+      oy4: acc.oy4 + le.hoursByPeriod.option4,
+    }),
+    { base: 0, oy1: 0, oy2: 0, oy3: 0, oy4: 0 }
+  )
+}
+
 function getStatusDot(el: WBSElementData, reqCount: number): { color: string; label: string } {
   const hours = getTotalHours(el)
   if (reqCount > 0 && hours > 0) return { color: '#639922', label: 'Complete' }
@@ -93,6 +115,7 @@ export function ScopeOfWork() {
     estimateWbsElements,
     setEstimateWbsElements,
     extractedRequirements,
+    solicitation,
   } = useAppContext()
 
   const wbsElements = estimateWbsElements as unknown as WBSElementData[]
@@ -283,6 +306,7 @@ export function ScopeOfWork() {
                 onToggle={() => toggleExpanded(el.id)}
                 onSelect={() => setSelectedElement(el)}
                 requirements={extractedRequirements as { id: string; referenceNumber?: string; reference_number?: string }[]}
+                optionYears={solicitation.periodOfPerformance.optionYears}
               />
             ))
           )}
@@ -294,6 +318,7 @@ export function ScopeOfWork() {
             element={selectedElement}
             allElements={wbsElements}
             requirements={extractedRequirements as { id: string; referenceNumber?: string; reference_number?: string; title: string }[]}
+            optionYears={solicitation.periodOfPerformance.optionYears}
             onUpdate={(updates) => {
               const updated = { ...selectedElement, ...updates }
               setSelectedElement(updated)
@@ -316,15 +341,17 @@ export function ScopeOfWork() {
 // ==================== WBS ROW ====================
 
 function WBSRow({
-  element, isExpanded, onToggle, onSelect, requirements,
+  element, isExpanded, onToggle, onSelect, requirements, optionYears,
 }: {
   element: WBSElementData
   isExpanded: boolean
   onToggle: () => void
   onSelect: () => void
   requirements: { id: string; referenceNumber?: string; reference_number?: string }[]
+  optionYears: number
 }) {
   const totalHours = getTotalHours(element)
+  const hoursByYear = getHoursByYear(element)
   const tasks = getTasksFromLabor(element)
   const reqLinks = (element as { requirementLinks?: string[] }).requirementLinks || []
   const status = getStatusDot(element, reqLinks.length)
@@ -381,10 +408,18 @@ function WBSRow({
           })()}
         </div>
 
-        {/* Hours */}
-        <div style={{ minWidth: 60, textAlign: 'right', display: 'flex', alignItems: 'baseline', gap: 4, marginLeft: 'auto' }}>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#111110' }}>{totalHours.toLocaleString()}</span>
-          <span style={{ fontSize: 10, color: '#6B6A65' }}>hrs</span>
+        {/* Hours by Year */}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2, marginLeft: 'auto' }}>
+          <div style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#6B6A65', display: 'flex', gap: 8 }}>
+            <span>Base: {hoursByYear.base}</span>
+            {optionYears >= 1 && <span>OY1: {hoursByYear.oy1}</span>}
+            {optionYears >= 2 && <span>OY2: {hoursByYear.oy2}</span>}
+            {optionYears >= 3 && <span>OY3: {hoursByYear.oy3}</span>}
+            {optionYears >= 4 && <span>OY4: {hoursByYear.oy4}</span>}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#111110' }}>
+            Total: {totalHours.toLocaleString()} hrs
+          </div>
         </div>
 
         {/* Status Dot */}
@@ -399,19 +434,31 @@ function WBSRow({
               No tasks defined
             </div>
           ) : (
-            tasks.map(task => (
-              <div key={task.id} className="flex items-center" style={{ borderBottom: '0.5px solid #F0EDE6', padding: '8px 20px 8px 50px', gap: 10 }}>
-                <span style={{ fontSize: 12, color: '#5F5E5A', flex: 1 }}>{task.name}</span>
-                {task.role && (
-                  <span style={{ fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' }}>
-                    {task.role}
+            tasks.map(task => {
+              // Find the labor estimate for this task to get hoursByPeriod
+              const laborEst = element.laborEstimates?.find(le => le.id === task.id)
+              const h = laborEst?.hoursByPeriod || { base: 0, option1: 0, option2: 0, option3: 0, option4: 0 }
+              return (
+                <div key={task.id} className="flex items-center" style={{ borderBottom: '0.5px solid #F0EDE6', padding: '8px 20px 8px 50px', gap: 10 }}>
+                  <span style={{ fontSize: 12, color: '#5F5E5A', flex: 1 }}>{task.name}</span>
+                  {task.role && (
+                    <span style={{ fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' }}>
+                      {task.role}
+                    </span>
+                  )}
+                  <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#6B6A65', display: 'flex', gap: 6 }}>
+                    <span>B:{h.base}</span>
+                    {optionYears >= 1 && <span>O1:{h.option1}</span>}
+                    {optionYears >= 2 && <span>O2:{h.option2}</span>}
+                    {optionYears >= 3 && <span>O3:{h.option3}</span>}
+                    {optionYears >= 4 && <span>O4:{h.option4}</span>}
                   </span>
-                )}
-                <span style={{ fontSize: 12, fontWeight: 500, color: '#111110', minWidth: 60, textAlign: 'right' }}>
-                  {task.hours.toLocaleString()} hrs
-                </span>
-              </div>
-            ))
+                  <span style={{ fontSize: 11, fontWeight: 600, color: '#111110', minWidth: 50, textAlign: 'right' }}>
+                    {task.hours.toLocaleString()} hrs
+                  </span>
+                </div>
+              )
+            })
           )}
           <div
             className="cursor-pointer hover:text-gray-900"
@@ -449,11 +496,12 @@ const ESTIMATION_TYPES = [
 ]
 
 function DetailSlideout({
-  element, allElements, requirements, onUpdate, onDelete, onClose,
+  element, allElements, requirements, optionYears, onUpdate, onDelete, onClose,
 }: {
   element: WBSElementData
   allElements: WBSElementData[]
   requirements: { id: string; referenceNumber?: string; reference_number?: string; title: string }[]
+  optionYears: number
   onUpdate: (updates: Partial<WBSElementData>) => void
   onDelete: () => void
   onClose: () => void
@@ -535,22 +583,87 @@ function DetailSlideout({
 
         <SectionDivider />
 
-        {/* 3. Tasks (with LOE badges) */}
+        {/* 3. Tasks (with LOE badges and per-year hours) */}
         <SectionLabel>Tasks</SectionLabel>
         {tasks.length === 0 ? (
           <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>No tasks yet</div>
         ) : (
           <div className="space-y-2">
+            {/* Year labels header */}
+            <div className="flex items-center gap-2" style={{ paddingLeft: 0 }}>
+              <span style={{ flex: 1 }} />
+              <span style={{ width: 44, fontSize: 9, fontWeight: 600, color: '#6B6A65', textAlign: 'center' }}>Base</span>
+              {optionYears >= 1 && <span style={{ width: 44, fontSize: 9, fontWeight: 600, color: '#6B6A65', textAlign: 'center' }}>OY1</span>}
+              {optionYears >= 2 && <span style={{ width: 44, fontSize: 9, fontWeight: 600, color: '#6B6A65', textAlign: 'center' }}>OY2</span>}
+              {optionYears >= 3 && <span style={{ width: 44, fontSize: 9, fontWeight: 600, color: '#6B6A65', textAlign: 'center' }}>OY3</span>}
+              {optionYears >= 4 && <span style={{ width: 44, fontSize: 9, fontWeight: 600, color: '#6B6A65', textAlign: 'center' }}>OY4</span>}
+            </div>
             {tasks.map(task => {
               const loe = LOE_TYPES[(task as WBSTask & { loeType?: string }).loeType || 'development'] || LOE_TYPES.development
+              // Find the labor estimate for this task to get hoursByPeriod
+              const laborEst = element.laborEstimates?.find(le => le.id === task.id)
+              const hoursByPeriod = laborEst?.hoursByPeriod || { base: 0, option1: 0, option2: 0, option3: 0, option4: 0 }
+
+              const handleHoursChange = (period: 'base' | 'option1' | 'option2' | 'option3' | 'option4', value: number) => {
+                const updatedLaborEstimates = (element.laborEstimates || []).map(le => {
+                  if (le.id === task.id) {
+                    return { ...le, hoursByPeriod: { ...le.hoursByPeriod, [period]: value } }
+                  }
+                  return le
+                })
+                onUpdate({ laborEstimates: updatedLaborEstimates })
+              }
+
               return (
                 <div key={task.id} className="flex items-center gap-2">
-                  <span className="flex-1 text-sm" style={{ color: '#5F5E5A' }}>{task.name}</span>
-                  <span style={{ fontSize: 9, fontWeight: 700, background: loe.bg, color: loe.text, padding: '2px 6px', borderRadius: 3 }} title={(task as WBSTask & { loeType?: string }).loeType || 'development'}>
+                  <span className="flex-1 text-sm" style={{ color: '#5F5E5A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, background: loe.bg, color: loe.text, padding: '2px 6px', borderRadius: 3, flexShrink: 0 }} title={(task as WBSTask & { loeType?: string }).loeType || 'development'}>
                     {loe.label}
                   </span>
-                  {task.role && <span style={{ fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' }}>{task.role}</span>}
-                  <span className="text-sm font-medium" style={{ minWidth: 50, textAlign: 'right', color: '#111110' }}>{task.hours}h</span>
+                  {task.role && <span style={{ fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0 }}>{task.role}</span>}
+                  <input
+                    type="number"
+                    value={hoursByPeriod.base}
+                    onChange={(e) => handleHoursChange('base', parseInt(e.target.value) || 0)}
+                    onBlur={triggerSave}
+                    style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                  />
+                  {optionYears >= 1 && (
+                    <input
+                      type="number"
+                      value={hoursByPeriod.option1}
+                      onChange={(e) => handleHoursChange('option1', parseInt(e.target.value) || 0)}
+                      onBlur={triggerSave}
+                      style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                    />
+                  )}
+                  {optionYears >= 2 && (
+                    <input
+                      type="number"
+                      value={hoursByPeriod.option2}
+                      onChange={(e) => handleHoursChange('option2', parseInt(e.target.value) || 0)}
+                      onBlur={triggerSave}
+                      style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                    />
+                  )}
+                  {optionYears >= 3 && (
+                    <input
+                      type="number"
+                      value={hoursByPeriod.option3}
+                      onChange={(e) => handleHoursChange('option3', parseInt(e.target.value) || 0)}
+                      onBlur={triggerSave}
+                      style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                    />
+                  )}
+                  {optionYears >= 4 && (
+                    <input
+                      type="number"
+                      value={hoursByPeriod.option4}
+                      onChange={(e) => handleHoursChange('option4', parseInt(e.target.value) || 0)}
+                      onBlur={triggerSave}
+                      style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                    />
+                  )}
                 </div>
               )
             })}
