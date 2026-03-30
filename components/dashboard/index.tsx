@@ -1063,8 +1063,8 @@ export function Dashboard() {
           pipelineValue={pipelineValue}
         />
 
-        {/* Alert Banner */}
-        {alertItem && (
+        {/* Alert Banner — hide when no active proposals */}
+        {alertItem && activeProposals.length > 0 && (
           <AlertBanner
             title={alertItem.title}
             description={alertItem.description}
@@ -1072,11 +1072,13 @@ export function Dashboard() {
           />
         )}
 
-        {/* Attention Strip */}
-        <AttentionStrip
-          items={attentionItems}
-          onItemClick={handleAttentionClick}
-        />
+        {/* Attention Strip — hide when no active proposals */}
+        {activeProposals.length > 0 && (
+          <AttentionStrip
+            items={attentionItems}
+            onItemClick={handleAttentionClick}
+          />
+        )}
 
         {/* Two-column layout */}
         <div className="flex gap-6 flex-col lg:flex-row">
@@ -1122,8 +1124,8 @@ export function Dashboard() {
             )}
           </div>
 
-          {/* Right Panel */}
-          <div className="w-full lg:w-[300px] shrink-0 flex flex-col gap-3">
+          {/* Right Panel — hide when no active proposals */}
+          {activeProposals.length > 0 && <div className="w-full lg:w-[300px] shrink-0 flex flex-col gap-3">
             <WinRatePanel
               winRate={null}
               won={winLossStats.won}
@@ -1139,7 +1141,7 @@ export function Dashboard() {
             />
 
             <RecentActivityPanel activities={recentActivity} />
-          </div>
+          </div>}
         </div>
       </div>
 
