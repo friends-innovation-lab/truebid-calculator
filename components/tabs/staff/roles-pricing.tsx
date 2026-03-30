@@ -15,7 +15,6 @@ import {
   Clock,
   LayoutGrid,
   Calendar,
-  Trash2,
   FileDown,
 } from 'lucide-react'
 
@@ -691,6 +690,17 @@ function AddRolePanel({
 
 // ==================== ROLE DETAIL PANEL ====================
 
+// FFTC indirect rates (will come from Account → Company Settings later)
+const INDIRECT_RATES = { fringe: 0.2116, overhead: 0.3426, ga: 0.1983, hoursPerYear: 2080 }
+
+function calcSalaryFromBillRate(billRate: number, profit: number) {
+  const costPerHour = billRate / (1 + profit)
+  const totalCost = costPerHour * INDIRECT_RATES.hoursPerYear
+  // totalCost = salary * (1 + fringe + overhead) * (1 + ga)
+  const multiplier = (1 + INDIRECT_RATES.fringe + INDIRECT_RATES.overhead) * (1 + INDIRECT_RATES.ga)
+  return totalCost / multiplier
+}
+
 function RoleDetailPanel({
   role,
   onUpdate,
@@ -702,87 +712,233 @@ function RoleDetailPanel({
   onDelete: () => void
   onClose: () => void
 }) {
+  const [rateMode, setRateMode] = useState<'bill' | 'salary'>('bill')
+  const [billRate, setBillRate] = useState(role.loadedRate || role.hourlyRate || 0)
+  const [salary, setSalary] = useState(role.baseSalary || 0)
+  const [profit, setProfit] = useState(10)
+  const [roleType, setRoleType] = useState<'prime' | 'sub'>((role as Role & { type?: string }).type as 'prime' | 'sub' || 'prime')
+  const [subName, setSubName] = useState((role as Role & { subcontractorName?: string }).subcontractorName || '')
+  const escalation = 0.03
+
+  // Recalculate when inputs change
+  const breakdown = useMemo(() => {
+    if (rateMode === 'salary' && salary > 0) {
+      const fringe = salary * INDIRECT_RATES.fringe
+      const oh = salary * INDIRECT_RATES.overhead
+      const loaded = salary + fringe + oh
+      const gaAmt = loaded * INDIRECT_RATES.ga
+      const totalCost = loaded + gaAmt
+      const costPerHour = totalCost / INDIRECT_RATES.hoursPerYear
+      const profitAmt = costPerHour * profit / 100
+      const rate = costPerHour + profitAmt
+      return { salary, fringe, oh, loaded, gaAmt, totalCost, costPerHour, profitAmt, billRate: rate }
+    }
+    if (rateMode === 'bill' && billRate > 0) {
+      const impliedSalary = calcSalaryFromBillRate(billRate, profit / 100)
+      const fringe = impliedSalary * INDIRECT_RATES.fringe
+      const oh = impliedSalary * INDIRECT_RATES.overhead
+      const loaded = impliedSalary + fringe + oh
+      const gaAmt = loaded * INDIRECT_RATES.ga
+      const totalCost = loaded + gaAmt
+      const costPerHour = totalCost / INDIRECT_RATES.hoursPerYear
+      const profitAmt = costPerHour * profit / 100
+      return { salary: impliedSalary, fringe, oh, loaded, gaAmt, totalCost, costPerHour, profitAmt, billRate }
+    }
+    return null
+  }, [rateMode, salary, billRate, profit])
+
+  const fmt = (n: number) => '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
   return (
     <>
       <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
       <div className="fixed inset-y-0 right-0 w-[480px] bg-white z-50 flex flex-col" style={{ borderLeft: '0.5px solid #E8E7E2' }}>
+        {/* Header */}
         <div className="flex items-center justify-between p-4 shrink-0" style={{ borderBottom: '0.5px solid #E8E7E2' }}>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111110' }}>{role.name}</h2>
-          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="h-7 w-7">
-            <X className="w-4 h-4" />
-          </Button>
+          <button onClick={onClose} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Close">
+            <X className="w-4 h-4" style={{ color: '#9B9A95' }} />
+          </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="detail-name" className="text-xs font-medium">Role name</Label>
-            <Input
-              id="detail-name"
-              value={role.name}
-              onChange={(e) => onUpdate({ name: e.target.value })}
-              className="text-sm"
-            />
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* 1. Role name + level */}
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="detail-name" className="text-xs font-medium">Role name</Label>
+              <Input id="detail-name" value={role.name} onChange={(e) => onUpdate({ name: e.target.value })} className="text-sm" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="detail-level" className="text-xs font-medium">Level / Labor category</Label>
+              <Input id="detail-level" value={role.icLevel} onChange={(e) => onUpdate({ icLevel: e.target.value as Role['icLevel'] })} className="text-sm" />
+            </div>
           </div>
+
+          <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
+
+          {/* 2. Prime / Sub toggle */}
           <div className="space-y-2">
-            <Label htmlFor="detail-level" className="text-xs font-medium">Level</Label>
-            <Input
-              id="detail-level"
-              value={role.icLevel}
-              onChange={(e) => onUpdate({ icLevel: e.target.value as Role['icLevel'] })}
-              className="text-sm"
-            />
+            <Label className="text-xs font-medium">Type</Label>
+            <div style={{ display: 'flex', border: '0.5px solid #E8E7E2', borderRadius: 6, padding: 2, gap: 1 }}>
+              {(['prime', 'sub'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => { setRoleType(t); onUpdate({ type: t } as Partial<Role>) }}
+                  style={{
+                    flex: 1, padding: '6px 0', fontSize: 12,
+                    fontWeight: roleType === t ? 600 : 400,
+                    background: roleType === t ? (t === 'prime' ? '#111110' : '#F4F3EF') : 'transparent',
+                    color: roleType === t ? (t === 'prime' ? '#FFFFFF' : '#5F5E5A') : '#9B9A95',
+                    border: 'none', borderRadius: 4, cursor: 'pointer', textTransform: 'capitalize',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+            {roleType === 'sub' && (
+              <div className="space-y-1.5 mt-2">
+                <Label className="text-xs font-medium">Subcontractor name</Label>
+                <Input
+                  value={subName}
+                  onChange={(e) => { setSubName(e.target.value); onUpdate({ subcontractorName: e.target.value } as Partial<Role>) }}
+                  placeholder="e.g. Skybrid Solutions"
+                  className="text-sm"
+                />
+              </div>
+            )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="detail-salary" className="text-xs font-medium">Base salary</Label>
-            <Input
-              id="detail-salary"
-              type="number"
-              value={role.baseSalary}
-              onChange={(e) => onUpdate({ baseSalary: parseFloat(e.target.value) || 0 })}
-              className="text-sm"
-            />
+
+          <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
+
+          {/* 3. Rate section */}
+          <div className="space-y-3">
+            {/* Mode toggle */}
+            <div style={{ display: 'flex', gap: 1, background: '#F4F3EF', borderRadius: 5, padding: 2 }}>
+              <button onClick={() => setRateMode('bill')} style={{ flex: 1, padding: '5px 0', fontSize: 11, fontWeight: rateMode === 'bill' ? 600 : 400, background: rateMode === 'bill' ? '#fff' : 'transparent', color: rateMode === 'bill' ? '#111110' : '#9B9A95', border: 'none', borderRadius: 4, cursor: 'pointer', boxShadow: rateMode === 'bill' ? '0 0 0 0.5px #E8E7E2' : 'none' }}>
+                Enter bill rate
+              </button>
+              <button onClick={() => setRateMode('salary')} style={{ flex: 1, padding: '5px 0', fontSize: 11, fontWeight: rateMode === 'salary' ? 600 : 400, background: rateMode === 'salary' ? '#fff' : 'transparent', color: rateMode === 'salary' ? '#111110' : '#9B9A95', border: 'none', borderRadius: 4, cursor: 'pointer', boxShadow: rateMode === 'salary' ? '0 0 0 0.5px #E8E7E2' : 'none' }}>
+                Calculate from salary
+              </button>
+            </div>
+
+            {/* Rate input */}
+            {rateMode === 'bill' ? (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Bill rate ($/hr)</Label>
+                <Input type="number" step="0.01" value={billRate || ''} onChange={(e) => setBillRate(parseFloat(e.target.value) || 0)} className="text-sm font-mono" />
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Annual salary ($)</Label>
+                <Input type="number" value={salary || ''} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setSalary(v); onUpdate({ baseSalary: v }) }} className="text-sm font-mono" />
+              </div>
+            )}
+
+            {/* Profit margin */}
+            <div className="flex items-center gap-2">
+              <Label className="text-xs font-medium">Profit margin</Label>
+              <Input type="number" step="0.5" value={profit} onChange={(e) => setProfit(parseFloat(e.target.value) || 10)} className="text-sm w-16 font-mono" />
+              <span style={{ fontSize: 11, color: '#5F5E5A' }}>%</span>
+            </div>
+
+            {/* Rate breakdown */}
+            {breakdown && (
+              <div style={{ background: '#FAFAF9', border: '0.5px solid #E8E7E2', borderRadius: 7, padding: '12px 14px', marginTop: 8 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C4C3BE', marginBottom: 8 }}>Rate breakdown</div>
+                <div className="space-y-1">
+                  <BreakdownRow label={rateMode === 'salary' ? 'Base salary' : 'Bill rate'} value={rateMode === 'salary' ? `${fmt(breakdown.salary)}/yr` : `${fmt(breakdown.billRate)}/hr`} />
+                  {rateMode === 'salary' ? (
+                    <>
+                      <BreakdownRow label={`+ Fringe (${(INDIRECT_RATES.fringe * 100).toFixed(2)}%)`} value={`${fmt(breakdown.fringe)}/yr`} />
+                      <BreakdownRow label={`+ Overhead (${(INDIRECT_RATES.overhead * 100).toFixed(2)}%)`} value={`${fmt(breakdown.oh)}/yr`} />
+                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
+                      <BreakdownRow label="Loaded cost" value={`${fmt(breakdown.loaded)}/yr`} />
+                      <BreakdownRow label={`+ G&A (${(INDIRECT_RATES.ga * 100).toFixed(2)}%)`} value={`${fmt(breakdown.gaAmt)}/yr`} />
+                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
+                      <BreakdownRow label="Total cost" value={`${fmt(breakdown.totalCost)}/yr`} />
+                      <BreakdownRow label={`÷ ${INDIRECT_RATES.hoursPerYear.toLocaleString()} hours`} value="" />
+                      <BreakdownRow label="Cost per hour" value={`${fmt(breakdown.costPerHour)}/hr`} />
+                      <BreakdownRow label={`+ Profit (${profit}%)`} value={`${fmt(breakdown.profitAmt)}/hr`} />
+                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
+                      <BreakdownRow label="Bill rate" value={`${fmt(breakdown.billRate)}/hr`} highlight />
+                    </>
+                  ) : (
+                    <>
+                      <BreakdownRow label={`− Profit (${profit}%)`} value={`−${fmt(breakdown.profitAmt)}/hr`} />
+                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
+                      <BreakdownRow label="Cost per hour" value={`${fmt(breakdown.costPerHour)}/hr`} />
+                      <BreakdownRow label={`× ${INDIRECT_RATES.hoursPerYear.toLocaleString()} hours`} value="" />
+                      <BreakdownRow label="Annual cost" value={`${fmt(breakdown.totalCost)}/yr`} />
+                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
+                      <BreakdownRow label="Implied salary" value={`${fmt(breakdown.salary)}/yr`} highlight />
+                    </>
+                  )}
+                </div>
+
+                {/* Option year rates */}
+                <div style={{ fontSize: 11, color: '#9B9A95', marginTop: 10 }}>With {Math.round(escalation * 100)}% annual escalation:</div>
+                <div className="flex gap-3 mt-1">
+                  {['Base yr', 'OY1', 'OY2', 'OY3', 'OY4'].map((label, i) => {
+                    const rate = breakdown.billRate * Math.pow(1 + escalation, i)
+                    return (
+                      <div key={label} style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: i === 0 ? '#111110' : '#9B9A95' }}>
+                        <div style={{ fontSize: 9, color: '#C4C3BE' }}>{label}</div>
+                        {fmt(rate)}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                <div style={{ fontSize: 10, color: '#C4C3BE', marginTop: 8 }}>
+                  Rates: Fringe {(INDIRECT_RATES.fringe * 100).toFixed(2)}% · Overhead {(INDIRECT_RATES.overhead * 100).toFixed(2)}% · G&A {(INDIRECT_RATES.ga * 100).toFixed(2)}%
+                </div>
+              </div>
+            )}
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="detail-qty" className="text-xs font-medium">Quantity</Label>
-            <Input
-              id="detail-qty"
-              type="number"
-              value={role.quantity}
-              onChange={(e) => onUpdate({ quantity: parseInt(e.target.value) || 1 })}
-              className="text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="detail-fte" className="text-xs font-medium">FTE</Label>
-            <Input
-              id="detail-fte"
-              type="number"
-              step="0.1"
-              value={role.fte}
-              onChange={(e) => onUpdate({ fte: parseFloat(e.target.value) || 1 })}
-              className="text-sm"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="detail-hours" className="text-xs font-medium">Billable hours / year</Label>
-            <Input
-              id="detail-hours"
-              type="number"
-              value={role.billableHours || 1920}
-              onChange={(e) => onUpdate({ billableHours: parseInt(e.target.value) || 1920 })}
-              className="text-sm"
-            />
+
+          <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
+
+          {/* 4. Hours summary */}
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">Hours by year</Label>
+            <div className="flex gap-3">
+              {['Base', 'OY1', 'OY2', 'OY3', 'OY4'].map((label, i) => {
+                const active = getActiveYears(role)
+                const hours = active[i] ? (role.billableHours || 1920) : 0
+                return (
+                  <div key={label} style={{ fontSize: 11, color: hours > 0 ? '#111110' : '#C4C3BE' }}>
+                    <div style={{ fontSize: 9, color: '#C4C3BE' }}>{label}</div>
+                    {hours > 0 ? hours.toLocaleString() : '—'}
+                  </div>
+                )
+              })}
+            </div>
           </div>
         </div>
 
-        <div className="shrink-0 p-4" style={{ borderTop: '0.5px solid #E8E7E2' }}>
-          <Button variant="destructive" size="sm" onClick={onDelete} className="w-full">
-            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+        {/* Footer */}
+        <div className="shrink-0 p-4 flex items-center justify-between" style={{ borderTop: '0.5px solid #E8E7E2' }}>
+          <button onClick={onDelete} style={{ fontSize: 11, color: '#A32D2D', background: 'none', border: 'none', cursor: 'pointer' }}>
             Delete role
-          </Button>
+          </button>
+          <button onClick={onClose} style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: '0.5px solid #E8E7E2', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}>
+            Close
+          </button>
         </div>
       </div>
     </>
+  )
+}
+
+function BreakdownRow({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div className="flex justify-between" style={{ padding: highlight ? '4px 6px' : '1px 0', background: highlight ? '#F5F4F0' : 'transparent', borderRadius: highlight ? 4 : 0 }}>
+      <span style={{ fontSize: 11, color: '#5F5E5A' }}>{label}</span>
+      <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#111110', fontWeight: highlight ? 700 : 400 }}>{value}</span>
+    </div>
   )
 }
 
