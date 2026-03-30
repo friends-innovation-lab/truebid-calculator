@@ -35,8 +35,8 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
     {
       label: 'Scope',
       items: [
-        { id: 'strategy', label: 'Strategy', icon: Target },
         { id: 'solicitation', label: 'Solicitation', icon: FileText },
+        { id: 'strategy', label: 'Strategy', icon: Target },
         { id: 'requirements', label: 'Requirements', icon: Search },
       ],
     },
@@ -81,7 +81,7 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
 
 // Default view for each section
 const SECTION_DEFAULT_VIEWS: Record<SectionId, string> = {
-  scope: 'strategy',
+  scope: 'solicitation',
   staff: 'wbs-elements',
   write: 'outline',
   deliver: 'proposal-status',
