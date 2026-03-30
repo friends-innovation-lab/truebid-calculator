@@ -176,11 +176,11 @@ export function ScopeOfWork() {
         throw new Error(errorData.error || `Generation failed (${response.status})`)
       }
 
-      const { wbsElements: generated, count } = await response.json()
+      const { wbsElements: generated, count, rolesCount } = await response.json()
 
       if (generated && generated.length > 0) {
         setEstimateWbsElements(generated as never)
-        toast.success(`${count} work packages generated from ${extractedRequirements.length} requirements`)
+        toast.success(`${count} work packages created · ${rolesCount || 0} roles added to Roles & Pricing`)
       } else {
         toast.error('No work packages were generated')
       }

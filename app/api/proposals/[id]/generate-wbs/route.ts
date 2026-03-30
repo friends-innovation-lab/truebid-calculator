@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
 
 const SYSTEM_PROMPT = `You are a senior government proposal manager and technical architect. Your job is to create a Work Breakdown Structure (WBS) for a federal IT services contract.
 
@@ -243,14 +244,20 @@ IMPORTANT:
       delete (el as Record<string, unknown>)._dependencyRefs
     })
 
-    // Save to working_data — merge with existing data
-    const existingWorkingData = proposal.working_data || {}
+    // Sync roles from WBS tasks
+    const existingWorkingData = (proposal.working_data || {}) as Record<string, unknown>
+    const existingRoles = (existingWorkingData.roles || existingWorkingData.selectedRoles || []) as { id: string; name: string; isManual?: boolean; [key: string]: unknown }[]
+    const proposalSetup = (existingWorkingData.proposalSetup || {}) as { optionYears?: number }
+    const syncedRoles = syncRolesFromWBS(wbsElements, existingRoles, proposalSetup)
+
+    // Save both WBS elements and synced roles to working_data
     const { error: updateError } = await supabase
       .from('proposals')
       .update({
         working_data: {
-          ...existingWorkingData as Record<string, unknown>,
+          ...existingWorkingData,
           estimateWbsElements: wbsElements,
+          roles: syncedRoles,
         },
         updated_at: new Date().toISOString(),
       })
@@ -261,11 +268,13 @@ IMPORTANT:
       return NextResponse.json({ error: 'Failed to save WBS elements' }, { status: 500 })
     }
 
-    console.log(`[generate-wbs] Generated ${wbsElements.length} elements for proposal ${proposalId}`)
+    console.log(`[generate-wbs] Generated ${wbsElements.length} elements, synced ${syncedRoles.length} roles for proposal ${proposalId}`)
 
     return NextResponse.json({
       wbsElements,
+      roles: syncedRoles,
       count: wbsElements.length,
+      rolesCount: syncedRoles.length,
     })
 
   } catch (error) {

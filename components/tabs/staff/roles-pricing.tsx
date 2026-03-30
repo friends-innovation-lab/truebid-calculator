@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { EmptyState } from '@/components/ui/empty-state'
 import { formatCurrency } from '@/lib/utils'
+import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
 import {
   Users,
   Plus,
@@ -79,7 +80,17 @@ export function RolesPricing() {
     uiProfitMargin,
     uiBillableHours,
     calculateLoadedRate,
+    estimateWbsElements,
   } = useAppContext()
+
+  // Compute WBS-derived role data for indicators
+  const wbsRoleData = useMemo(() => {
+    const wbs = estimateWbsElements as unknown as { tasks?: { role: string | null; hours: number }[]; laborEstimates?: { roleName: string; hoursByPeriod: { base: number; option1: number; option2: number; option3: number; option4: number } }[] }[]
+    const synced = syncRolesFromWBS(wbs, [], null)
+    const map = new Map<string, number>()
+    synced.forEach(r => map.set(r.name, r.totalHoursFromWBS))
+    return map
+  }, [estimateWbsElements])
 
   const [viewMode, setViewMode] = useState<ViewMode>('pricing')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
@@ -307,9 +318,9 @@ export function RolesPricing() {
           <div className="p-8">
             <EmptyState
               icon={Users}
-              title="No roles priced yet"
-              description="Add the roles that will deliver this contract. Rates are calculated from your labor categories."
-              action={{ label: '+ Add role', onClick: () => setShowAddPanel(true) }}
+              title="No roles yet"
+              description="Roles are added automatically when you assign them to tasks in Staff → Scope of Work. You can also add roles manually here."
+              action={{ label: '+ Add manually', onClick: () => setShowAddPanel(true) }}
             />
           </div>
         ) : viewMode === 'pricing' ? (
@@ -325,6 +336,7 @@ export function RolesPricing() {
             onCellSave={handleCellSave}
             onRowClick={setDetailRole}
             stats={stats}
+            wbsRoleData={wbsRoleData}
           />
         ) : (
           <TimelineView
@@ -365,7 +377,7 @@ export function RolesPricing() {
 function PricingView({
   roles, escalation, activeYearCount, getRoleBillRate,
   editingCell, cellValue, onCellClick, onCellChange, onCellSave,
-  onRowClick, stats,
+  onRowClick, stats, wbsRoleData,
 }: {
   roles: Role[]
   escalation: number
@@ -378,6 +390,7 @@ function PricingView({
   onCellSave: () => void
   onRowClick: (role: Role) => void
   stats: { totalValue: number; primeCost: number; totalHours: number }
+  wbsRoleData: Map<string, number>
 }) {
   const yearCols = YEAR_LABELS.slice(0, activeYearCount)
   const gridCols = `200px 72px 90px ${yearCols.map(() => '70px').join(' ')} 120px`
@@ -410,8 +423,18 @@ function PricingView({
             onClick={() => onRowClick(role)}
           >
             <div style={{ padding: '10px 12px' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: '#111110' }}>{role.name}</div>
-              <div style={{ fontSize: 10, color: '#6B6A65' }}>{role.icLevel} · {role.description || 'General'}</div>
+              <div className="flex items-center gap-1.5">
+                <span style={{ fontSize: 12, fontWeight: 600, color: billRate === 0 ? '#BA7517' : '#111110' }}>{role.name}</span>
+                {wbsRoleData.has(role.name) ? (
+                  <span style={{ fontSize: 9, fontWeight: 500, background: '#E1F5EE', color: '#085041', border: '0.5px solid #5DCAA5', padding: '1px 5px', borderRadius: 3 }}>From WBS</span>
+                ) : (
+                  <span style={{ fontSize: 9, fontWeight: 500, background: '#F4F3EF', color: '#9B9A95', padding: '1px 5px', borderRadius: 3 }}>Manual</span>
+                )}
+              </div>
+              <div style={{ fontSize: 10, color: '#6B6A65' }}>
+                {role.icLevel} · {role.description || 'General'}
+                {wbsRoleData.has(role.name) && <span style={{ color: '#9B9A95' }}> · {wbsRoleData.get(role.name)?.toLocaleString()} hrs from WBS</span>}
+              </div>
             </div>
             <div style={{ padding: '10px 8px', display: 'flex', alignItems: 'center' }}>
               <span style={{ background: '#111110', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3 }}>
