@@ -6,7 +6,6 @@ import Link from 'next/link'
 import {
   Upload,
   Users,
-  TrendingUp,
   Building2,
   FileDown,
   FileText,
@@ -42,7 +41,6 @@ import { useAppContext } from '@/contexts/app-context'
 import { UploadTab } from '@/components/tabs/upload-tab'
 import { EstimateTab } from '@/components/tabs/estimate-tab'
 import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
-import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
 import { SubRatesTab } from '@/components/tabs/sub-rates-tab'
 import { Outline } from '@/components/tabs/write/outline'
@@ -84,7 +82,6 @@ type TabType =
   | 'upload'
   | 'estimate'
   | 'roles'
-  | 'rate-justification'
   | 'teaming-partners'
   | 'write'
   | 'export'
@@ -135,37 +132,31 @@ export function TabsNavigation() {
   const searchParams = useSearchParams()
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['upload', 'estimate', 'roles', 'rate-justification', 'teaming-partners', 'write', 'export'].includes(tabParam)) {
+    if (tabParam && ['upload', 'estimate', 'roles', 'teaming-partners', 'write', 'export'].includes(tabParam)) {
       setActiveMainTab(tabParam as TabType)
     }
   }, [searchParams, setActiveMainTab])
 
   // Main bid flow tabs - ordered by workflow sequence
-  // Upload → Estimate → Roles & Pricing → Rate Justification → Teaming Partners → Export
+  // Upload → Estimate → Roles & Pricing → Teaming Partners → Write → Export
   const bidFlowTabs: TabConfig[] = useMemo(() => [
-    { 
-      id: 'upload', 
-      label: 'Upload', 
+    {
+      id: 'upload',
+      label: 'Upload',
       icon: Upload,
       description: 'Upload and analyze RFP documents, select contract type'
     },
-    { 
+    {
       id: 'estimate',
       label: 'Estimate',
       icon: Layers,
       description: 'Build your Basis of Estimate with WBS elements and labor hours'
     },
-    { 
-      id: 'roles', 
-      label: 'Roles & Pricing', 
+    {
+      id: 'roles',
+      label: 'Roles & Pricing',
       icon: Users,
       description: 'Define team roles and calculate pricing'
-    },
-    { 
-      id: 'rate-justification', 
-      label: 'Rate Justification', 
-      icon: TrendingUp,
-      description: 'Document rate justifications for audit defense'
     },
     {
       id: 'teaming-partners',
@@ -785,7 +776,6 @@ export function TabsNavigation() {
             {activeTab === 'upload' && <UploadTab onContinue={() => handleTabChange('estimate')} />}
             {activeTab === 'estimate' && <EstimateTab />}
             {activeTab === 'roles' && <RolesAndPricingTab />}
-            {activeTab === 'rate-justification' && <RateJustificationTab />}
             {activeTab === 'teaming-partners' && <TeamingPartnersTab />}
             {activeTab === 'write' && <Outline />}
             {activeTab === 'export' && <ExportTab />}

@@ -41,7 +41,6 @@ type ViewId =
   | 'roles-pricing'
   | 'team'
   | 'labor-loading'
-  | 'rate-justification'
   // Write
   | 'outline'
   | 'technical-editor'
@@ -57,7 +56,6 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
   'solicitation': { section: 'scope', view: 'solicitation' },
   'estimate': { section: 'staff', view: 'wbs-elements' },
   'roles': { section: 'staff', view: 'roles-pricing' },
-  'rate-justification': { section: 'staff', view: 'rate-justification' },
   'teaming-partners': { section: 'staff', view: 'team' },
   'write': { section: 'write', view: 'outline' },
   'export': { section: 'deliver', view: 'export-documents' },
@@ -112,14 +110,13 @@ export function SectionNavigation() {
   }, [activeMainTab])
 
   const handleViewChange = (viewId: string) => {
-    const typedViewId = viewId as ViewId
-
-    // Handle panel items
-    if (typedViewId === 'rate-justification') {
+    // Handle panel items (rate-justification opens as slideout, not navigation)
+    if (viewId === 'rate-justification') {
       setRateJustificationOpen(true)
       return
     }
 
+    const typedViewId = viewId as ViewId
     setActiveView(typedViewId)
     setRateJustificationOpen(false)
 
@@ -522,4 +519,4 @@ export function SectionNavigation() {
 }
 
 // Need MainTabId type for context sync
-type MainTabId = 'upload' | 'estimate' | 'roles' | 'teaming-partners' | 'rate-justification' | 'write' | 'export'
+type MainTabId = 'upload' | 'estimate' | 'roles' | 'teaming-partners' | 'write' | 'export'
