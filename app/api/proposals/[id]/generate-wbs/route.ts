@@ -229,7 +229,27 @@ Use ONLY roles from this list. These map to the labor categories in Account Sett
   Content/UX Writer
   Delivery Manager
 
-Do not invent new role names. If a work package needs a "Security Engineer", map that to DevOps Engineer. If it needs a "Business Analyst", map that to Product Manager.`
+Do not invent new role names. If a work package needs a "Security Engineer", map that to DevOps Engineer. If it needs a "Business Analyst", map that to Product Manager.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTRACT-SPECIFIC ROLE FLAGGING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If the work requires a role NOT in the standard FFTC labor categories, DO NOT invent a new role name. Instead:
+
+1. Map to the closest standard role from the list above
+2. Flag it in the task's basisOfEstimate field:
+   "NOTE: This task may benefit from a [Training Specialist / Change Manager / Security Architect / etc.] not in FFTC's standard labor categories. Assigned to [closest role] — recommend reviewing in Roles & Pricing and adding a custom role if needed."
+
+Common mappings:
+  Security Architect    → DevOps Engineer
+  Data Analyst          → Back-end Developer
+  Business Analyst      → Product Manager
+  Training Specialist   → Content/UX Writer
+  Change Manager        → Product Manager
+  Technical Writer      → Content/UX Writer
+  Scrum Master          → Delivery Manager
+  Solutions Architect   → Back-end Developer`
 
 export async function POST(
   request: Request,
@@ -353,7 +373,9 @@ Using the Team Topologies, SFIA, and USDS frameworks in your instructions:
 
 3. Verify before returning:
    ✓ Every requirement maps to at least one work package
-   ✓ All 9 USDS-required roles appear somewhere across the full WBS
+   ✓ All 8 USDS-required roles appear somewhere across the full WBS
+   ✓ Each package's SFIA level matches its actual role count
+   ✓ Compliance multipliers applied where requirement types trigger them
    ✓ No role hours exceed ${billableHoursPerYear} per year
    ✓ Total hours are realistic for the contract type and period
    ✓ Dependencies are logical (infrastructure before applications, research before design, design before development)
