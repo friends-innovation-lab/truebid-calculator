@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { X, History, Save, RotateCcw, Trash2, Calendar } from 'lucide-react'
+import { X, History, Save, RotateCcw, Trash2, Users, Grid3X3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,11 +19,8 @@ import { ProposalLayout, SectionId, SECTION_DEFAULT_VIEWS } from '@/components/l
 import { ScopeOfWork } from '@/components/tabs/staff/scope-of-work'
 import { RolesPricing } from '@/components/tabs/staff/roles-pricing'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
-import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
-import { LaborMatrix } from '@/components/tabs/staff/labor-matrix'
 import { ExportTab } from '@/components/tabs/export-tab'
 import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
-import { CollabManager } from '@/components/tabs/staff/collab-manager'
 import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Strategy } from '@/components/tabs/scope/strategy'
@@ -41,12 +38,10 @@ type ViewId =
   | 'requirements'
   // Staff
   | 'wbs-elements'
-  | 'labor-matrix'
-  | 'timeline'
   | 'roles-pricing'
+  | 'team'
+  | 'labor-loading'
   | 'rate-justification'
-  | 'subs-partners'
-  | 'director-review'
   // Write
   | 'outline'
   | 'technical-editor'
@@ -63,7 +58,7 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
   'estimate': { section: 'staff', view: 'wbs-elements' },
   'roles': { section: 'staff', view: 'roles-pricing' },
   'rate-justification': { section: 'staff', view: 'rate-justification' },
-  'teaming-partners': { section: 'staff', view: 'subs-partners' },
+  'teaming-partners': { section: 'staff', view: 'team' },
   'write': { section: 'write', view: 'outline' },
   'export': { section: 'deliver', view: 'export-documents' },
 }
@@ -134,10 +129,9 @@ export function SectionNavigation() {
       'strategy': 'upload',
       'requirements': 'estimate',
       'wbs-elements': 'estimate',
-      'labor-matrix': 'estimate',
-      'timeline': 'estimate',
       'roles-pricing': 'roles',
-      'subs-partners': 'teaming-partners',
+      'team': 'teaming-partners',
+      'labor-loading': 'estimate',
       'boe-preview': 'export',
       'export-documents': 'export',
       'proposal-status': 'export',
@@ -217,38 +211,28 @@ export function SectionNavigation() {
         {activeView === 'wbs-elements' && activeSection === 'staff' && (
           <ScopeOfWork />
         )}
-        {activeView === 'labor-matrix' && activeSection === 'staff' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <LaborMatrix />
-            </div>
-          </div>
+        {activeView === 'roles-pricing' && activeSection === 'staff' && (
+          <RolesPricing />
         )}
-        {activeView === 'timeline' && activeSection === 'staff' && (
+        {activeView === 'team' && activeSection === 'staff' && (
           <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-5xl mx-auto">
               <EmptyState
-                icon={Calendar}
-                title="Timeline available after staffing is complete"
-                description="Once WBS elements have roles and hours assigned, the timeline will show FTE loading by month across the contract period."
+                icon={Users}
+                title="Team management coming soon"
+                description="This page will combine Subs & Partners and Director Review into a single team management view."
               />
             </div>
           </div>
         )}
-        {activeView === 'roles-pricing' && activeSection === 'staff' && (
-          <RolesPricing />
-        )}
-        {activeView === 'subs-partners' && activeSection === 'staff' && (
+        {activeView === 'labor-loading' && activeSection === 'staff' && (
           <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-5xl mx-auto">
-              <TeamingPartnersTab />
-            </div>
-          </div>
-        )}
-        {activeView === 'director-review' && activeSection === 'staff' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <CollabManager />
+              <EmptyState
+                icon={Grid3X3}
+                title="Labor loading coming soon"
+                description="FTE loading by role across contract periods. Available after staffing is complete."
+              />
             </div>
           </div>
         )}

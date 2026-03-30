@@ -10,9 +10,7 @@ import {
   Search,
   Layers,
   Grid3X3,
-  Clock,
   Users,
-  Shield,
   Building2,
   FileDown,
   Link2,
@@ -43,30 +41,12 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
   ],
   staff: [
     {
-      label: 'Estimate',
+      label: 'Staff',
       items: [
-        { id: 'wbs-elements', label: 'WBS Elements', icon: Layers },
-        { id: 'labor-matrix', label: 'Labor Matrix', icon: Grid3X3 },
-        { id: 'timeline', label: 'Timeline', icon: Clock },
-      ],
-    },
-    {
-      label: 'Pricing',
-      items: [
+        { id: 'wbs-elements', label: 'Scope of Work', icon: Layers },
         { id: 'roles-pricing', label: 'Roles & Pricing', icon: Users },
-        { id: 'rate-justification', label: 'Rate Justification', icon: Shield, isPanel: true },
-      ],
-    },
-    {
-      label: 'Partners',
-      items: [
-        { id: 'subs-partners', label: 'Subs & Partners', icon: Building2 },
-      ],
-    },
-    {
-      label: 'Collaboration',
-      items: [
-        { id: 'director-review', label: 'Director Review', icon: Users },
+        { id: 'team', label: 'Team', icon: Building2 },
+        { id: 'labor-loading', label: 'Labor Loading', icon: Grid3X3 },
       ],
     },
   ],
