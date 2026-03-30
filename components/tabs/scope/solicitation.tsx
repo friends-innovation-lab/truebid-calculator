@@ -121,19 +121,26 @@ function PDFViewer({
   const pdfDocRef = useRef<pdfjs.PDFDocumentProxy | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Render PDF page
+  // Render PDF page at high DPI for sharp text on retina displays
   const renderPage = useCallback(async (num: number) => {
     if (!pdfDocRef.current || !canvasRef.current) return
 
     const page = await pdfDocRef.current.getPage(num)
-    const viewport = page.getViewport({ scale })
+    const dpr = window.devicePixelRatio || 1
+    const viewport = page.getViewport({ scale: scale * dpr })
     const canvas = canvasRef.current
     const context = canvas.getContext('2d')
 
     if (!context) return
 
+    // Render at high resolution
     canvas.height = viewport.height
     canvas.width = viewport.width
+
+    // Display at logical size via CSS
+    const cssViewport = page.getViewport({ scale })
+    canvas.style.width = `${cssViewport.width}px`
+    canvas.style.height = `${cssViewport.height}px`
 
     // @ts-expect-error - pdfjs-dist v5 types expect canvas but canvasContext works
     await page.render({
