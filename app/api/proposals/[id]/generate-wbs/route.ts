@@ -248,10 +248,10 @@ export async function POST(
 
   const { id: proposalId } = await params
 
-  // Fetch proposal working_data
+  // Fetch proposal with full data
   const { data: proposal, error: fetchError } = await supabase
     .from('proposals')
-    .select('working_data')
+    .select('working_data, contract_type, period_of_performance')
     .eq('id', proposalId)
     .single()
 
@@ -278,69 +278,120 @@ export async function POST(
     }, { status: 400 })
   }
 
-  // Build summary context
-  const summary = (workingData.solicitationSummary as Record<string, unknown>) || {}
-  const summaryText = (summary.whatTheyWant as string) || (summary.what_they_want as string) || ''
+  // Extract setup context
+  const periodOfPerformance = (proposal.period_of_performance || {}) as { baseYear?: boolean; optionYears?: number }
+  const optionYears = periodOfPerformance.optionYears ?? 4
+  const contractYears = 1 + optionYears // base + options
+  const billableHoursPerYear = 1920 // Default FTE hours
+  const contractType = (proposal.contract_type as string) || 'tm'
+  const contractTypeLabels: Record<string, string> = {
+    tm: 'Time & Materials (T&M)',
+    ffp: 'Firm Fixed Price (FFP)',
+    cpff: 'Cost Plus Fixed Fee (CPFF)',
+    idiq: 'IDIQ',
+    hybrid: 'Hybrid',
+  }
+  const contractTypeLabel = contractTypeLabels[contractType.toLowerCase()] || contractType.toUpperCase()
+
+  // Extract solicitation metadata
+  const metadata = (workingData.solicitationMetadata || workingData.metadata || {}) as Record<string, unknown>
+  const setAside = (metadata.setAside as string) || 'N/A'
+
+  // Extract solicitation summary
+  const solicitationSummary = (workingData.solicitationSummary || {}) as {
+    whatTheyWant?: string
+    what_they_want?: string
+    whyItMatters?: string
+    why_it_matters?: string
+    keyChallenges?: string[]
+    key_challenges?: string[]
+  }
+  const whatTheyWant = solicitationSummary.whatTheyWant || solicitationSummary.what_they_want || 'Federal IT services contract'
+  const whyItMatters = solicitationSummary.whyItMatters || solicitationSummary.why_it_matters || ''
+  const keyChallenges = solicitationSummary.keyChallenges || solicitationSummary.key_challenges || []
 
   // Build requirements text for prompt
   const reqsText = requirements.map(r => {
     const ref = r.referenceNumber || r.reference_number || r.id
-    return `${ref} [${r.type}]: ${r.text || r.description || r.title}`
+    return `[${ref}] ${(r.type || 'shall').toUpperCase()}: ${r.text || r.description || r.title}`
   }).join('\n')
 
-  const userPrompt = `Create a Work Breakdown Structure for this government contract. Every requirement must be linked to at least one WBS element. Also identify logical dependencies between work packages.
+  const userPrompt = `Create a Work Breakdown Structure for this government IT contract.
 
-CONTRACT SUMMARY:
-${summaryText || 'Federal IT services contract'}
+CONTRACT CONTEXT:
+Type: ${contractTypeLabel}
+Period: Base Year + ${optionYears} Option Years (${contractYears} years total)
+Billable hours per year: ${billableHoursPerYear}
+Maximum hours per role per year: ${billableHoursPerYear}
+Set-aside: ${setAside}
+
+WHAT THEY WANT TO BUILD:
+${whatTheyWant}
+
+WHY IT MATTERS:
+${whyItMatters || 'Not specified'}
+
+KEY CHALLENGES:
+${keyChallenges.length > 0 ? keyChallenges.join(', ') : 'Not specified'}
 
 EXTRACTED REQUIREMENTS:
 ${reqsText}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+YOUR TASK
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Using the Team Topologies, SFIA, and USDS frameworks in your instructions:
+
+1. Identify 8-12 distinct work packages that cover ALL requirements
+
+2. For each package:
+   a. Assess its SFIA complexity level (3-6)
+   b. Apply relevant compliance multipliers
+   c. Assign ALL roles that this complexity level requires — not just the obvious ones
+   d. Estimate hours per role based on sprint norms × government overhead factor
+
+3. Verify before returning:
+   ✓ Every requirement maps to at least one work package
+   ✓ All 9 USDS-required roles appear somewhere across the full WBS
+   ✓ No role hours exceed ${billableHoursPerYear} per year
+   ✓ Total hours are realistic for the contract type and period
+   ✓ Dependencies are logical (infrastructure before applications, research before design, design before development)
 
 Return ONLY a valid JSON array, no other text:
 
 [
   {
     "ref": "WBS-01",
-    "name": "Work package name",
-    "description": "2-3 sentences describing what this package delivers",
+    "name": "Work package name (noun phrase)",
+    "description": "2-3 sentences describing what is delivered and why it matters",
+    "sfiaLevel": 4,
     "requirementRefs": ["REQ-001", "REQ-002"],
     "dependsOn": [],
     "estimationType": "engineering_estimate",
+    "complianceMultipliers": ["fedramp"],
     "tasks": [
       {
         "name": "Specific task name",
-        "suggestedRole": "Senior Developer",
-        "estimatedHours": 160,
+        "suggestedRole": "Back-end Developer",
+        "estimatedHours": 320,
         "loeType": "development",
-        "basisOfEstimate": "Based on similar authentication implementations in prior engagements"
+        "basisOfEstimate": "2-3 sprints for enterprise auth implementation with government overhead factor applied"
       }
     ],
-    "totalHours": 320,
+    "totalHours": 640,
     "assumptions": [
-      "SSO configuration docs provided at kickoff",
-      "OKTA tenant already provisioned"
+      "OKTA tenant provisioned before sprint 1",
+      "SSO configuration documentation available"
     ]
   }
 ]
 
-DEPENDENCY RULES:
-- "dependsOn" contains ref values of WBS elements that must complete BEFORE this one starts
-- Common patterns: Infrastructure → everything else, Authentication → user-facing features, Discovery → Design → Development
-- Only add genuinely blocking dependencies. Use empty array [] if none.
-
-ESTIMATION TYPES (use exactly one per element):
-  "engineering_estimate" | "loe" | "historical" | "parametric" | "analogy"
-
-LOE TYPES for tasks (use exactly one per task):
-  "development" | "configuration" | "integration" | "testing" | "documentation" | "management" | "research" | "design"
-
-IMPORTANT:
-- Every requirement ref in requirementRefs must exist in the requirements list above
-- Every requirement must appear in at least one element's requirementRefs
-- dependsOn must only reference refs that exist in this same response
-- totalHours must equal sum of task hours
-- 6-12 work packages total
-- Assumptions should be specific, not generic`
+Ref numbering: WBS-01, WBS-02...
+sfiaLevel: integer 1-7
+complianceMultipliers: array of zero or more: "fedramp" | "section508" | "legacy_integration" | "global_deployment" | "training"
+estimationType: one of: "engineering_estimate" | "loe" | "historical" | "parametric" | "analogy"
+loeType: one of: "development" | "configuration" | "integration" | "testing" | "documentation" | "management" | "research" | "design"`
 
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
