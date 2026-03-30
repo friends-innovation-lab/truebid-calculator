@@ -1193,14 +1193,18 @@ export function Solicitation() {
       updateExtractionStep('requirements', 'complete')
       updateExtractionStep('compliance', 'active')
 
-      // Store compliance matrix in database
+      // STEP 1: Save ALL compliance items immediately (no linking)
       let complianceCount = 0
       const complianceMatrix = data.complianceMatrix
       if (complianceMatrix && complianceMatrix.length > 0 && proposalId) {
         try {
-          // Insert compliance items into database (replaces existing)
-          const result = await complianceApi.bulkReplace(proposalId, complianceMatrix) as { count?: number }
-          complianceCount = result.count || complianceMatrix.length
+          // Strip requirementId — save everything as unlinked first
+          const itemsToSave = complianceMatrix.map((item: Record<string, unknown>) => ({
+            ...item,
+            requirementId: null,
+          }))
+          const result = await complianceApi.bulkReplace(proposalId, itemsToSave) as { count?: number }
+          complianceCount = result.count || itemsToSave.length
           console.log(`[Solicitation] Saved ${complianceCount} compliance items to database`)
         } catch (error) {
           console.warn('[Solicitation] Failed to save compliance matrix:', error)
@@ -1212,10 +1216,38 @@ export function Solicitation() {
       updateExtractionStep('compliance', 'complete')
       setIsExtracting(false)
 
-      // Show completion toast with both counts
+      // STEP 3: Fire toast AFTER Step 1 completes (uses saved count)
       toast.success('RFP analyzed', {
         description: `${requirementCount} requirements · ${complianceCount} compliance items`,
       })
+
+      // STEP 2: Link Section C/H compliance items to requirements (non-blocking)
+      // This is a best-effort pass — if it fails, all items are still saved
+      if (complianceCount > 0 && requirements && requirements.length > 0 && proposalId) {
+        (async () => {
+          try {
+            const savedData = await complianceApi.list(proposalId) as { items?: { id: string; requirement_ref: string | null; source: string }[] }
+            const savedItems = savedData.items || []
+
+            for (const item of savedItems) {
+              if (item.source === 'requirement' && item.requirement_ref) {
+                const match = requirements.find(
+                  (r: { id: string; reference_number?: string }) =>
+                    r.id === item.requirement_ref || r.reference_number === item.requirement_ref
+                )
+                if (match) {
+                  await complianceApi.update(proposalId, item.id, {
+                    requirement_id: match.id,
+                  })
+                }
+              }
+            }
+            console.log('[Solicitation] Compliance linking pass complete')
+          } catch (error) {
+            console.warn('[Solicitation] Compliance linking failed (non-critical):', error)
+          }
+        })()
+      }
 
       // Now generate the summary
       await generateSummary()

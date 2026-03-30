@@ -430,25 +430,15 @@ export async function POST(request: NextRequest) {
         if (jsonStart !== -1 && jsonEnd !== -1) {
           const rawMatrix = JSON.parse(compResponseText.slice(jsonStart, jsonEnd + 1))
 
-          // Link Section C and H items to requirements by matching ref
-          complianceMatrix = rawMatrix.map((item: { ref: string; rfpSection: string; type: string; text: string; source: string }) => {
-            let requirementId: string | null = null
-
-            // If this is a Section C or H item, try to link to requirements
-            if (item.rfpSection === 'C' || item.rfpSection === 'H') {
-              const matchingReq = requirements.find(r => r.id === item.ref)
-              requirementId = matchingReq?.id || null
-            }
-
-            return {
-              ref: item.ref || '',
-              rfpSection: item.rfpSection || '',
-              type: item.type || '',
-              text: item.text || '',
-              source: item.source || '',
-              requirementId,
-            }
-          })
+          // Save all items without linking — linking happens post-save in the client
+          complianceMatrix = rawMatrix.map((item: { ref: string; rfpSection: string; type: string; text: string; source: string }) => ({
+            ref: item.ref || '',
+            rfpSection: item.rfpSection || '',
+            type: item.type || '',
+            text: item.text || '',
+            source: item.source || '',
+            requirementId: null,
+          }))
 
           console.log(`[extract-rfp] Extracted ${complianceMatrix.length} compliance items`)
         }
