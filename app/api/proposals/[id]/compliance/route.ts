@@ -184,6 +184,16 @@ export async function PUT(
   // Transform extraction format to DB format and insert
   // Extraction format: { ref, rfpSection, type, text, source, requirementId }
   // DB format: { requirement_text, requirement_ref, source, compliance_status, notes }
+  // Map RFP section letter to proposal section name
+  const sectionMap: Record<string, string> = {
+    'L': 'Instructions',
+    'M': 'Evaluation',
+    'K': 'Representations',
+    'J': 'Attachments',
+    'C': 'Technical',
+    'H': 'Special Provisions',
+  }
+
   const insertData = items.map((item: {
     ref?: string
     rfpSection?: string
@@ -195,6 +205,7 @@ export async function PUT(
     proposal_id: id,
     requirement_text: item.text || '',
     requirement_ref: item.ref || '',
+    proposal_section: sectionMap[item.rfpSection || ''] || `Section ${item.rfpSection || 'Unknown'}`,
     // Map rfpSection to source: L/M/K/J = instruction, C/H = requirement
     source: ['L', 'M', 'K', 'J'].includes(item.rfpSection || '') ? 'instruction' : 'requirement',
     compliance_status: 'unaddressed',
