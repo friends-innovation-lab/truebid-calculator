@@ -1019,7 +1019,7 @@ export function Dashboard() {
             <h1 className="font-extrabold text-[30px] tracking-[-0.8px]" style={{ color: 'var(--ink)' }}>
               {getTimeBasedGreeting()}, {firstName}.
             </h1>
-            <p className="text-[14px] mt-[5px]" style={{ color: '#9B9A95' }}>
+            <p className="text-[14px] mt-[5px]" style={{ color: '#6B6A65' }}>
               Ready to start your first proposal?
             </p>
           </div>
@@ -1032,7 +1032,7 @@ export function Dashboard() {
             <div style={{ fontSize: 16, fontWeight: 700, color: '#111110', letterSpacing: '-0.2px', marginBottom: 6 }}>
               No proposals yet
             </div>
-            <div style={{ fontSize: 13, color: '#9B9A95', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
+            <div style={{ fontSize: 13, color: '#6B6A65', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
               Create your first proposal to get started. Upload an RFP and TrueBid will extract requirements, build your WBS, and help you write a winning response.
             </div>
             <button
@@ -1092,7 +1092,7 @@ export function Dashboard() {
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#111110', letterSpacing: '-0.2px', marginBottom: 6 }}>
                   No active proposals
                 </div>
-                <div style={{ fontSize: 13, color: '#9B9A95', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
+                <div style={{ fontSize: 13, color: '#6B6A65', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
                   Create your first proposal to get started. Upload an RFP and TrueBid will extract requirements, build your WBS, and help you write a winning response.
                 </div>
                 <button

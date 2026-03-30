@@ -118,7 +118,7 @@ export function NewProposalModal({ open, onClose }: NewProposalModalProps) {
           <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111110', letterSpacing: '-0.4px' }}>
             New proposal
           </h2>
-          <p style={{ fontSize: 13, color: '#9B9A95', marginTop: 4 }}>
+          <p style={{ fontSize: 13, color: '#6B6A65', marginTop: 4 }}>
             Set up the basics. You can change everything later.
           </p>
 
@@ -151,7 +151,7 @@ export function NewProposalModal({ open, onClose }: NewProposalModalProps) {
                 placeholder="e.g. 19AQMM25Q0273"
                 className="font-mono"
               />
-              <p style={{ fontSize: 11, color: '#9B9A95', marginTop: 4 }}>Optional — add it when you have it</p>
+              <p style={{ fontSize: 11, color: '#6B6A65', marginTop: 4 }}>Optional — add it when you have it</p>
             </div>
 
             {/* 3. Agency */}
@@ -203,7 +203,7 @@ export function NewProposalModal({ open, onClose }: NewProposalModalProps) {
               <label style={{ fontSize: 12, fontWeight: 600, color: '#111110', display: 'block', marginBottom: 6 }}>
                 Option years
               </label>
-              <p style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Beyond the base year</p>
+              <p style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>Beyond the base year</p>
               <div style={{ display: 'flex', gap: 6 }}>
                 {[0, 1, 2, 3, 4].map(n => (
                   <button
@@ -225,7 +225,7 @@ export function NewProposalModal({ open, onClose }: NewProposalModalProps) {
                   </button>
                 ))}
               </div>
-              <p style={{ fontSize: 11, color: '#9B9A95', marginTop: 6 }}>
+              <p style={{ fontSize: 11, color: '#6B6A65', marginTop: 6 }}>
                 Base Year + {optionYears} Option Year{optionYears !== 1 ? 's' : ''} = {optionYears + 1} year contract
               </p>
             </div>

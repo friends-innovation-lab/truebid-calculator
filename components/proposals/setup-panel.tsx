@@ -107,7 +107,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
         <div className="shrink-0 flex items-center justify-between" style={{ height: 48, borderBottom: '0.5px solid #E8E7E2', padding: '0 16px' }}>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111110' }}>Proposal Setup</h2>
           <button onClick={onClose} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Close">
-            <X className="w-4 h-4" style={{ color: '#9B9A95' }} />
+            <X className="w-4 h-4" style={{ color: '#6B6A65' }} />
           </button>
         </div>
 
@@ -154,7 +154,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
                 </button>
               ))}
             </div>
-            <p style={{ fontSize: 11, color: '#9B9A95', marginTop: 6 }}>
+            <p style={{ fontSize: 11, color: '#6B6A65', marginTop: 6 }}>
               Base Year + {optionYears} Option Year{optionYears !== 1 ? 's' : ''} = {optionYears + 1} year contract
             </p>
           </div>
@@ -183,7 +183,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
               onBlur={() => save({})  /* uses current state values */}
               className="text-sm"
             />
-            <p style={{ fontSize: 11, color: '#9B9A95', marginTop: 4 }}>1.0 FTE = {billableHours.toLocaleString()} hrs/yr</p>
+            <p style={{ fontSize: 11, color: '#6B6A65', marginTop: 4 }}>1.0 FTE = {billableHours.toLocaleString()} hrs/yr</p>
           </div>
 
           {/* Escalation Rate */}
@@ -204,7 +204,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
 
         {/* Footer */}
         <div className="shrink-0 flex items-center justify-end" style={{ height: 52, borderTop: '0.5px solid #E8E7E2', padding: '0 16px' }}>
-          {saveStatus === 'saving' && <span style={{ fontSize: 12, color: '#9B9A95', marginRight: 12 }}>Saving...</span>}
+          {saveStatus === 'saving' && <span style={{ fontSize: 12, color: '#6B6A65', marginRight: 12 }}>Saving...</span>}
           {saveStatus === 'saved' && <span style={{ fontSize: 12, color: '#639922', marginRight: 12 }}>✓ Saved</span>}
           <button onClick={onClose} style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: '0.5px solid #E8E7E2', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}>
             Close

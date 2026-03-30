@@ -365,6 +365,7 @@ export function RolesPricing() {
           onUpdate={(updates) => { updateRole(detailRole.id, updates); setDetailRole({ ...detailRole, ...updates }) }}
           onDelete={() => { removeRole(detailRole.id); setDetailRole(null) }}
           onClose={() => setDetailRole(null)}
+          laborCategories={companyRoles as unknown as { title: string; salary_levels?: { level: string; level_title?: string; steps: number[] }[] }[]}
         />
       )}
     </div>
@@ -427,12 +428,12 @@ function PricingView({
                 {wbsRoleData.has(role.name) ? (
                   <span style={{ fontSize: 9, fontWeight: 500, background: '#E1F5EE', color: '#085041', border: '0.5px solid #5DCAA5', padding: '1px 5px', borderRadius: 3 }}>From WBS</span>
                 ) : (
-                  <span style={{ fontSize: 9, fontWeight: 500, background: '#F4F3EF', color: '#9B9A95', padding: '1px 5px', borderRadius: 3 }}>Manual</span>
+                  <span style={{ fontSize: 9, fontWeight: 500, background: '#F4F3EF', color: '#6B6A65', padding: '1px 5px', borderRadius: 3 }}>Manual</span>
                 )}
               </div>
               <div style={{ fontSize: 10, color: '#6B6A65' }}>
                 {role.icLevel} · {role.description || 'General'}
-                {wbsRoleData.has(role.name) && <span style={{ color: '#9B9A95' }}> · {wbsRoleData.get(role.name)?.toLocaleString()} hrs from WBS</span>}
+                {wbsRoleData.has(role.name) && <span style={{ color: '#6B6A65' }}> · {wbsRoleData.get(role.name)?.toLocaleString()} hrs from WBS</span>}
               </div>
             </div>
             <div style={{ padding: '10px 8px', display: 'flex', alignItems: 'center' }}>
@@ -693,59 +694,48 @@ function AddRolePanel({
 // FFTC indirect rates (will come from Account → Company Settings later)
 const INDIRECT_RATES = { fringe: 0.2116, overhead: 0.3426, ga: 0.1983, hoursPerYear: 2080 }
 
-function calcSalaryFromBillRate(billRate: number, profit: number) {
-  const costPerHour = billRate / (1 + profit)
-  const totalCost = costPerHour * INDIRECT_RATES.hoursPerYear
-  // totalCost = salary * (1 + fringe + overhead) * (1 + ga)
-  const multiplier = (1 + INDIRECT_RATES.fringe + INDIRECT_RATES.overhead) * (1 + INDIRECT_RATES.ga)
-  return totalCost / multiplier
-}
-
 function RoleDetailPanel({
   role,
   onUpdate,
   onDelete,
   onClose,
+  laborCategories,
 }: {
   role: Role
   onUpdate: (updates: Partial<Role>) => void
   onDelete: () => void
   onClose: () => void
+  laborCategories: { title: string; salary_levels?: { level: string; level_title?: string; steps: number[] }[] }[]
 }) {
-  const [rateMode, setRateMode] = useState<'bill' | 'salary'>('bill')
-  const [billRate, setBillRate] = useState(role.loadedRate || role.hourlyRate || 0)
-  const [salary, setSalary] = useState(role.baseSalary || 0)
-  const [profit, setProfit] = useState(10)
-  const [roleType, setRoleType] = useState<'prime' | 'sub'>((role as Role & { type?: string }).type as 'prime' | 'sub' || 'prime')
-  const [subName, setSubName] = useState((role as Role & { subcontractorName?: string }).subcontractorName || '')
+  const extRole = role as Role & { selectedLevel?: string; selectedStep?: number; currentSalary?: number; profitMargin?: number; type?: string; subcontractorName?: string; billRateBase?: number }
+
+  // Find matching labor category
+  const laborCat = laborCategories.find(lc => lc.title === role.name)
+  const levels = laborCat?.salary_levels || []
+
+  const [selectedLevel, setSelectedLevel] = useState(extRole.selectedLevel || 'IC3')
+  const [selectedStep, setSelectedStep] = useState(extRole.selectedStep ?? 0)
+  const [profit, setProfit] = useState((extRole.profitMargin ?? 0.10) * 100)
+  const [roleType, setRoleType] = useState<'prime' | 'sub'>(extRole.type as 'prime' | 'sub' || 'prime')
+  const [subName, setSubName] = useState(extRole.subcontractorName || '')
   const escalation = 0.03
 
-  // Recalculate when inputs change
-  const breakdown = useMemo(() => {
-    if (rateMode === 'salary' && salary > 0) {
-      const fringe = salary * INDIRECT_RATES.fringe
-      const oh = salary * INDIRECT_RATES.overhead
-      const loaded = salary + fringe + oh
-      const gaAmt = loaded * INDIRECT_RATES.ga
-      const totalCost = loaded + gaAmt
-      const costPerHour = totalCost / INDIRECT_RATES.hoursPerYear
-      const profitAmt = costPerHour * profit / 100
-      const rate = costPerHour + profitAmt
-      return { salary, fringe, oh, loaded, gaAmt, totalCost, costPerHour, profitAmt, billRate: rate }
-    }
-    if (rateMode === 'bill' && billRate > 0) {
-      const impliedSalary = calcSalaryFromBillRate(billRate, profit / 100)
-      const fringe = impliedSalary * INDIRECT_RATES.fringe
-      const oh = impliedSalary * INDIRECT_RATES.overhead
-      const loaded = impliedSalary + fringe + oh
-      const gaAmt = loaded * INDIRECT_RATES.ga
-      const totalCost = loaded + gaAmt
-      const costPerHour = totalCost / INDIRECT_RATES.hoursPerYear
-      const profitAmt = costPerHour * profit / 100
-      return { salary: impliedSalary, fringe, oh, loaded, gaAmt, totalCost, costPerHour, profitAmt, billRate }
-    }
-    return null
-  }, [rateMode, salary, billRate, profit])
+  // Derive salary from level/step selection
+  const currentLevelData = levels.find(l => l.level === selectedLevel) || levels[0]
+  const salary = currentLevelData?.steps?.[selectedStep] || extRole.currentSalary || extRole.baseSalary || 0
+
+  // Calculate breakdown from salary (always forward calc from level/step)
+  const breakdown = salary > 0 ? (() => {
+    const fringe = salary * INDIRECT_RATES.fringe
+    const oh = salary * INDIRECT_RATES.overhead
+    const loaded = salary + fringe + oh
+    const gaAmt = loaded * INDIRECT_RATES.ga
+    const totalCost = loaded + gaAmt
+    const costPerHour = totalCost / INDIRECT_RATES.hoursPerYear
+    const profitAmt = costPerHour * profit / 100
+    const rate = costPerHour + profitAmt
+    return { salary, fringe, oh, loaded, gaAmt, totalCost, costPerHour, profitAmt, billRate: rate }
+  })() : null
 
   const fmt = (n: number) => '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
@@ -757,23 +747,75 @@ function RoleDetailPanel({
         <div className="flex items-center justify-between p-4 shrink-0" style={{ borderBottom: '0.5px solid #E8E7E2' }}>
           <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111110' }}>{role.name}</h2>
           <button onClick={onClose} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Close">
-            <X className="w-4 h-4" style={{ color: '#9B9A95' }} />
+            <X className="w-4 h-4" style={{ color: '#6B6A65' }} />
           </button>
         </div>
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-5">
-          {/* 1. Role name + level */}
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="detail-name" className="text-xs font-medium">Role name</Label>
-              <Input id="detail-name" value={role.name} onChange={(e) => onUpdate({ name: e.target.value })} className="text-sm" />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="detail-level" className="text-xs font-medium">Level / Labor category</Label>
-              <Input id="detail-level" value={role.icLevel} onChange={(e) => onUpdate({ icLevel: e.target.value as Role['icLevel'] })} className="text-sm" />
-            </div>
+          {/* 1. Role name */}
+          <div className="space-y-1.5">
+            <Label htmlFor="detail-name" className="text-xs font-medium">Role name</Label>
+            <Input id="detail-name" value={role.name} onChange={(e) => onUpdate({ name: e.target.value })} className="text-sm" />
+            {laborCat && <span style={{ fontSize: 10, color: '#6B6A65' }}>{laborCat.title}</span>}
           </div>
+
+          {/* Level selector */}
+          {levels.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Seniority level</Label>
+              <div className="flex flex-wrap gap-1">
+                {levels.map(l => (
+                  <button
+                    key={l.level}
+                    onClick={() => { setSelectedLevel(l.level); setSelectedStep(0); onUpdate({ icLevel: l.level as Role['icLevel'] }) }}
+                    style={{
+                      fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                      background: selectedLevel === l.level ? '#111110' : '#F4F3EF',
+                      color: selectedLevel === l.level ? '#FFFFFF' : '#5F5E5A',
+                    }}
+                  >
+                    {l.level} · {l.level_title || 'Level'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Step selector */}
+              {currentLevelData && currentLevelData.steps.length > 1 && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium" style={{ color: '#6B6A65' }}>Step</Label>
+                  <div className="flex flex-wrap gap-1">
+                    {currentLevelData.steps.map((stepSalary, i) => (
+                      <button
+                        key={i}
+                        onClick={() => { setSelectedStep(i); onUpdate({ baseSalary: stepSalary }) }}
+                        style={{
+                          fontSize: 11, fontWeight: 600, padding: '5px 10px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                          background: selectedStep === i ? '#111110' : '#F4F3EF',
+                          color: selectedStep === i ? '#FFFFFF' : '#5F5E5A',
+                        }}
+                      >
+                        ${stepSalary.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Salary display */}
+              <div style={{ fontSize: 13, fontWeight: 600, color: '#111110' }}>
+                Annual salary: ${salary.toLocaleString()}
+              </div>
+            </div>
+          )}
+
+          {/* Manual salary input if no labor categories */}
+          {levels.length === 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium">Base salary ($)</Label>
+              <Input type="number" value={role.baseSalary} onChange={(e) => onUpdate({ baseSalary: parseFloat(e.target.value) || 0 })} className="text-sm font-mono" />
+            </div>
+          )}
 
           <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
 
@@ -789,7 +831,7 @@ function RoleDetailPanel({
                     flex: 1, padding: '6px 0', fontSize: 12,
                     fontWeight: roleType === t ? 600 : 400,
                     background: roleType === t ? (t === 'prime' ? '#111110' : '#F4F3EF') : 'transparent',
-                    color: roleType === t ? (t === 'prime' ? '#FFFFFF' : '#5F5E5A') : '#9B9A95',
+                    color: roleType === t ? (t === 'prime' ? '#FFFFFF' : '#5F5E5A') : '#6B6A65',
                     border: 'none', borderRadius: 4, cursor: 'pointer', textTransform: 'capitalize',
                   }}
                 >
@@ -812,31 +854,8 @@ function RoleDetailPanel({
 
           <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
 
-          {/* 3. Rate section */}
+          {/* 3. Rate section — calculated from level/step salary */}
           <div className="space-y-3">
-            {/* Mode toggle */}
-            <div style={{ display: 'flex', gap: 1, background: '#F4F3EF', borderRadius: 5, padding: 2 }}>
-              <button onClick={() => setRateMode('bill')} style={{ flex: 1, padding: '5px 0', fontSize: 11, fontWeight: rateMode === 'bill' ? 600 : 400, background: rateMode === 'bill' ? '#fff' : 'transparent', color: rateMode === 'bill' ? '#111110' : '#9B9A95', border: 'none', borderRadius: 4, cursor: 'pointer', boxShadow: rateMode === 'bill' ? '0 0 0 0.5px #E8E7E2' : 'none' }}>
-                Enter bill rate
-              </button>
-              <button onClick={() => setRateMode('salary')} style={{ flex: 1, padding: '5px 0', fontSize: 11, fontWeight: rateMode === 'salary' ? 600 : 400, background: rateMode === 'salary' ? '#fff' : 'transparent', color: rateMode === 'salary' ? '#111110' : '#9B9A95', border: 'none', borderRadius: 4, cursor: 'pointer', boxShadow: rateMode === 'salary' ? '0 0 0 0.5px #E8E7E2' : 'none' }}>
-                Calculate from salary
-              </button>
-            </div>
-
-            {/* Rate input */}
-            {rateMode === 'bill' ? (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Bill rate ($/hr)</Label>
-                <Input type="number" step="0.01" value={billRate || ''} onChange={(e) => setBillRate(parseFloat(e.target.value) || 0)} className="text-sm font-mono" />
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Annual salary ($)</Label>
-                <Input type="number" value={salary || ''} onChange={(e) => { const v = parseFloat(e.target.value) || 0; setSalary(v); onUpdate({ baseSalary: v }) }} className="text-sm font-mono" />
-              </div>
-            )}
-
             {/* Profit margin */}
             <div className="flex items-center gap-2">
               <Label className="text-xs font-medium">Profit margin</Label>
@@ -849,42 +868,28 @@ function RoleDetailPanel({
               <div style={{ background: '#FAFAF9', border: '0.5px solid #E8E7E2', borderRadius: 7, padding: '12px 14px', marginTop: 8 }}>
                 <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C4C3BE', marginBottom: 8 }}>Rate breakdown</div>
                 <div className="space-y-1">
-                  <BreakdownRow label={rateMode === 'salary' ? 'Base salary' : 'Bill rate'} value={rateMode === 'salary' ? `${fmt(breakdown.salary)}/yr` : `${fmt(breakdown.billRate)}/hr`} />
-                  {rateMode === 'salary' ? (
-                    <>
-                      <BreakdownRow label={`+ Fringe (${(INDIRECT_RATES.fringe * 100).toFixed(2)}%)`} value={`${fmt(breakdown.fringe)}/yr`} />
-                      <BreakdownRow label={`+ Overhead (${(INDIRECT_RATES.overhead * 100).toFixed(2)}%)`} value={`${fmt(breakdown.oh)}/yr`} />
-                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
-                      <BreakdownRow label="Loaded cost" value={`${fmt(breakdown.loaded)}/yr`} />
-                      <BreakdownRow label={`+ G&A (${(INDIRECT_RATES.ga * 100).toFixed(2)}%)`} value={`${fmt(breakdown.gaAmt)}/yr`} />
-                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
-                      <BreakdownRow label="Total cost" value={`${fmt(breakdown.totalCost)}/yr`} />
-                      <BreakdownRow label={`÷ ${INDIRECT_RATES.hoursPerYear.toLocaleString()} hours`} value="" />
-                      <BreakdownRow label="Cost per hour" value={`${fmt(breakdown.costPerHour)}/hr`} />
-                      <BreakdownRow label={`+ Profit (${profit}%)`} value={`${fmt(breakdown.profitAmt)}/hr`} />
-                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
-                      <BreakdownRow label="Bill rate" value={`${fmt(breakdown.billRate)}/hr`} highlight />
-                    </>
-                  ) : (
-                    <>
-                      <BreakdownRow label={`− Profit (${profit}%)`} value={`−${fmt(breakdown.profitAmt)}/hr`} />
-                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
-                      <BreakdownRow label="Cost per hour" value={`${fmt(breakdown.costPerHour)}/hr`} />
-                      <BreakdownRow label={`× ${INDIRECT_RATES.hoursPerYear.toLocaleString()} hours`} value="" />
-                      <BreakdownRow label="Annual cost" value={`${fmt(breakdown.totalCost)}/yr`} />
-                      <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
-                      <BreakdownRow label="Implied salary" value={`${fmt(breakdown.salary)}/yr`} highlight />
-                    </>
-                  )}
+                  <BreakdownRow label="Base salary" value={`${fmt(breakdown.salary)}/yr`} />
+                  <BreakdownRow label={`+ Fringe (${(INDIRECT_RATES.fringe * 100).toFixed(2)}%)`} value={`${fmt(breakdown.fringe)}/yr`} />
+                  <BreakdownRow label={`+ Overhead (${(INDIRECT_RATES.overhead * 100).toFixed(2)}%)`} value={`${fmt(breakdown.oh)}/yr`} />
+                  <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
+                  <BreakdownRow label="Loaded cost" value={`${fmt(breakdown.loaded)}/yr`} />
+                  <BreakdownRow label={`+ G&A (${(INDIRECT_RATES.ga * 100).toFixed(2)}%)`} value={`${fmt(breakdown.gaAmt)}/yr`} />
+                  <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
+                  <BreakdownRow label="Total cost" value={`${fmt(breakdown.totalCost)}/yr`} />
+                  <BreakdownRow label={`÷ ${INDIRECT_RATES.hoursPerYear.toLocaleString()} hours`} value="" />
+                  <BreakdownRow label="Cost per hour" value={`${fmt(breakdown.costPerHour)}/hr`} />
+                  <BreakdownRow label={`+ Profit (${profit}%)`} value={`${fmt(breakdown.profitAmt)}/hr`} />
+                  <div style={{ height: 0.5, background: '#E8E7E2', margin: '4px 0' }} />
+                  <BreakdownRow label="Bill rate" value={`${fmt(breakdown.billRate)}/hr`} highlight />
                 </div>
 
                 {/* Option year rates */}
-                <div style={{ fontSize: 11, color: '#9B9A95', marginTop: 10 }}>With {Math.round(escalation * 100)}% annual escalation:</div>
+                <div style={{ fontSize: 11, color: '#6B6A65', marginTop: 10 }}>With {Math.round(escalation * 100)}% annual escalation:</div>
                 <div className="flex gap-3 mt-1">
                   {['Base yr', 'OY1', 'OY2', 'OY3', 'OY4'].map((label, i) => {
                     const rate = breakdown.billRate * Math.pow(1 + escalation, i)
                     return (
-                      <div key={label} style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: i === 0 ? '#111110' : '#9B9A95' }}>
+                      <div key={label} style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: i === 0 ? '#111110' : '#6B6A65' }}>
                         <div style={{ fontSize: 9, color: '#C4C3BE' }}>{label}</div>
                         {fmt(rate)}
                       </div>

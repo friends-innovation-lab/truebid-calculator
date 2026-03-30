@@ -343,11 +343,11 @@ function WBSRow({
           style={{ width: 16, height: 16, border: '0.5px solid #E8E7E2', borderRadius: 3, background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           aria-label={isExpanded ? 'Collapse' : 'Expand'}
         >
-          {isExpanded ? <ChevronDown className="w-2.5 h-2.5" style={{ color: '#9B9A95' }} /> : <ChevronRight className="w-2.5 h-2.5" style={{ color: '#9B9A95' }} />}
+          {isExpanded ? <ChevronDown className="w-2.5 h-2.5" style={{ color: '#6B6A65' }} /> : <ChevronRight className="w-2.5 h-2.5" style={{ color: '#6B6A65' }} />}
         </button>
 
         {/* WBS Number */}
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#9B9A95', flexShrink: 0, width: 52 }}>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#6B6A65', flexShrink: 0, width: 52 }}>
           {element.wbsNumber}
         </span>
 
@@ -384,7 +384,7 @@ function WBSRow({
         {/* Hours */}
         <div style={{ minWidth: 60, textAlign: 'right', display: 'flex', alignItems: 'baseline', gap: 4, marginLeft: 'auto' }}>
           <span style={{ fontSize: 12, fontWeight: 700, color: '#111110' }}>{totalHours.toLocaleString()}</span>
-          <span style={{ fontSize: 10, color: '#9B9A95' }}>hrs</span>
+          <span style={{ fontSize: 10, color: '#6B6A65' }}>hrs</span>
         </div>
 
         {/* Status Dot */}
@@ -485,10 +485,10 @@ function DetailSlideout({
     <div className="shrink-0 flex flex-col" style={{ width: 480, borderLeft: '0.5px solid #E8E7E2', background: '#FFFFFF' }}>
       {/* Panel Header */}
       <div className="shrink-0 flex items-center" style={{ height: 48, borderBottom: '0.5px solid #E8E7E2', padding: '0 16px', gap: 8 }}>
-        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#9B9A95' }}>{element.wbsNumber}</span>
+        <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#6B6A65' }}>{element.wbsNumber}</span>
         <span style={{ fontSize: 13, fontWeight: 600, color: '#111110', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{element.title}</span>
         <button onClick={onClose} style={{ width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="Close">
-          <X className="w-4 h-4" style={{ color: '#9B9A95' }} />
+          <X className="w-4 h-4" style={{ color: '#6B6A65' }} />
         </button>
       </div>
 
@@ -549,7 +549,7 @@ function DetailSlideout({
 
         {/* 4. Estimation Method */}
         <SectionLabel>Estimation method</SectionLabel>
-        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>How were hours determined? Required for BOE export.</div>
+        <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>How were hours determined? Required for BOE export.</div>
         <select
           value={extEl.estimationType || 'engineering_estimate'}
           onChange={(e) => debouncedUpdate({ estimationType: e.target.value } as Partial<WBSElementData>)}
@@ -559,7 +559,7 @@ function DetailSlideout({
         </select>
         {extEl.estimationType === 'historical' && (
           <div style={{ marginTop: 8 }}>
-            <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 4 }}>Historical reference</div>
+            <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 4 }}>Historical reference</div>
             <Input
               value={extEl.historicalReference || ''}
               onChange={(e) => debouncedUpdate({ historicalReference: e.target.value } as Partial<WBSElementData>)}
@@ -573,7 +573,7 @@ function DetailSlideout({
 
         {/* 5. Basis of Estimate */}
         <SectionLabel>Basis of estimate</SectionLabel>
-        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Narrative explaining how hours were derived. Appears in BOE export.</div>
+        <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>Narrative explaining how hours were derived. Appears in BOE export.</div>
         <Textarea
           value={extEl.basisOfEstimate || ''}
           onChange={(e) => debouncedUpdate({ basisOfEstimate: e.target.value } as Partial<WBSElementData>)}
@@ -586,7 +586,7 @@ function DetailSlideout({
 
         {/* 6. Assumptions */}
         <SectionLabel>Assumptions</SectionLabel>
-        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Conditions that must be true for this estimate to hold. Included in BOE export.</div>
+        <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>Conditions that must be true for this estimate to hold. Included in BOE export.</div>
         {(element.assumptions || []).length === 0 ? (
           <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>No assumptions</div>
         ) : (
@@ -603,7 +603,7 @@ function DetailSlideout({
 
         {/* 7. Charge Codes (per-task) */}
         <SectionLabel>Charge Codes</SectionLabel>
-        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Used for Unanet timesheet entry</div>
+        <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>Used for Unanet timesheet entry</div>
         {tasks.length === 0 ? (
           <Input placeholder="e.g. CAMP-01-DEV" className="font-mono text-sm" />
         ) : (
@@ -624,7 +624,7 @@ function DetailSlideout({
 
         {/* 8. Dependencies */}
         <SectionLabel>Dependencies</SectionLabel>
-        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>WBS elements that must complete before this work begins.</div>
+        <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>WBS elements that must complete before this work begins.</div>
         {deps.length === 0 ? (
           <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>None</div>
         ) : (
@@ -644,7 +644,7 @@ function DetailSlideout({
 
         {/* 9. Notes */}
         <SectionLabel>Notes</SectionLabel>
-        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Visible to directors with collaboration links</div>
+        <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>Visible to directors with collaboration links</div>
         <Textarea value={element.notes || ''} onChange={(e) => debouncedUpdate({ notes: e.target.value })} placeholder="Internal notes about this work package..." rows={3} className="text-sm" />
       </div>
 
@@ -662,7 +662,7 @@ function DetailSlideout({
           </button>
         )}
         <div className="flex items-center gap-3">
-          {saveStatus === 'saving' && <span style={{ fontSize: 12, color: '#9B9A95' }}>Saving...</span>}
+          {saveStatus === 'saving' && <span style={{ fontSize: 12, color: '#6B6A65' }}>Saving...</span>}
           {saveStatus === 'saved' && <span style={{ fontSize: 12, color: '#639922' }}>✓ Saved</span>}
           {saveStatus === 'error' && <span style={{ fontSize: 12, color: '#A32D2D' }}>Save failed</span>}
           <button onClick={onClose} style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: '0.5px solid #E8E7E2', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}>
@@ -677,8 +677,9 @@ function DetailSlideout({
 // ==================== DIRECTOR BANNER ====================
 
 function DirectorBanner({ session }: { session: CollabSession }) {
-  const isExpired = session.status === 'expired' || new Date(session.expires_at) < new Date()
-  const daysRemaining = Math.max(0, Math.ceil((new Date(session.expires_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
+  const [now] = useState(() => new Date())
+  const isExpired = session.status === 'expired' || new Date(session.expires_at) < now
+  const daysRemaining = Math.max(0, Math.ceil((new Date(session.expires_at).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)))
   const initials = session.reviewer_name.charAt(0).toUpperCase()
 
   return (
