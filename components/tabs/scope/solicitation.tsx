@@ -106,11 +106,13 @@ function PDFViewer({
   onFileUpload,
   onReplace,
   onDownload,
+  onPageCountChange,
 }: {
   pdfState: PDFState
   onFileUpload: (file: File) => void
   onReplace: () => void
   onDownload: () => void
+  onPageCountChange?: (numPages: number) => void
 }) {
   const [isDragging, setIsDragging] = useState(false)
   const [pageNum, setPageNum] = useState(1)
@@ -152,6 +154,10 @@ function PDFViewer({
         const pdf = await pdfjs.getDocument(pdfState.url!).promise
         pdfDocRef.current = pdf
         setPageNum(1)
+        // Report actual page count to parent
+        if (onPageCountChange && pdf.numPages !== pdfState.numPages) {
+          onPageCountChange(pdf.numPages)
+        }
         renderPage(1)
       } catch (error) {
         console.error('Failed to load PDF:', error)
@@ -369,17 +375,17 @@ function PDFViewer({
 
       {/* PDF Canvas */}
       <div
-        className="flex-1 overflow-auto p-4"
+        className="flex-1 overflow-auto p-4 min-h-0"
         style={{ backgroundColor: '#6B6B6B' }}
       >
-        <div className="flex justify-center">
+        <div className="flex justify-center h-full">
           <canvas
             ref={canvasRef}
             className="shadow-xl"
             style={{
-              maxWidth: '520px',
-              width: '100%',
-              height: 'auto',
+              maxWidth: '100%',
+              maxHeight: '100%',
+              objectFit: 'contain',
               backgroundColor: '#FFFFFF',
             }}
           />
@@ -1381,6 +1387,7 @@ export function Solicitation() {
             onFileUpload={handleFileUpload}
             onReplace={handleReplace}
             onDownload={handleDownload}
+            onPageCountChange={(numPages) => setPdfState(prev => ({ ...prev, numPages }))}
           />
         </div>
 
