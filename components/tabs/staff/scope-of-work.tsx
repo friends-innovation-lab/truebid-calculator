@@ -428,6 +428,26 @@ function WBSRow({
 
 // ==================== DETAIL SLIDEOUT ====================
 
+// LOE type config for badges
+const LOE_TYPES: Record<string, { bg: string; text: string; label: string }> = {
+  development: { bg: '#E6F1FB', text: '#042C53', label: 'Dev' },
+  configuration: { bg: '#F4F3EF', text: '#5F5E5A', label: 'Config' },
+  integration: { bg: '#E1F5EE', text: '#085041', label: 'Integration' },
+  testing: { bg: '#FAEEDA', text: '#633806', label: 'QA' },
+  documentation: { bg: '#F4F3EF', text: '#5F5E5A', label: 'Docs' },
+  management: { bg: '#F4F3EF', text: '#5F5E5A', label: 'PM' },
+  research: { bg: '#EEEDFE', text: '#26215C', label: 'Research' },
+  design: { bg: '#FBEAF0', text: '#4B1528', label: 'Design' },
+}
+
+const ESTIMATION_TYPES = [
+  { value: 'engineering_estimate', label: 'Engineering Estimate — calculated from known technical scope' },
+  { value: 'loe', label: 'Level of Effort — ongoing support work' },
+  { value: 'historical', label: 'Historical — based on similar past work' },
+  { value: 'parametric', label: 'Parametric — formula-based estimate' },
+  { value: 'analogy', label: 'Analogy — based on a comparable project' },
+]
+
 function DetailSlideout({
   element, allElements, requirements, onUpdate, onDelete, onClose,
 }: {
@@ -439,18 +459,30 @@ function DetailSlideout({
   onClose: () => void
 }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
 
   const debouncedUpdate = useCallback((updates: Partial<WBSElementData>) => {
+    setSaveStatus('saving')
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
-    saveTimeout.current = setTimeout(() => onUpdate(updates), 500)
+    saveTimeout.current = setTimeout(() => {
+      onUpdate(updates)
+      setSaveStatus('saved')
+      setTimeout(() => setSaveStatus('idle'), 2000)
+    }, 500)
   }, [onUpdate])
 
+  const tasks = getTasksFromLabor(element)
+  const extEl = element as WBSElementData & {
+    estimationType?: string; basisOfEstimate?: string; historicalReference?: string
+    requirementLinks?: string[]; tasks?: WBSTask[]
+  }
+  const reqLinks = extEl.requirementLinks || []
+  const rawDeps = (element as WBSElementData & { dependencies?: (string | { id: string; predecessorWbsId: string })[] }).dependencies || []
+  const deps: string[] = rawDeps.map(d => typeof d === 'string' ? d : d.predecessorWbsId || d.id).filter(Boolean)
+
   return (
-    <div
-      className="shrink-0 flex flex-col"
-      style={{ width: 480, borderLeft: '0.5px solid #E8E7E2', background: '#FFFFFF' }}
-    >
+    <div className="shrink-0 flex flex-col" style={{ width: 480, borderLeft: '0.5px solid #E8E7E2', background: '#FFFFFF' }}>
       {/* Panel Header */}
       <div className="shrink-0 flex items-center" style={{ height: 48, borderBottom: '0.5px solid #E8E7E2', padding: '0 16px', gap: 8 }}>
         <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#9B9A95' }}>{element.wbsNumber}</span>
@@ -465,80 +497,155 @@ function DetailSlideout({
         {/* 1. Name & Description */}
         <SectionLabel>Name & Description</SectionLabel>
         <div className="space-y-3">
-          <Input
-            value={element.title}
-            onChange={(e) => debouncedUpdate({ title: e.target.value })}
-            className="text-sm font-medium"
-          />
-          <Textarea
-            value={element.description || element.why || ''}
-            onChange={(e) => debouncedUpdate({ description: e.target.value, why: e.target.value })}
-            placeholder="Describe the scope of this work package..."
-            rows={3}
-            className="text-sm"
-          />
+          <Input value={element.title} onChange={(e) => debouncedUpdate({ title: e.target.value })} className="text-sm font-medium" />
+          <Textarea value={element.description || element.why || ''} onChange={(e) => debouncedUpdate({ description: e.target.value, why: e.target.value })} placeholder="Describe the scope of this work package..." rows={3} className="text-sm" />
         </div>
 
         <SectionDivider />
 
         {/* 2. Linked Requirements */}
         <SectionLabel>Requirements</SectionLabel>
-        <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>— No requirements linked —</div>
-        <button style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8 }}>
-          + Link requirement
-        </button>
+        {reqLinks.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>— No requirements linked —</div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {reqLinks.map(reqId => {
+              const req = requirements.find(r => r.id === reqId)
+              const ref = req?.referenceNumber || req?.reference_number || reqId.slice(0, 7)
+              return (
+                <span key={reqId} style={{ fontSize: 9, fontWeight: 600, background: '#E1F5EE', color: '#085041', border: '0.5px solid #5DCAA5', padding: '2px 6px', borderRadius: 3 }}>
+                  {ref}
+                </span>
+              )
+            })}
+          </div>
+        )}
 
         <SectionDivider />
 
-        {/* 3. Tasks */}
+        {/* 3. Tasks (with LOE badges) */}
         <SectionLabel>Tasks</SectionLabel>
-        {getTasksFromLabor(element).length === 0 ? (
+        {tasks.length === 0 ? (
           <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>No tasks yet</div>
         ) : (
           <div className="space-y-2">
-            {getTasksFromLabor(element).map(task => (
-              <div key={task.id} className="flex items-center gap-2">
-                <span className="flex-1 text-sm">{task.name}</span>
-                {task.role && <span style={{ fontSize: 10, background: '#F4F3EF', color: '#5F5E5A', padding: '1px 6px', borderRadius: 3 }}>{task.role}</span>}
-                <span className="text-sm font-medium" style={{ minWidth: 50, textAlign: 'right' }}>{task.hours}h</span>
+            {tasks.map(task => {
+              const loe = LOE_TYPES[(task as WBSTask & { loeType?: string }).loeType || 'development'] || LOE_TYPES.development
+              return (
+                <div key={task.id} className="flex items-center gap-2">
+                  <span className="flex-1 text-sm" style={{ color: '#5F5E5A' }}>{task.name}</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, background: loe.bg, color: loe.text, padding: '2px 6px', borderRadius: 3 }} title={(task as WBSTask & { loeType?: string }).loeType || 'development'}>
+                    {loe.label}
+                  </span>
+                  {task.role && <span style={{ fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap' }}>{task.role}</span>}
+                  <span className="text-sm font-medium" style={{ minWidth: 50, textAlign: 'right', color: '#111110' }}>{task.hours}h</span>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <SectionDivider />
+
+        {/* 4. Estimation Method */}
+        <SectionLabel>Estimation method</SectionLabel>
+        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>How were hours determined? Required for BOE export.</div>
+        <select
+          value={extEl.estimationType || 'engineering_estimate'}
+          onChange={(e) => debouncedUpdate({ estimationType: e.target.value } as Partial<WBSElementData>)}
+          style={{ width: '100%', height: 34, fontSize: 13, color: '#111110', border: '0.5px solid #E8E7E2', borderRadius: 6, padding: '0 10px' }}
+        >
+          {ESTIMATION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        {extEl.estimationType === 'historical' && (
+          <div style={{ marginTop: 8 }}>
+            <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 4 }}>Historical reference</div>
+            <Input
+              value={extEl.historicalReference || ''}
+              onChange={(e) => debouncedUpdate({ historicalReference: e.target.value } as Partial<WBSElementData>)}
+              placeholder="e.g. DoS Doorway — Authentication module, 2023"
+              className="text-sm"
+            />
+          </div>
+        )}
+
+        <SectionDivider />
+
+        {/* 5. Basis of Estimate */}
+        <SectionLabel>Basis of estimate</SectionLabel>
+        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Narrative explaining how hours were derived. Appears in BOE export.</div>
+        <Textarea
+          value={extEl.basisOfEstimate || ''}
+          onChange={(e) => debouncedUpdate({ basisOfEstimate: e.target.value } as Partial<WBSElementData>)}
+          placeholder="Explain how hours were determined. Reference specific requirements, past projects, team velocity, sprint assumptions, or other supporting rationale."
+          rows={4}
+          className="text-sm"
+        />
+
+        <SectionDivider />
+
+        {/* 6. Assumptions */}
+        <SectionLabel>Assumptions</SectionLabel>
+        <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Conditions that must be true for this estimate to hold. Included in BOE export.</div>
+        {(element.assumptions || []).length === 0 ? (
+          <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>No assumptions</div>
+        ) : (
+          <div className="space-y-1.5">
+            {(element.assumptions || []).map((a, i) => (
+              <div key={i} style={{ fontSize: 12, color: '#5F5E5A', padding: '4px 8px', background: '#FAFAF9', borderRadius: 4 }}>
+                {a}
               </div>
             ))}
           </div>
         )}
-        <button style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: 'none', cursor: 'pointer', marginTop: 8 }}>
-          + Add task
-        </button>
 
         <SectionDivider />
 
-        {/* 4. Charge Codes */}
+        {/* 7. Charge Codes (per-task) */}
         <SectionLabel>Charge Codes</SectionLabel>
         <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Used for Unanet timesheet entry</div>
-        <Input
-          placeholder="e.g. CAMP-01-DEV"
-          className="font-mono text-sm"
-          style={{ borderRadius: 5 }}
-        />
+        {tasks.length === 0 ? (
+          <Input placeholder="e.g. CAMP-01-DEV" className="font-mono text-sm" />
+        ) : (
+          <div className="space-y-2">
+            {tasks.map(task => (
+              <div key={task.id} className="flex items-center gap-2">
+                <span style={{ fontSize: 11, color: '#5F5E5A', minWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
+                <Input placeholder={`CAMP-${element.wbsNumber}-${(task.role || 'GEN').slice(0, 3).toUpperCase()}`} className="font-mono text-xs flex-1" style={{ height: 28 }} />
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={{ fontSize: 11, color: '#C4C3BE', fontStyle: 'italic', marginTop: 8 }}>
+          Charge codes from past proposals will appear here for reference
+        </div>
 
         <SectionDivider />
 
-        {/* 5. Dependencies */}
+        {/* 8. Dependencies */}
         <SectionLabel>Dependencies</SectionLabel>
         <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>WBS elements that must complete before this work begins.</div>
-        <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>None</div>
+        {deps.length === 0 ? (
+          <div style={{ fontSize: 12, color: '#C4C3BE', fontStyle: 'italic' }}>None</div>
+        ) : (
+          <div className="flex flex-wrap gap-1.5">
+            {deps.map(depId => {
+              const dep = allElements.find(e => e.id === depId)
+              return dep ? (
+                <span key={depId} style={{ fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '2px 8px', borderRadius: 3 }}>
+                  {dep.wbsNumber} · {dep.title}
+                </span>
+              ) : null
+            })}
+          </div>
+        )}
 
         <SectionDivider />
 
-        {/* 6. Notes */}
+        {/* 9. Notes */}
         <SectionLabel>Notes</SectionLabel>
         <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 8 }}>Visible to directors with collaboration links</div>
-        <Textarea
-          value={element.notes || ''}
-          onChange={(e) => debouncedUpdate({ notes: e.target.value })}
-          placeholder="Internal notes about this work package..."
-          rows={3}
-          className="text-sm"
-        />
+        <Textarea value={element.notes || ''} onChange={(e) => debouncedUpdate({ notes: e.target.value })} placeholder="Internal notes about this work package..." rows={3} className="text-sm" />
       </div>
 
       {/* Panel Footer */}
@@ -554,9 +661,14 @@ function DetailSlideout({
             Delete element
           </button>
         )}
-        <button onClick={onClose} style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: '0.5px solid #E8E7E2', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}>
-          Close
-        </button>
+        <div className="flex items-center gap-3">
+          {saveStatus === 'saving' && <span style={{ fontSize: 12, color: '#9B9A95' }}>Saving...</span>}
+          {saveStatus === 'saved' && <span style={{ fontSize: 12, color: '#639922' }}>✓ Saved</span>}
+          {saveStatus === 'error' && <span style={{ fontSize: 12, color: '#A32D2D' }}>Save failed</span>}
+          <button onClick={onClose} style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: '0.5px solid #E8E7E2', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}>
+            Close
+          </button>
+        </div>
       </div>
     </div>
   )

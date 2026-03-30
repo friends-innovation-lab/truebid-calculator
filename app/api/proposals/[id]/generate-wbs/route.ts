@@ -76,7 +76,7 @@ export async function POST(
     return `${ref} [${r.type}]: ${r.text || r.description || r.title}`
   }).join('\n')
 
-  const userPrompt = `Create a WBS for this government contract.
+  const userPrompt = `Create a Work Breakdown Structure for this government contract. Every requirement must be linked to at least one WBS element. Also identify logical dependencies between work packages.
 
 CONTRACT SUMMARY:
 ${summaryText || 'Federal IT services contract'}
@@ -90,31 +90,52 @@ Return ONLY a valid JSON array, no other text:
   {
     "ref": "WBS-01",
     "name": "Work package name",
-    "description": "2-3 sentence description of what this package delivers",
+    "description": "2-3 sentences describing what this package delivers",
     "requirementRefs": ["REQ-001", "REQ-002"],
+    "dependsOn": [],
+    "estimationType": "engineering_estimate",
     "tasks": [
       {
         "name": "Specific task name",
         "suggestedRole": "Senior Developer",
-        "estimatedHours": 160
+        "estimatedHours": 160,
+        "loeType": "development",
+        "basisOfEstimate": "Based on similar authentication implementations in prior engagements"
       }
     ],
-    "totalHours": 320
+    "totalHours": 320,
+    "assumptions": [
+      "SSO configuration docs provided at kickoff",
+      "OKTA tenant already provisioned"
+    ]
   }
 ]
 
+DEPENDENCY RULES:
+- "dependsOn" contains ref values of WBS elements that must complete BEFORE this one starts
+- Common patterns: Infrastructure → everything else, Authentication → user-facing features, Discovery → Design → Development
+- Only add genuinely blocking dependencies. Use empty array [] if none.
+
+ESTIMATION TYPES (use exactly one per element):
+  "engineering_estimate" | "loe" | "historical" | "parametric" | "analogy"
+
+LOE TYPES for tasks (use exactly one per task):
+  "development" | "configuration" | "integration" | "testing" | "documentation" | "management" | "research" | "design"
+
 IMPORTANT:
-- requirementRefs must only contain ref values that exist in the requirements list above
-- Every requirement ref from the list must appear in at least one WBS element's requirementRefs
+- Every requirement ref in requirementRefs must exist in the requirements list above
+- Every requirement must appear in at least one element's requirementRefs
+- dependsOn must only reference refs that exist in this same response
 - totalHours must equal sum of task hours
-- Refs: WBS-01, WBS-02... in sequence`
+- 6-12 work packages total
+- Assumptions should be specific, not generic`
 
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
+      max_tokens: 8000,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
     })
@@ -140,8 +161,11 @@ IMPORTANT:
       name: string
       description: string
       requirementRefs: string[]
-      tasks: { name: string; suggestedRole: string; estimatedHours: number }[]
+      dependsOn: string[]
+      estimationType: string
+      tasks: { name: string; suggestedRole: string; estimatedHours: number; loeType?: string; basisOfEstimate?: string }[]
       totalHours: number
+      assumptions: string[]
     }[]
 
     try {
@@ -162,16 +186,20 @@ IMPORTANT:
       refToId.set(ref, r.id)
     })
 
-    // Convert to WBS elements format
+    // Convert to WBS elements format with BOE fields
     const wbsElements = parsed.map(el => ({
       id: crypto.randomUUID(),
+      ref: el.ref,
       wbsNumber: el.ref.replace('WBS-', '').replace(/^0/, '') + '.0',
       title: el.name,
       description: el.description,
       why: el.description,
       what: el.description,
       notIncluded: '',
-      assumptions: [],
+      estimationType: el.estimationType || 'engineering_estimate',
+      basisOfEstimate: '',
+      historicalReference: '',
+      assumptions: el.assumptions || [],
       laborEstimates: el.tasks.map(t => ({
         id: crypto.randomUUID(),
         roleId: '',
@@ -181,17 +209,39 @@ IMPORTANT:
         confidence: 'medium' as const,
         isAISuggested: true,
         isOrphaned: false,
+        loeType: t.loeType || 'development',
+        basisOfEstimate: t.basisOfEstimate || '',
       })),
+      tasks: el.tasks.map(t => ({
+        id: crypto.randomUUID(),
+        name: t.name,
+        role: t.suggestedRole,
+        hours: t.estimatedHours,
+        loeType: t.loeType || 'development',
+        chargeCode: null,
+        basisOfEstimate: t.basisOfEstimate || '',
+      })),
+      totalHours: el.totalHours,
       requirementLinks: el.requirementRefs
         .map(ref => refToId.get(ref))
         .filter((id): id is string => id != null),
-      dependencies: [],
+      _dependencyRefs: el.dependsOn || [],
+      dependencies: [] as string[],
       notes: '',
       isAIGenerated: true,
       qualityGrade: 'green' as const,
       qualityScore: 75,
       qualityIssues: [],
     }))
+
+    // Resolve dependency refs → IDs
+    const refToWbsId = new Map(wbsElements.map(el => [el.ref, el.id]))
+    wbsElements.forEach(el => {
+      el.dependencies = (el._dependencyRefs as string[])
+        .map(ref => refToWbsId.get(ref))
+        .filter((id): id is string => id != null)
+      delete (el as Record<string, unknown>)._dependencyRefs
+    })
 
     // Save to working_data — merge with existing data
     const existingWorkingData = proposal.working_data || {}
