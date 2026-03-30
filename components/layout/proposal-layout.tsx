@@ -1,10 +1,12 @@
 'use client'
 
 import { useState, useMemo, ReactNode } from 'react'
+import { useParams } from 'next/navigation'
 import { TopBar, SectionId } from './top-bar'
 import { IconRail, IconRailItem } from './icon-rail'
 import { Sidebar, SidebarGroup } from './sidebar'
 import { useAppContext } from '@/contexts/app-context'
+import { SetupPanel } from '@/components/proposals/setup-panel'
 import {
   FileText,
   Search,
@@ -126,6 +128,10 @@ export function ProposalLayout({
     handleSectionChange(sectionId as SectionId)
   }
 
+  const params = useParams()
+  const proposalId = (params?.id as string) || ''
+  const [setupOpen, setSetupOpen] = useState(false)
+
   return (
     <div className="flex flex-col h-screen overflow-hidden">
       {/* Top Bar with Phase Progress */}
@@ -135,7 +141,11 @@ export function ProposalLayout({
         showPhaseProgress
         contractType={solicitation?.contractType}
         daysUntilDue={daysUntilDue}
+        onContractTypeClick={() => setSetupOpen(true)}
       />
+
+      {/* Proposal Setup Panel */}
+      <SetupPanel open={setupOpen} onClose={() => setSetupOpen(false)} proposalId={proposalId} />
 
       {/* Body: Icon Rail + Sidebar + Content */}
       <div className="flex flex-1 min-h-0 overflow-hidden">

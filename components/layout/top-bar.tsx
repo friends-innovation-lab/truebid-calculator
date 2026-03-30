@@ -27,6 +27,8 @@ interface TopBarProps {
   showPhaseProgress?: boolean
   /** Contract type badge */
   contractType?: string
+  /** Called when badge is clicked */
+  onContractTypeClick?: () => void
   /** Days until due */
   daysUntilDue?: number | null
 }
@@ -46,6 +48,7 @@ export function TopBar({
   showPhaseProgress = false,
   contractType,
   daysUntilDue,
+  onContractTypeClick,
 }: TopBarProps) {
   const router = useRouter()
   const { user } = useAuth()
@@ -163,11 +166,25 @@ export function TopBar({
             {/* Status badges */}
             {(contractType || daysUntilDue !== null && daysUntilDue !== undefined) && (
               <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
-                {contractType && (
-                  <span className="px-2 py-0.5 text-[10px] font-medium rounded bg-surface-2 text-text-secondary">
-                    {contractType}
-                  </span>
-                )}
+                {contractType && (() => {
+                  const labelMap: Record<string, string> = {
+                    'tm': 'T&M', 'TM': 'T&M', 'T&M': 'T&M',
+                    'ffp': 'FFP', 'FFP': 'FFP',
+                    'cpff': 'CPFF', 'CPFF': 'CPFF',
+                    'CPAF': 'CPAF', 'IDIQ': 'IDIQ', 'BPA': 'BPA',
+                    'hybrid': 'Hybrid', 'GSA': 'GSA',
+                  }
+                  return (
+                    <span
+                      onClick={onContractTypeClick}
+                      className="px-2 py-0.5 text-[10px] font-medium rounded bg-surface-2 text-text-secondary"
+                      style={{ cursor: onContractTypeClick ? 'pointer' : 'default' }}
+                      title="Edit proposal setup"
+                    >
+                      {labelMap[contractType] || contractType}
+                    </span>
+                  )
+                })()}
                 {daysUntilDue !== null && daysUntilDue !== undefined && (
                   <span
                     className={cn(
