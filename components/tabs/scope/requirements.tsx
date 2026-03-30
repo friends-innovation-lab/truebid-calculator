@@ -911,7 +911,7 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
           }}
         >
           <TableCell>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: '#6B6A65' }}>
+            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#6B6A65' }}>
               {req.ref}
             </span>
           </TableCell>
@@ -919,12 +919,12 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
             <TypeBadge type={req.type} />
           </TableCell>
           <TableCell>
-            <span style={{ fontSize: 13, color: '#111110', lineHeight: 1.5 }}>
+            <span style={{ fontSize: 14, color: '#111110', lineHeight: 1.5 }}>
               {req.text}
             </span>
           </TableCell>
           <TableCell>
-            <span style={{ fontSize: 11, color: '#C4C3BE', whiteSpace: 'nowrap' }}>
+            <span style={{ fontSize: 12, color: '#6B6A65', whiteSpace: 'nowrap' }}>
               {req.source}
             </span>
           </TableCell>
@@ -1109,11 +1109,11 @@ function TableHeader({ children, align = 'left' }: { children: React.ReactNode; 
     <div
       style={{
         padding: '8px 12px',
-        fontSize: 9,
-        fontWeight: 700,
-        letterSpacing: '1.5px',
+        fontSize: 11,
+        fontWeight: 500,
+        letterSpacing: '0.5px',
         textTransform: 'uppercase',
-        color: '#C4C3BE',
+        color: '#6B6A65',
         textAlign: align,
       }}
     >
