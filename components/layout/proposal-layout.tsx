@@ -102,7 +102,7 @@ export function ProposalLayout({
   onSectionChange,
   onViewChange,
 }: ProposalLayoutProps) {
-  const { solicitation } = useAppContext()
+  const { solicitation, updateSolicitation } = useAppContext()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   // Calculate days until due
@@ -141,6 +141,8 @@ export function ProposalLayout({
         showPhaseProgress
         contractType={solicitation?.contractType}
         daysUntilDue={daysUntilDue}
+        proposalDueDate={solicitation?.proposalDueDate || null}
+        onDueDateChange={(date) => updateSolicitation({ proposalDueDate: date })}
         onContractTypeClick={() => setSetupOpen(true)}
       />
 

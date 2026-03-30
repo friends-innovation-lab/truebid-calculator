@@ -31,6 +31,10 @@ interface TopBarProps {
   onContractTypeClick?: () => void
   /** Days until due */
   daysUntilDue?: number | null
+  /** Due date string for display */
+  proposalDueDate?: string | null
+  /** Called when due date chip is clicked */
+  onDueDateChange?: (date: string) => void
 }
 
 const PHASES: { id: SectionId; number: string; label: string }[] = [
@@ -49,6 +53,8 @@ export function TopBar({
   contractType,
   daysUntilDue,
   onContractTypeClick,
+  proposalDueDate,
+  onDueDateChange,
 }: TopBarProps) {
   const router = useRouter()
   const { user } = useAuth()
@@ -185,22 +191,11 @@ export function TopBar({
                     </span>
                   )
                 })()}
-                {daysUntilDue !== null && daysUntilDue !== undefined && (
-                  <span
-                    className={cn(
-                      'px-2 py-0.5 text-[10px] font-medium rounded',
-                      daysUntilDue < 0
-                        ? 'bg-danger-bg text-danger'
-                        : daysUntilDue <= 14
-                          ? 'bg-warning-bg text-warning'
-                          : 'bg-surface-2 text-text-secondary'
-                    )}
-                  >
-                    {daysUntilDue < 0
-                      ? `${Math.abs(daysUntilDue)}d overdue`
-                      : `${daysUntilDue}d until due`}
-                  </span>
-                )}
+                <DueDateChip
+                  daysUntilDue={daysUntilDue}
+                  proposalDueDate={proposalDueDate}
+                  onDueDateChange={onDueDateChange}
+                />
               </div>
             )}
           </nav>
@@ -338,5 +333,116 @@ export function TopBar({
         </div>
       </div>
     </header>
+  )
+}
+
+// ==================== DUE DATE CHIP ====================
+
+function DueDateChip({
+  daysUntilDue,
+  proposalDueDate,
+  onDueDateChange,
+}: {
+  daysUntilDue?: number | null
+  proposalDueDate?: string | null
+  onDueDateChange?: (date: string) => void
+}) {
+  const [showPopover, setShowPopover] = useState(false)
+  const [dateValue, setDateValue] = useState(proposalDueDate || '')
+
+  // Format date for display
+  const formatDueDate = (dateStr: string) => {
+    try {
+      return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    } catch { return dateStr }
+  }
+
+  // Determine chip style
+  let chipBg = 'rgba(245,194,0,0.1)'
+  let chipColor = '#9B7400'
+  let chipText = 'Add due date'
+  let chipBorder = '1px dashed #D4D3CE'
+
+  if (proposalDueDate && daysUntilDue !== null && daysUntilDue !== undefined) {
+    chipBorder = 'none'
+    if (daysUntilDue < 0) {
+      chipBg = '#FCEBEB'; chipColor = '#501313'
+      chipText = `${Math.abs(daysUntilDue)}d overdue`
+    } else if (daysUntilDue === 0) {
+      chipBg = '#FCEBEB'; chipColor = '#501313'
+      chipText = 'Due today'
+    } else if (daysUntilDue <= 30) {
+      chipBg = '#FAEEDA'; chipColor = '#412402'
+      chipText = `Due ${formatDueDate(proposalDueDate)} · ${daysUntilDue}d`
+    } else {
+      chipBg = 'rgba(245,194,0,0.1)'; chipColor = '#9B7400'
+      chipText = `Due ${formatDueDate(proposalDueDate)}`
+    }
+  } else if (!proposalDueDate) {
+    chipBg = 'transparent'; chipColor = '#6B6A65'
+  }
+
+  return (
+    <div className="relative">
+      <span
+        onClick={() => { setDateValue(proposalDueDate || ''); setShowPopover(!showPopover) }}
+        style={{
+          padding: '2px 8px', fontSize: 10, fontWeight: 500, borderRadius: 4,
+          background: chipBg, color: chipColor, border: chipBorder,
+          cursor: 'pointer', whiteSpace: 'nowrap',
+        }}
+      >
+        {chipText}
+      </span>
+
+      {showPopover && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setShowPopover(false)} />
+          <div
+            className="absolute right-0 top-full mt-2 z-50"
+            style={{
+              background: '#FFFFFF', border: '0.5px solid #E8E7E2', borderRadius: 8,
+              padding: '12px 14px', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', width: 220,
+            }}
+          >
+            <div style={{ fontSize: 10, fontWeight: 700, color: '#6B6A65', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 8 }}>
+              Proposal due date
+            </div>
+            <input
+              type="date"
+              value={dateValue}
+              onChange={(e) => setDateValue(e.target.value)}
+              style={{
+                width: '100%', height: 34, border: '0.5px solid #E8E7E2', borderRadius: 6,
+                fontSize: 13, color: '#111110', padding: '0 10px',
+              }}
+              autoFocus
+            />
+            <div className="flex items-center justify-between mt-3">
+              <button
+                onClick={() => setShowPopover(false)}
+                style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  if (onDueDateChange && dateValue) {
+                    onDueDateChange(dateValue)
+                  }
+                  setShowPopover(false)
+                }}
+                style={{
+                  fontSize: 11, fontWeight: 600, background: '#111110', color: '#FFFFFF',
+                  padding: '5px 12px', borderRadius: 5, border: 'none', cursor: 'pointer',
+                }}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   )
 }
