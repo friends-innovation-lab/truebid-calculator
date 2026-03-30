@@ -3,8 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
-import { ClipboardList, Search, Download, Plus, Check, ChevronDown, RefreshCw } from 'lucide-react'
-import { useAppContext } from '@/contexts/app-context'
+import { ClipboardList, Search, Download, Plus, ChevronDown, RefreshCw } from 'lucide-react'
 import { requirementsApi, complianceApi, sectionsApi, proposalsApi } from '@/lib/api'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
@@ -185,112 +184,6 @@ function TypeBadge({ type }: TypeBadgeProps) {
   )
 }
 
-// ==================== WBS POPOVER ====================
-
-interface WBSPopoverProps {
-  wbsLinks: string[]
-  availableWbs: { id: string; title: string; number: string }[]
-  onUpdate: (links: string[]) => void
-  onClose: () => void
-}
-
-function WBSPopover({ wbsLinks, availableWbs, onUpdate, onClose }: WBSPopoverProps) {
-  const [search, setSearch] = useState('')
-  const [selected, setSelected] = useState<string[]>(wbsLinks)
-
-  const filtered = availableWbs.filter(w =>
-    w.title.toLowerCase().includes(search.toLowerCase()) ||
-    w.number.toLowerCase().includes(search.toLowerCase())
-  )
-
-  const handleToggle = (id: string) => {
-    setSelected(prev =>
-      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
-    )
-  }
-
-  const handleDone = () => {
-    onUpdate(selected)
-    onClose()
-  }
-
-  return (
-    <div
-      className="absolute z-50 bg-white shadow-lg"
-      style={{
-        top: '100%',
-        left: 0,
-        width: 280,
-        borderRadius: 8,
-        border: '0.5px solid #E8E7E2',
-        marginTop: 4,
-      }}
-    >
-      <div style={{ padding: '8px 10px', borderBottom: '0.5px solid #E8E7E2' }}>
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search WBS..."
-          className="w-full outline-none"
-          style={{ fontSize: 12, color: '#111110' }}
-        />
-      </div>
-      <div style={{ maxHeight: 200, overflowY: 'auto', padding: '4px 0' }}>
-        {filtered.length === 0 ? (
-          <div style={{ padding: '12px', fontSize: 11, color: '#9B9A95', textAlign: 'center' }}>
-            No WBS elements found
-          </div>
-        ) : (
-          filtered.map(wbs => (
-            <div
-              key={wbs.id}
-              onClick={() => handleToggle(wbs.id)}
-              className="flex items-center gap-2 cursor-pointer hover:bg-[#FAFAF9]"
-              style={{ padding: '6px 10px' }}
-            >
-              <div
-                className="flex items-center justify-center"
-                style={{
-                  width: 16,
-                  height: 16,
-                  borderRadius: 3,
-                  border: `1px solid ${selected.includes(wbs.id) ? '#639922' : '#D4D3CE'}`,
-                  backgroundColor: selected.includes(wbs.id) ? '#639922' : '#FFFFFF',
-                }}
-              >
-                {selected.includes(wbs.id) && <Check className="w-3 h-3 text-white" />}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#111110' }}>{wbs.number}</div>
-                <div style={{ fontSize: 10, color: '#9B9A95', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {wbs.title}
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-      <div style={{ padding: '8px 10px', borderTop: '0.5px solid #E8E7E2' }}>
-        <button
-          onClick={handleDone}
-          className="w-full"
-          style={{
-            padding: '6px 12px',
-            borderRadius: 6,
-            fontSize: 11,
-            fontWeight: 600,
-            backgroundColor: '#111110',
-            color: '#FFFFFF',
-          }}
-        >
-          Done
-        </button>
-      </div>
-    </div>
-  )
-}
-
 // ==================== SECTION DROPDOWN ====================
 
 interface SectionDropdownProps {
@@ -371,8 +264,6 @@ function SectionDropdown({ value, sections, onUpdate, onClose }: SectionDropdown
 export function Requirements() {
   const params = useParams()
   const proposalId = params?.id as string
-  const { estimateWbsElements } = useAppContext()
-
   // State
   const [requirements, setRequirements] = useState<Requirement[]>([])
   const [sections, setSections] = useState<ProposalSection[]>([])
@@ -382,7 +273,6 @@ export function Requirements() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRef, setSelectedRef] = useState<string | null>(null)
-  const [editingWbs, setEditingWbs] = useState<string | null>(null)
   const [editingSection, setEditingSection] = useState<string | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [hasPdf, setHasPdf] = useState(false)
@@ -582,13 +472,6 @@ export function Requirements() {
       setIsReExtracting(false)
     }
   }
-
-  // WBS elements for popover
-  const availableWbs = estimateWbsElements.map((w: { id: string; title: string; wbsNumber?: string }) => ({
-    id: w.id,
-    title: w.title,
-    number: w.wbsNumber || w.id,
-  }))
 
   // Loading state
   if (isLoading) {
@@ -870,11 +753,8 @@ export function Requirements() {
           <ComplianceTable
             requirements={filteredRequirements}
             sections={sections}
-            availableWbs={availableWbs}
             selectedRef={selectedRef}
             highlightedRowRef={highlightedRowRef}
-            editingWbs={editingWbs}
-            setEditingWbs={setEditingWbs}
             editingSection={editingSection}
             setEditingSection={setEditingSection}
             onUpdateRequirement={updateRequirement}
@@ -1023,7 +903,7 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
       <div
         className="sticky top-0 grid"
         style={{
-          gridTemplateColumns: '72px 80px 1fr 110px 60px',
+          gridTemplateColumns: '72px 80px 1fr 110px 80px 60px',
           backgroundColor: '#FAFAF9',
           borderBottom: '0.5px solid #E8E7E2',
         }}
@@ -1032,6 +912,7 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
         <TableHeader>Type</TableHeader>
         <TableHeader>Requirement</TableHeader>
         <TableHeader>Source</TableHeader>
+        <TableHeader>WBS</TableHeader>
         <TableHeader align="center">Status</TableHeader>
       </div>
 
@@ -1042,7 +923,7 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
           onClick={() => onSelectRef(req.ref)}
           className="grid cursor-pointer hover:bg-[#FAFAF8]"
           style={{
-            gridTemplateColumns: '72px 80px 1fr 110px 60px',
+            gridTemplateColumns: '72px 80px 1fr 110px 80px 60px',
             borderBottom: '0.5px solid #F4F3EF',
             borderLeft: `3px solid ${getStatusColor(req.status)}`,
             backgroundColor: selectedRef === req.ref ? '#FBF9F0' : 'transparent',
@@ -1066,6 +947,31 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
               {req.source}
             </span>
           </TableCell>
+          <TableCell>
+            {/* WBS column - read-only display, assigned in Staff tab */}
+            {req.wbsLinks && req.wbsLinks.length > 0 ? (
+              <span
+                style={{
+                  padding: '2px 7px',
+                  borderRadius: 3,
+                  fontSize: 9,
+                  fontWeight: 600,
+                  backgroundColor: '#E1F5EE',
+                  color: '#085041',
+                  border: '0.5px solid #5DCAA5',
+                }}
+              >
+                {req.wbsLinks.length} linked
+              </span>
+            ) : (
+              <span
+                style={{ fontSize: 11, color: '#C4C3BE' }}
+                title="WBS link assigned in Staff → Scope of Work"
+              >
+                —
+              </span>
+            )}
+          </TableCell>
           <TableCell align="center">
             <div
               style={{
@@ -1084,15 +990,13 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
 }
 
 // ==================== COMPLIANCE TABLE ====================
+// NO WBS column - WBS belongs on Requirements, not Compliance Matrix
 
 interface ComplianceTableProps {
   requirements: Requirement[]
   sections: ProposalSection[]
-  availableWbs: { id: string; title: string; number: string }[]
   selectedRef: string | null
   highlightedRowRef: React.RefObject<HTMLDivElement | null>
-  editingWbs: string | null
-  setEditingWbs: (id: string | null) => void
   editingSection: string | null
   setEditingSection: (id: string | null) => void
   onUpdateRequirement: (id: string, updates: Partial<Requirement>) => void
@@ -1101,11 +1005,8 @@ interface ComplianceTableProps {
 function ComplianceTable({
   requirements,
   sections,
-  availableWbs,
   selectedRef,
   highlightedRowRef,
-  editingWbs,
-  setEditingWbs,
   editingSection,
   setEditingSection,
   onUpdateRequirement,
@@ -1118,11 +1019,11 @@ function ComplianceTable({
 
   return (
     <div>
-      {/* Header */}
+      {/* Header - NO WBS column */}
       <div
         className="sticky top-0 grid"
         style={{
-          gridTemplateColumns: '72px 180px 1fr 120px 100px 100px',
+          gridTemplateColumns: '72px 1fr 200px 100px 100px',
           backgroundColor: '#FAFAF9',
           borderBottom: '0.5px solid #E8E7E2',
         }}
@@ -1131,7 +1032,6 @@ function ComplianceTable({
         <TableHeader>Requirement</TableHeader>
         <TableHeader>Proposal Section</TableHeader>
         <TableHeader>Status</TableHeader>
-        <TableHeader>WBS</TableHeader>
         <TableHeader>Owner</TableHeader>
       </div>
 
@@ -1146,7 +1046,7 @@ function ComplianceTable({
             ref={isHighlighted ? highlightedRowRef as React.RefObject<HTMLDivElement> : undefined}
             className="grid"
             style={{
-              gridTemplateColumns: '72px 180px 1fr 120px 100px 100px',
+              gridTemplateColumns: '72px 1fr 200px 100px 100px',
               borderBottom: '0.5px solid #F4F3EF',
               borderLeft: `3px solid ${isHighlighted ? '#F5C200' : getStatusColor(req.status)}`,
               backgroundColor: isHighlighted ? '#FBF9F0' : 'transparent',
@@ -1202,48 +1102,6 @@ function ComplianceTable({
                 clickable
                 onClick={() => onUpdateRequirement(req.id, { status: cycleStatus(req.status) })}
               />
-            </TableCell>
-            <TableCell>
-              <div className="relative">
-                {req.wbsLinks.length > 0 ? (
-                  <button
-                    onClick={() => setEditingWbs(editingWbs === req.id ? null : req.id)}
-                    style={{
-                      padding: '2px 7px',
-                      borderRadius: 3,
-                      fontSize: 9,
-                      fontWeight: 600,
-                      backgroundColor: '#E1F5EE',
-                      color: '#085041',
-                      border: '0.5px solid #5DCAA5',
-                    }}
-                  >
-                    {req.wbsLinks.length} linked
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => setEditingWbs(editingWbs === req.id ? null : req.id)}
-                    style={{
-                      fontSize: 11,
-                      color: '#C4C3BE',
-                      fontStyle: 'italic',
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    —
-                  </button>
-                )}
-                {editingWbs === req.id && (
-                  <WBSPopover
-                    wbsLinks={req.wbsLinks}
-                    availableWbs={availableWbs}
-                    onUpdate={(links) => onUpdateRequirement(req.id, { wbsLinks: links })}
-                    onClose={() => setEditingWbs(null)}
-                  />
-                )}
-              </div>
             </TableCell>
             <TableCell>
               <span

@@ -12,27 +12,23 @@ const getRequirementsCeiling = (pageCount: number): number => {
   return 70                         // Very large full RFP
 }
 
-// System prompt for extraction
-const EXTRACTION_SYSTEM_PROMPT = (ceiling: number) => `You are a senior proposal manager at a government contracting firm. Your job is to extract only the requirements that directly affect how the proposal is written and evaluated.
+// System prompt for extraction - Section C and H only (delivery requirements)
+const EXTRACTION_SYSTEM_PROMPT = (ceiling: number) => `You are a senior proposal manager extracting delivery requirements from a federal RFP.
 
-Think like someone who has to write a response to this RFP. What are the distinct things you need to address, prove, or comply with? Extract those — nothing else.
+Extract ONLY from Section C (Statement of Work / Performance Work Statement) and Section H (Special Contract Requirements).
 
-STRICT RULES:
+These are the things the contractor must BUILD, OPERATE, or DELIVER. They drive work planning and pricing.
+
+Rules:
 1. Maximum ${ceiling} requirements total
-2. Each requirement must be meaningfully distinct — no overlaps, no sub-clauses of another requirement
-3. Consolidate related items — if there are 5 bullets about security, that is ONE requirement: the security requirement
-4. Skip entirely:
-   - FAR/DFAR boilerplate clauses
-   - Payment, invoicing, reporting admin
-   - Any requirement already captured in another item
-   - General statements of work that don't add a distinct compliance obligation
-5. Ask yourself: 'If I missed this, would the proposal be non-compliant or score lower?' If no — skip it.
+2. Each requirement must be distinct — consolidate related sub-items into one
+3. Skip: FAR/DFAR clauses, payment terms, admin requirements, Section L/M/K/J content
+4. Ask: 'Does this drive a WBS work package?' If no — skip it.
 
-Target: 15–${ceiling} requirements. If you are finding more, you are being too granular. Consolidate.`
+A typical scoped federal IT RFP has 15–25 delivery requirements.`
 
-const EXTRACTION_USER_PROMPT = (ceiling: number, pageCount: number) => `Extract the key proposal requirements from this RFP. Be selective — aim for 15 to ${ceiling} total requirements maximum for a ${pageCount}-page RFP.
-
-If you return more than ${ceiling} items, start over and consolidate further.
+const EXTRACTION_USER_PROMPT = (ceiling: number, pageCount: number) => `Extract delivery requirements from this RFP.
+Sections C and H only. This is a ${pageCount}-page RFP with a ceiling of ${ceiling} requirements.
 
 Return ONLY a valid JSON array, no other text:
 
@@ -46,19 +42,9 @@ Return ONLY a valid JSON array, no other text:
   }
 ]
 
-REQUIREMENT NUMBERING:
-- REQ-001, REQ-002... for technical and performance requirements (Section C, H etc.)
-- L.1, L.2... for Section L submission and formatting instructions
-- M.1, M.2... for Section M evaluation criteria
-
-TYPE VALUES:
-- 'shall' — mandatory requirement
-- 'should' — preferred/desired
-- 'instruction' — Section L formatting rule
-- 'evaluation' — Section M eval factor
-
+REQUIREMENT NUMBERING: REQ-001, REQ-002...
+TYPE VALUES: 'shall' | 'should'
 SOURCE FORMAT: 'Section [LETTER] · p.[N]'
-Use section letter, not heading name. Examples: 'Section C · p.8', 'Section L · p.31'
 
 If you find more than ${ceiling} requirements, consolidate further until you are at ${ceiling} or fewer.`
 

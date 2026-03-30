@@ -12,27 +12,27 @@ const getRequirementsCeiling = (pageCount: number): number => {
   return 70                         // Very large full RFP
 }
 
-// System prompt for extraction
-const EXTRACTION_SYSTEM_PROMPT = (ceiling: number) => `You are a senior proposal manager at a government contracting firm. Your job is to extract only the requirements that directly affect how the proposal is written and evaluated.
+// ============================================================================
+// EXTRACTION 1: REQUIREMENTS (Section C + H only)
+// These are delivery requirements that drive WBS and pricing
+// ============================================================================
 
-Think like someone who has to write a response to this RFP. What are the distinct things you need to address, prove, or comply with? Extract those — nothing else.
+const REQUIREMENTS_SYSTEM_PROMPT = (ceiling: number) => `You are a senior proposal manager extracting delivery requirements from a federal RFP.
 
-STRICT RULES:
+Extract ONLY from Section C (Statement of Work / Performance Work Statement) and Section H (Special Contract Requirements).
+
+These are the things the contractor must BUILD, OPERATE, or DELIVER. They drive work planning and pricing.
+
+Rules:
 1. Maximum ${ceiling} requirements total
-2. Each requirement must be meaningfully distinct — no overlaps, no sub-clauses of another requirement
-3. Consolidate related items — if there are 5 bullets about security, that is ONE requirement: the security requirement
-4. Skip entirely:
-   - FAR/DFAR boilerplate clauses
-   - Payment, invoicing, reporting admin
-   - Any requirement already captured in another item
-   - General statements of work that don't add a distinct compliance obligation
-5. Ask yourself: 'If I missed this, would the proposal be non-compliant or score lower?' If no — skip it.
+2. Each requirement must be distinct — consolidate related sub-items into one
+3. Skip: FAR/DFAR clauses, payment terms, admin requirements, Section L/M/K/J content
+4. Ask: 'Does this drive a WBS work package?' If no — skip it.
 
-Target: 15–${ceiling} requirements. If you are finding more, you are being too granular. Consolidate.`
+A typical scoped federal IT RFP has 15–25 delivery requirements.`
 
-const EXTRACTION_USER_PROMPT = (ceiling: number, pageCount: number) => `Extract the key proposal requirements and metadata from this RFP. Be selective — aim for 15 to ${ceiling} total requirements maximum for a ${pageCount}-page RFP.
-
-If you return more than ${ceiling} items, start over and consolidate further.
+const REQUIREMENTS_USER_PROMPT = (ceiling: number, pageCount: number) => `Extract delivery requirements from this RFP.
+Sections C and H only. This is a ${pageCount}-page RFP with a ceiling of ${ceiling} requirements.
 
 Return ONLY valid JSON with this structure:
 
@@ -53,33 +53,65 @@ Return ONLY valid JSON with this structure:
       "id": "REQ-001",
       "title": "3-6 word title",
       "text": "Full consolidated requirement text",
-      "type": "shall|should|instruction|evaluation",
+      "type": "shall",
       "sourceSection": "Section C · p.12"
     }
   ],
   "suggestedRoles": []
 }
 
-METADATA RULES:
-- periodOfPerformance.base = number of BASE YEARS (usually 1)
-- periodOfPerformance.options = number of OPTION YEARS (0-4, NOT months)
-- clientAgency: DOS/State Department = "Department of State"
-
-REQUIREMENT NUMBERING:
-- REQ-001, REQ-002... for technical and performance requirements (Section C, H etc.)
-- L.1, L.2... for Section L submission and formatting instructions
-- M.1, M.2... for Section M evaluation criteria
-
-TYPE VALUES:
-- 'shall' — mandatory requirement
-- 'should' — preferred/desired
-- 'instruction' — Section L formatting rule
-- 'evaluation' — Section M eval factor
-
+REQUIREMENT NUMBERING: REQ-001, REQ-002...
+TYPE VALUES: 'shall' | 'should'
 SOURCE FORMAT: 'Section [LETTER] · p.[N]'
-Use section letter, not heading name. Examples: 'Section C · p.8', 'Section L · p.31'
 
-If you find more than ${ceiling} requirements, consolidate further until you are at ${ceiling} or fewer. Response must start with { and end with }`
+Response must start with { and end with }`
+
+// ============================================================================
+// EXTRACTION 2: COMPLIANCE MATRIX (All sections)
+// Everything the proposal document must address or respond to
+// ============================================================================
+
+const COMPLIANCE_SYSTEM_PROMPT = `You are a senior proposal manager building a compliance matrix for a federal RFP.
+
+A compliance matrix tracks everything the proposal DOCUMENT must address or respond to — from formatting rules to evaluation criteria to technical requirements.
+
+Extract items from ALL sections:
+  Section C — technical/performance requirements
+  Section H — special contract requirements
+  Section J — deliverables and attachments
+  Section K — certifications and representations
+  Section L — instructions to offerors (formatting, page limits, volumes)
+  Section M — evaluation factors and criteria
+
+For Section C and H items: use the same ref numbers as the requirements extraction (REQ-001 etc.) so they can be linked.
+For Section L: use L.1, L.2, L.3...
+For Section M: use M.1, M.2, M.3...
+For Section K: use K.1, K.2...
+For Section J: use J.1, J.2...
+
+A compliance matrix for a standard RFP has 20–40 total items.`
+
+const COMPLIANCE_USER_PROMPT = `Build a compliance matrix from this RFP.
+Include all sections. Return ONLY a valid JSON array:
+
+[{
+  "ref": "L.5.1",
+  "rfpSection": "L",
+  "type": "instruction",
+  "text": "Full text of what's required",
+  "source": "Section L · p.44"
+}]
+
+rfpSection: C | H | J | K | L | M
+type:
+  'technical'    — Section C requirements
+  'special'      — Section H requirements
+  'deliverable'  — Section J items
+  'certification'— Section K items
+  'instruction'  — Section L formatting rules
+  'evaluation'   — Section M factors
+
+Return only the JSON array. No preamble, no explanation.`
 
 export async function POST(request: NextRequest) {
   try {
@@ -162,62 +194,62 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Call Claude for extraction - Using Sonnet for better quality
-    const message = await anthropic.messages.create({
+    // ========================================================================
+    // EXTRACTION 1: Requirements (Section C + H only)
+    // ========================================================================
+    console.log('[extract-rfp] Starting requirements extraction (Section C + H)...')
+
+    const reqMessage = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 8192,
-      system: EXTRACTION_SYSTEM_PROMPT(ceiling),
+      system: REQUIREMENTS_SYSTEM_PROMPT(ceiling),
       messages: [
         {
           role: 'user',
-          content: `${EXTRACTION_USER_PROMPT(ceiling, pdfPageCount)}\n\nDocument to analyze:\n\n${truncatedText}`
+          content: `${REQUIREMENTS_USER_PROMPT(ceiling, pdfPageCount)}\n\nDocument to analyze:\n\n${truncatedText}`
         }
       ],
     })
 
-    // Get response text
-    const responseText = message.content[0].type === 'text' ? message.content[0].text : ''
-    
-    if (!responseText) {
+    const reqResponseText = reqMessage.content[0].type === 'text' ? reqMessage.content[0].text : ''
+
+    if (!reqResponseText) {
       return NextResponse.json(
-        { success: false, error: 'No response from AI model' },
+        { success: false, error: 'No response from AI model for requirements' },
         { status: 500 }
       )
     }
 
-    // Parse the JSON response - strip any preamble text
+    // Parse the requirements JSON response
     let extracted
     try {
-      const jsonStart = responseText.indexOf('{')
-      const jsonEnd = responseText.lastIndexOf('}')
-      
+      const jsonStart = reqResponseText.indexOf('{')
+      const jsonEnd = reqResponseText.lastIndexOf('}')
+
       if (jsonStart === -1 || jsonEnd === -1) {
-        throw new Error('No JSON object found in response')
+        throw new Error('No JSON object found in requirements response')
       }
-      
-      const jsonString = responseText.slice(jsonStart, jsonEnd + 1)
+
+      const jsonString = reqResponseText.slice(jsonStart, jsonEnd + 1)
       extracted = JSON.parse(jsonString)
     } catch (parseError) {
-      console.error('Failed to parse AI response:', responseText.substring(0, 500))
+      console.error('Failed to parse requirements response:', reqResponseText.substring(0, 500))
       return NextResponse.json(
-        { success: false, error: 'Failed to parse AI response' },
+        { success: false, error: 'Failed to parse requirements response' },
         { status: 500 }
       )
     }
 
-    // Validate AI response with Zod schema (applies defaults for missing fields)
+    // Validate requirements response
     const validated = extractionResponseSchema.safeParse(extracted)
     if (!validated.success) {
       const issues = validated.error.issues
-      console.error('AI response validation failed:', JSON.stringify(issues, null, 2))
-      console.error('Raw AI response structure:', JSON.stringify(extracted, null, 2).substring(0, 2000))
-
-      // Build a more informative error message
+      console.error('Requirements validation failed:', JSON.stringify(issues, null, 2))
       const issuesSummary = issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ')
       return NextResponse.json(
         {
           success: false,
-          error: `AI returned invalid data structure: ${issuesSummary}`,
+          error: `AI returned invalid requirements structure: ${issuesSummary}`,
           details: issues
         },
         { status: 500 }
@@ -242,10 +274,84 @@ export async function POST(request: NextRequest) {
       id: req.id || `REQ-${String(index + 1).padStart(3, '0')}`,
     }))
 
-    const response: ExtractionResponse & { success: boolean; rawTextLength: number; solicitationRawText: string } = {
+    console.log(`[extract-rfp] Extracted ${requirements.length} requirements`)
+
+    // ========================================================================
+    // EXTRACTION 2: Compliance Matrix (All sections)
+    // ========================================================================
+    console.log('[extract-rfp] Starting compliance matrix extraction (all sections)...')
+
+    let complianceMatrix: Array<{
+      ref: string
+      rfpSection: string
+      type: string
+      text: string
+      source: string
+      requirementId: string | null
+    }> = []
+
+    try {
+      const compMessage = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 8192,
+        system: COMPLIANCE_SYSTEM_PROMPT,
+        messages: [
+          {
+            role: 'user',
+            content: `${COMPLIANCE_USER_PROMPT}\n\nDocument to analyze:\n\n${truncatedText}`
+          }
+        ],
+      })
+
+      const compResponseText = compMessage.content[0].type === 'text' ? compMessage.content[0].text : ''
+
+      if (compResponseText) {
+        // Parse the compliance matrix JSON array
+        const jsonStart = compResponseText.indexOf('[')
+        const jsonEnd = compResponseText.lastIndexOf(']')
+
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+          const rawMatrix = JSON.parse(compResponseText.slice(jsonStart, jsonEnd + 1))
+
+          // Link Section C and H items to requirements by matching ref
+          complianceMatrix = rawMatrix.map((item: { ref: string; rfpSection: string; type: string; text: string; source: string }) => {
+            let requirementId: string | null = null
+
+            // If this is a Section C or H item, try to link to requirements
+            if (item.rfpSection === 'C' || item.rfpSection === 'H') {
+              const matchingReq = requirements.find(r => r.id === item.ref)
+              requirementId = matchingReq?.id || null
+            }
+
+            return {
+              ref: item.ref || '',
+              rfpSection: item.rfpSection || '',
+              type: item.type || '',
+              text: item.text || '',
+              source: item.source || '',
+              requirementId,
+            }
+          })
+
+          console.log(`[extract-rfp] Extracted ${complianceMatrix.length} compliance items`)
+        }
+      }
+    } catch (compError) {
+      // Compliance matrix extraction is not fatal - log and continue
+      console.warn('[extract-rfp] Compliance matrix extraction failed:', compError)
+    }
+
+    // Build response
+    const response: ExtractionResponse & {
+      success: boolean
+      rawTextLength: number
+      solicitationRawText: string
+      complianceMatrix: typeof complianceMatrix
+    } = {
       success: true,
       ...validated.data,
       requirements,
+      complianceMatrix,
       rawTextLength: pdfText.length,
       solicitationRawText: pdfText,
     }

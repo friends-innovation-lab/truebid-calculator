@@ -65,15 +65,17 @@ type SummaryStatus = 'waiting' | 'generating' | 'complete' | 'error'
 type ExtractionStepStatus = 'pending' | 'active' | 'complete' | 'error'
 
 interface ExtractionStep {
-  id: 'upload' | 'summary' | 'requirements'
+  id: 'upload' | 'summary' | 'requirements' | 'compliance'
   label: string
+  description?: string
   status: ExtractionStepStatus
 }
 
 const initialExtractionSteps: ExtractionStep[] = [
   { id: 'upload', label: 'Uploading document', status: 'pending' },
   { id: 'summary', label: 'Generating summary', status: 'pending' },
-  { id: 'requirements', label: 'Extracting requirements', status: 'pending' },
+  { id: 'requirements', label: 'Extracting requirements', description: 'Section C & H — what needs to be built', status: 'pending' },
+  { id: 'compliance', label: 'Building compliance matrix', description: 'All sections — what the proposal must address', status: 'pending' },
 ]
 
 // ============================================================================
@@ -819,9 +821,9 @@ function ProcessingSteps({ steps }: { steps: ExtractionStep[] }) {
         const isPending = step.status === 'pending'
 
         return (
-          <div key={step.id} className="flex items-center gap-3">
+          <div key={step.id} className="flex items-start gap-3">
             {/* Status indicator */}
-            <div className="relative w-5 h-5 flex items-center justify-center shrink-0">
+            <div className="relative w-5 h-5 flex items-center justify-center shrink-0 mt-0.5">
               {isComplete && (
                 <div
                   className="w-5 h-5 rounded-full flex items-center justify-center"
@@ -855,17 +857,26 @@ function ProcessingSteps({ steps }: { steps: ExtractionStep[] }) {
               )}
             </div>
 
-            {/* Label */}
-            <span
-              className="text-[13px]"
-              style={{
-                color: isComplete ? '#639922' : isActive ? 'var(--ink)' : isError ? '#A32D2D' : '#9B9A95',
-                fontWeight: isActive ? 600 : 400,
-              }}
-            >
-              {step.label}
-              {isComplete && step.id === 'requirements' && ' (complete)'}
-            </span>
+            {/* Label and description */}
+            <div className="flex flex-col">
+              <span
+                className="text-[13px]"
+                style={{
+                  color: isComplete ? '#639922' : isActive ? 'var(--ink)' : isError ? '#A32D2D' : '#9B9A95',
+                  fontWeight: isActive ? 600 : 400,
+                }}
+              >
+                {step.label}
+              </span>
+              {step.description && isActive && (
+                <span
+                  className="text-[11px]"
+                  style={{ color: '#9B9A95' }}
+                >
+                  {step.description}
+                </span>
+              )}
+            </div>
           </div>
         )
       })}
@@ -1165,13 +1176,41 @@ export function Solicitation() {
         setRecommendedRoles(mappedRoles)
       }
 
-      // Mark requirements complete
+      // Mark requirements complete, start compliance
       updateExtractionStep('requirements', 'complete')
+      updateExtractionStep('compliance', 'active')
+
+      // Store compliance matrix if available
+      let complianceCount = 0
+      const complianceMatrix = data.complianceMatrix
+      if (complianceMatrix && complianceMatrix.length > 0) {
+        complianceCount = complianceMatrix.length
+        // Save compliance matrix to working_data
+        if (proposalId) {
+          try {
+            const existingProposal = await proposalsApi.get(proposalId) as {
+              proposal: { workingData?: Record<string, unknown> }
+            }
+            const existingWorkingData = existingProposal.proposal?.workingData || {}
+            await proposalsApi.update(proposalId, {
+              working_data: {
+                ...existingWorkingData,
+                complianceMatrix,
+              },
+            })
+          } catch (error) {
+            console.warn('[Solicitation] Failed to save compliance matrix:', error)
+          }
+        }
+      }
+
+      // Mark compliance complete
+      updateExtractionStep('compliance', 'complete')
       setIsExtracting(false)
 
-      // Show completion toast
-      toast.success('Extraction complete', {
-        description: `Extracted ${requirementCount} requirement${requirementCount !== 1 ? 's' : ''} from your RFP.`,
+      // Show completion toast with both counts
+      toast.success('RFP analyzed', {
+        description: `${requirementCount} requirements · ${complianceCount} compliance items`,
       })
 
       // Now generate the summary
