@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { ClipboardList, Search, Download, Plus, ChevronDown, RefreshCw } from 'lucide-react'
 import { requirementsApi, complianceApi, sectionsApi, proposalsApi } from '@/lib/api'
+import { ComplianceMatrix } from '@/components/tabs/scope/compliance-matrix'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Button } from '@/components/ui/button'
 import {
@@ -266,21 +267,21 @@ export function Requirements() {
   const proposalId = params?.id as string
   // State
   const [requirements, setRequirements] = useState<Requirement[]>([])
-  const [sections, setSections] = useState<ProposalSection[]>([])
+  const [, setSections] = useState<ProposalSection[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [activeTab, setActiveTab] = useState<InnerTab>('requirements')
   const [typeFilter, setTypeFilter] = useState<FilterType>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedRef, setSelectedRef] = useState<string | null>(null)
-  const [editingSection, setEditingSection] = useState<string | null>(null)
+  // editingSection removed — ComplianceMatrix component manages its own state
   const [isGenerating, setIsGenerating] = useState(false)
   const [hasPdf, setHasPdf] = useState(false)
   const [isReExtracting, setIsReExtracting] = useState(false)
   const [showReExtractConfirm, setShowReExtractConfirm] = useState(false)
+  const [complianceCount, setComplianceCount] = useState(0)
 
   const highlightedRowRef = useRef<HTMLDivElement>(null)
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load requirements on mount
   useEffect(() => {
@@ -288,11 +289,14 @@ export function Requirements() {
 
     async function loadData() {
       try {
-        const [reqResponse, sectionsResponse, proposalResponse] = await Promise.all([
+        const [reqResponse, sectionsResponse, proposalResponse, compResponse] = await Promise.all([
           requirementsApi.list(proposalId),
           sectionsApi.list(proposalId).catch(() => ({ sections: [] })),
           proposalsApi.get(proposalId).catch(() => ({ proposal: null })),
+          complianceApi.list(proposalId).catch(() => ({ items: [], stats: { total: 0 } })),
         ])
+        const compData = compResponse as { items: unknown[]; stats: { total: number } }
+        setComplianceCount(compData.stats?.total || compData.items?.length || 0)
 
         // Transform API data to our format
         const reqData = (reqResponse as { requirements: Requirement[] }).requirements || []
@@ -369,23 +373,6 @@ export function Requirements() {
 
     return filtered
   }, [requirements, activeTab, typeFilter, statusFilter, searchQuery])
-
-  // Update requirement
-  const updateRequirement = useCallback(async (id: string, updates: Partial<Requirement>) => {
-    setRequirements(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r))
-
-    if (saveTimeoutRef.current) {
-      clearTimeout(saveTimeoutRef.current)
-    }
-
-    saveTimeoutRef.current = setTimeout(async () => {
-      try {
-        await complianceApi.update(proposalId, id, updates)
-      } catch (error) {
-        console.error('[Requirements] Save failed:', error)
-      }
-    }, 500)
-  }, [proposalId])
 
   // Generate compliance matrix
   const handleGenerate = async () => {
@@ -587,7 +574,7 @@ export function Requirements() {
           />
           <InnerTabButton
             label="Compliance Matrix"
-            count={requirements.length}
+            count={complianceCount}
             active={activeTab === 'compliance'}
             onClick={() => setActiveTab('compliance')}
           />
@@ -750,15 +737,9 @@ export function Requirements() {
             onSelectRef={setSelectedRef}
           />
         ) : (
-          <ComplianceTable
-            requirements={filteredRequirements}
-            sections={sections}
-            selectedRef={selectedRef}
-            highlightedRowRef={highlightedRowRef}
-            editingSection={editingSection}
-            setEditingSection={setEditingSection}
-            onUpdateRequirement={updateRequirement}
-          />
+          <div className="flex-1 overflow-y-auto">
+            <ComplianceMatrix />
+          </div>
         )}
       </div>
 
@@ -989,10 +970,10 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
   )
 }
 
-// ==================== COMPLIANCE TABLE ====================
-// NO WBS column - WBS belongs on Requirements, not Compliance Matrix
+// ComplianceTable removed — replaced by standalone ComplianceMatrix component.
+// See git history for the old inline implementation.
 
-interface ComplianceTableProps {
+interface _Removed_ComplianceTableProps {
   requirements: Requirement[]
   sections: ProposalSection[]
   selectedRef: string | null
@@ -1002,7 +983,8 @@ interface ComplianceTableProps {
   onUpdateRequirement: (id: string, updates: Partial<Requirement>) => void
 }
 
-function ComplianceTable({
+// @ts-expect-error — dead code kept for reference, will be deleted
+function _ComplianceTable_DEAD({
   requirements,
   sections,
   selectedRef,
@@ -1010,7 +992,7 @@ function ComplianceTable({
   editingSection,
   setEditingSection,
   onUpdateRequirement,
-}: ComplianceTableProps) {
+}: _Removed_ComplianceTableProps) {
   const cycleStatus = (current: RequirementStatus): RequirementStatus => {
     const order: RequirementStatus[] = ['compliant', 'partial', 'gap', 'unaddressed']
     const idx = order.indexOf(current)
