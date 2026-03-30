@@ -6,6 +6,7 @@ import { useAppContext } from '@/contexts/app-context'
 import { useAuth } from '@/contexts/auth-context'
 import { migrateLocalStorageToSupabase } from '@/hooks/use-proposal-sync'
 import { NewProposalModal } from '@/components/new-proposal-modal'
+import { toast } from 'sonner'
 import { EmptyState } from '@/components/ui/empty-state'
 import { proposalsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -20,6 +21,7 @@ import {
 import {
   FileText,
   ChevronRight,
+  Trash2,
 } from 'lucide-react'
 
 // ============================================================================
@@ -312,9 +314,11 @@ function AttentionStrip({
 function ProposalCard({
   proposal,
   onClick,
+  onDelete,
 }: {
   proposal: Proposal
   onClick: () => void
+  onDelete: () => void
 }) {
   const daysUntilDue = getDaysUntilDue(proposal.dueDate)
   const urgencyColor = getUrgencyColor(daysUntilDue)
@@ -331,7 +335,7 @@ function ProposalCard({
   return (
     <div
       onClick={onClick}
-      className="cursor-pointer transition-all"
+      className="cursor-pointer transition-all group"
       style={{
         backgroundColor: '#FFFFFF',
         border: '0.5px solid #E8E7E2',
@@ -386,6 +390,15 @@ function ProposalCard({
 
         {/* Right Side */}
         <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4 }}
+            aria-label="Delete proposal"
+            title="Delete proposal"
+          >
+            <Trash2 className="w-3.5 h-3.5" style={{ color: '#C4C3BE' }} />
+          </button>
           {proposal.dueDate && isActive && (
             <span
               className="text-[11px] font-semibold px-2 py-[3px] rounded-[3px]"
@@ -712,7 +725,6 @@ export function Dashboard() {
   // Core state
   const [proposals, setProposals] = useState<Proposal[]>([])
   const [isLoaded, setIsLoaded] = useState(false)
-  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [proposalToDelete, setProposalToDelete] = useState<string | null>(null)
 
   // Load proposals from API
@@ -1067,6 +1079,7 @@ export function Dashboard() {
                   key={proposal.id}
                   proposal={proposal}
                   onClick={() => handleOpenProposal(proposal.id)}
+                  onDelete={() => setProposalToDelete(proposal.id)}
                 />
               ))}
             </div>
@@ -1094,7 +1107,7 @@ export function Dashboard() {
       </div>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+      <Dialog open={!!proposalToDelete} onOpenChange={(open) => { if (!open) setProposalToDelete(null) }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete this proposal?</DialogTitle>
@@ -1105,20 +1118,22 @@ export function Dashboard() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => {
-                setDeleteConfirmOpen(false)
-                setProposalToDelete(null)
-              }}
+              onClick={() => setProposalToDelete(null)}
             >
               Cancel
             </Button>
             <Button
               variant="destructive"
-              onClick={() => {
+              onClick={async () => {
                 if (proposalToDelete) {
-                  setProposals(prev => prev.filter(p => p.id !== proposalToDelete))
+                  try {
+                    await proposalsApi.delete(proposalToDelete)
+                    setProposals(prev => prev.filter(p => p.id !== proposalToDelete))
+                    toast.success('Proposal deleted')
+                  } catch {
+                    toast.error('Failed to delete proposal')
+                  }
                 }
-                setDeleteConfirmOpen(false)
                 setProposalToDelete(null)
               }}
             >
