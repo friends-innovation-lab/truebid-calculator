@@ -25,8 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Checkbox } from '@/components/ui/checkbox'
-import { ListChecks, Plus, RefreshCw, Search, ChevronDown, ChevronUp, AlertCircle, Link2 } from 'lucide-react'
+import { ListChecks, Plus, RefreshCw, Search, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 
 // ==================== TYPES ====================
 
@@ -93,7 +92,6 @@ export function ComplianceMatrix() {
 
   const [items, setItems] = useState<ComplianceItem[]>([])
   const [stats, setStats] = useState<ComplianceStats | null>(null)
-  const [wbsElements, setWbsElements] = useState<WBSElement[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -104,9 +102,6 @@ export function ComplianceMatrix() {
 
   // Filters
   const [filterSource, setFilterSource] = useState<'all' | 'requirement' | 'instruction'>('all')
-  const [filterSection, setFilterSection] = useState<string>('all')
-  const [filterStatus, setFilterStatus] = useState<string>('all')
-  const [filterOwner, setFilterOwner] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Load data on mount
@@ -129,7 +124,6 @@ export function ComplianceMatrix() {
         }
         setItems(response.items || [])
         setStats(response.stats || null)
-        setWbsElements(response.wbsElements || [])
       } catch (err) {
         console.warn('[ComplianceMatrix] Failed to load:', err)
       } finally {
@@ -165,7 +159,7 @@ export function ComplianceMatrix() {
         wbsElements: WBSElement[]
       }
       setStats(statsResponse.stats)
-      setWbsElements(statsResponse.wbsElements || [])
+      // wbsElements removed — WBS column no longer displayed
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate matrix')
     } finally {
@@ -197,16 +191,13 @@ export function ComplianceMatrix() {
         wbsElements: WBSElement[]
       }
       setStats(statsResponse.stats)
-      setWbsElements(statsResponse.wbsElements || [])
+      // wbsElements removed — WBS column no longer displayed
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to regenerate matrix')
     } finally {
       setIsGenerating(false)
     }
   }
-
-  // Get unique owners for filter dropdown
-  const uniqueOwners = [...new Set(items.map(i => i.owner).filter(Boolean))]
 
   // Count items by source
   const requirementCount = items.filter(i => i.source === 'requirement' || !i.source).length
@@ -218,9 +209,6 @@ export function ComplianceMatrix() {
       const itemSource = item.source || 'requirement'
       if (filterSource !== itemSource) return false
     }
-    if (filterSection !== 'all' && item.proposal_section !== filterSection) return false
-    if (filterStatus !== 'all' && item.compliance_status !== filterStatus) return false
-    if (filterOwner !== 'all' && item.owner !== filterOwner) return false
     if (searchQuery && !item.requirement_text.toLowerCase().includes(searchQuery.toLowerCase())) return false
     return true
   })
@@ -243,13 +231,7 @@ export function ComplianceMatrix() {
 
   if (isGenerating) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Compliance Matrix</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Mapping requirements to proposal sections...
-          </p>
-        </div>
+      <div className="space-y-6 p-6">
         <Card className="p-8">
           <div className="flex flex-col items-center text-center space-y-4">
             <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center">
@@ -264,10 +246,7 @@ export function ComplianceMatrix() {
 
   if (error) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Compliance Matrix</h2>
-        </div>
+      <div className="space-y-6 p-6">
         <ErrorAlert
           variant="page"
           title="Failed to load matrix"
@@ -285,13 +264,7 @@ export function ComplianceMatrix() {
 
   if (items.length === 0) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Compliance Matrix</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Map every requirement to a proposal section and track completion
-          </p>
-        </div>
+      <div className="space-y-6 p-6">
         <EmptyState
           icon={ListChecks}
           title="Generate compliance matrix"
@@ -311,18 +284,10 @@ export function ComplianceMatrix() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Compliance Matrix</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Map every requirement to a proposal section and track completion
-        </p>
-      </div>
-
+    <div className="space-y-0">
       {/* Instructions Skipped Banner */}
       {instructionsSkipReason && (
-        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+        <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mx-4 mt-3">
           <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           <div>
             <p className="text-sm font-medium text-amber-800">Section L instructions not extracted</p>
@@ -331,132 +296,73 @@ export function ComplianceMatrix() {
         </div>
       )}
 
-      {/* Stats Bar */}
-      {stats && (
-        <div className="flex gap-4 flex-wrap">
-          <StatBadge label="Total" value={stats.total} color="gray" />
-          <StatBadge label="Compliant" value={stats.compliant} color="green" />
-          <StatBadge label="Partial" value={stats.partial} color="amber" />
-          <StatBadge label="Unaddressed" value={stats.unaddressed} color="gray" />
-          <StatBadge label="Exception" value={stats.exception} color="red" />
-          <StatBadge label="N/A" value={stats.not_applicable} color="gray" />
-          {stats.unlinkedRequirements > 0 && (
-            <StatBadge label="Unlinked Reqs" value={stats.unlinkedRequirements} color="amber" />
-          )}
-        </div>
-      )}
+      {/* Toolbar: Source filter chips + search */}
+      <div
+        className="flex flex-wrap items-center gap-2"
+        style={{ background: '#FAFAF9', borderBottom: '0.5px solid #F4F3EF', padding: '10px 16px' }}
+      >
+        {[
+          { id: 'all' as const, label: 'All', count: items.length },
+          { id: 'requirement' as const, label: 'Shall', count: requirementCount },
+          { id: 'instruction' as const, label: 'Instructions', count: instructionCount },
+        ].map(chip => {
+          const isActive = filterSource === chip.id
+          return (
+            <button
+              key={chip.id}
+              onClick={() => setFilterSource(chip.id)}
+              style={{
+                fontSize: 10,
+                fontWeight: 600,
+                padding: '4px 10px',
+                borderRadius: 99,
+                border: '0.5px solid',
+                borderColor: isActive ? '#111110' : '#D4D3CE',
+                background: isActive ? '#111110' : 'transparent',
+                color: isActive ? '#fff' : '#5F5E5A',
+                cursor: 'pointer',
+              }}
+            >
+              {chip.label} · {chip.count}
+            </button>
+          )
+        })}
 
-      {/* Source Filter Tabs */}
-      <div className="flex gap-1 border-b border-gray-200">
-        <button
-          onClick={() => setFilterSource('all')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            filterSource === 'all'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          All ({items.length})
-        </button>
-        <button
-          onClick={() => setFilterSource('requirement')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            filterSource === 'requirement'
-              ? 'border-gray-900 text-gray-900'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Requirements ({requirementCount})
-        </button>
-        <button
-          onClick={() => setFilterSource('instruction')}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-            filterSource === 'instruction'
-              ? 'border-purple-600 text-purple-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
-          }`}
-        >
-          Instructions ({instructionCount})
-        </button>
-      </div>
-
-      {/* Filter Row */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <Select value={filterSection} onValueChange={setFilterSection}>
-          <SelectTrigger className="w-[220px]">
-            <SelectValue placeholder="All sections" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All sections</SelectItem>
-            {PROPOSAL_SECTIONS.map(section => (
-              <SelectItem key={section} value={section}>{section}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        <Select value={filterStatus} onValueChange={setFilterStatus}>
-          <SelectTrigger className="w-[160px]">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All statuses</SelectItem>
-            {Object.entries(STATUS_CONFIG).map(([value, config]) => (
-              <SelectItem key={value} value={value}>{config.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {uniqueOwners.length > 0 && (
-          <Select value={filterOwner} onValueChange={setFilterOwner}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder="All owners" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All owners</SelectItem>
-              {uniqueOwners.map(owner => (
-                <SelectItem key={owner} value={owner!}>{owner}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        )}
-
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+        <div className="relative flex-1 min-w-[140px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: '#C4C3BE' }} />
           <Input
-            placeholder="Search requirements..."
+            placeholder="Search..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
+            className="pl-8 h-7 text-xs"
           />
         </div>
 
         <div className="flex gap-2 ml-auto">
-          <Button variant="ghost" size="sm" onClick={() => setShowRegenerateConfirm(true)}>
-            <RefreshCw className="w-4 h-4 mr-1.5" />
+          <Button variant="ghost" size="sm" onClick={() => setShowRegenerateConfirm(true)} className="h-7 text-xs">
+            <RefreshCw className="w-3.5 h-3.5 mr-1" />
             Regenerate
           </Button>
-          <Button size="sm" onClick={() => setShowAddDialog(true)}>
-            <Plus className="w-4 h-4 mr-1.5" />
+          <Button size="sm" onClick={() => setShowAddDialog(true)} className="h-7 text-xs">
+            <Plus className="w-3.5 h-3.5 mr-1" />
             Add item
           </Button>
         </div>
       </div>
 
       {/* Compliance Table */}
-      <Card className="overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-24">Ref</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Requirement</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-56">Section</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-40">Linked WBS</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">Owner</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-32">Status</th>
-                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase w-48">Notes</th>
-              </tr>
-            </thead>
+      <div className="overflow-x-auto flex-1">
+        <table className="w-full" style={{ fontSize: 13 }}>
+          <thead>
+            <tr style={{ background: '#FAFAF9', borderBottom: '0.5px solid #E8E7E2', position: 'sticky', top: 0, zIndex: 2 }}>
+              <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C4C3BE', width: 64 }}>Ref</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C4C3BE' }}>Requirement</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C4C3BE', width: 120 }}>Section</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C4C3BE', width: 110 }}>Status</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C4C3BE', width: 100 }}>Owner</th>
+              <th style={{ padding: '8px 12px', textAlign: 'left', fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#C4C3BE', width: 120 }}>Notes</th>
+            </tr>
+          </thead>
             <tbody className="divide-y divide-gray-100">
               {filteredItems.map(item => (
                 <ComplianceRow
@@ -464,7 +370,6 @@ export function ComplianceMatrix() {
                   item={item}
                   proposalId={proposalId}
                   isInstruction={item.source === 'instruction'}
-                  wbsElements={wbsElements}
                   onUpdate={(updated) => {
                     setItems(prev => prev.map(i => i.id === updated.id ? updated : i))
                   }}
@@ -472,8 +377,7 @@ export function ComplianceMatrix() {
               ))}
             </tbody>
           </table>
-        </div>
-      </Card>
+      </div>
 
       {/* Regenerate Confirmation Dialog */}
       <Dialog open={showRegenerateConfirm} onOpenChange={setShowRegenerateConfirm}>
@@ -518,36 +422,17 @@ export function ComplianceMatrix() {
 
 // ==================== SUB-COMPONENTS ====================
 
-function StatBadge({ label, value, color }: { label: string; value: number; color: string }) {
-  const colorClasses: Record<string, string> = {
-    gray: 'text-gray-600',
-    green: 'text-green-600',
-    amber: 'text-amber-600',
-    red: 'text-red-600',
-  }
-
-  return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-lg">
-      <span className={`text-lg font-semibold ${colorClasses[color]}`}>{value}</span>
-      <span className="text-xs text-gray-500">{label}</span>
-    </div>
-  )
-}
-
 interface ComplianceRowProps {
   item: ComplianceItem
   proposalId: string
   isInstruction?: boolean
-  wbsElements: WBSElement[]
   onUpdate: (item: ComplianceItem) => void
 }
 
-function ComplianceRow({ item, proposalId, isInstruction, wbsElements, onUpdate }: ComplianceRowProps) {
+function ComplianceRow({ item, proposalId, isInstruction, onUpdate }: ComplianceRowProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [editingField, setEditingField] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [showWbsDialog, setShowWbsDialog] = useState(false)
-  const [selectedWbsIds, setSelectedWbsIds] = useState<string[]>(item.linked_wbs_ids || [])
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const statusConfig = STATUS_CONFIG[item.compliance_status]
@@ -618,117 +503,6 @@ function ComplianceRow({ item, proposalId, isInstruction, wbsElements, onUpdate 
             ))}
           </SelectContent>
         </Select>
-      </td>
-
-      {/* Linked WBS */}
-      <td className="px-3 py-2">
-        {isInstruction ? (
-          <span className="text-xs text-gray-400 italic">N/A</span>
-        ) : (
-          <div className="flex flex-wrap gap-1">
-            {item.linkedWbs && item.linkedWbs.length > 0 ? (
-              <>
-                {item.linkedWbs.slice(0, 2).map(wbs => (
-                  <span
-                    key={wbs.id}
-                    className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
-                    style={{
-                      backgroundColor: '#E1F5EE',
-                      color: '#0F6E56',
-                      border: '0.5px solid #5DCAA5',
-                    }}
-                    title={`${wbs.wbs_number}: ${wbs.title}`}
-                  >
-                    {wbs.wbs_number}
-                  </span>
-                ))}
-                {item.linkedWbs.length > 2 && (
-                  <span className="text-xs text-gray-500">+{item.linkedWbs.length - 2}</span>
-                )}
-              </>
-            ) : (
-              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs text-gray-500 bg-gray-100">
-                No WBS linked
-              </span>
-            )}
-            <button
-              onClick={() => {
-                setSelectedWbsIds(item.linked_wbs_ids || [])
-                setShowWbsDialog(true)
-              }}
-              className="ml-1 p-0.5 text-gray-400 hover:text-gray-600"
-              title="Edit linked WBS"
-            >
-              <Link2 className="w-3 h-3" />
-            </button>
-          </div>
-        )}
-
-        {/* WBS Selection Dialog */}
-        <Dialog open={showWbsDialog} onOpenChange={setShowWbsDialog}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Link WBS Elements</DialogTitle>
-              <DialogDescription>
-                Select WBS elements that address this requirement.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="max-h-64 overflow-y-auto space-y-2 py-4">
-              {wbsElements.length === 0 ? (
-                <p className="text-sm text-gray-500 text-center py-4">
-                  No WBS elements available. Generate WBS first.
-                </p>
-              ) : (
-                wbsElements.map(wbs => (
-                  <label
-                    key={wbs.id}
-                    className="flex items-start gap-2 p-2 rounded hover:bg-gray-50 cursor-pointer"
-                  >
-                    <Checkbox
-                      checked={selectedWbsIds.includes(wbs.id)}
-                      onCheckedChange={(checked) => {
-                        if (checked) {
-                          setSelectedWbsIds(prev => [...prev, wbs.id])
-                        } else {
-                          setSelectedWbsIds(prev => prev.filter(id => id !== wbs.id))
-                        }
-                      }}
-                      className="mt-0.5"
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium"
-                          style={{
-                            backgroundColor: '#E1F5EE',
-                            color: '#0F6E56',
-                            border: '0.5px solid #5DCAA5',
-                          }}
-                        >
-                          {wbs.wbs_number}
-                        </span>
-                        <span className="text-sm text-gray-900 truncate">{wbs.title}</span>
-                      </div>
-                    </div>
-                  </label>
-                ))
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowWbsDialog(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={async () => {
-                  await updateField('linked_wbs_ids', selectedWbsIds)
-                  setShowWbsDialog(false)
-                }}
-              >
-                Save
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       </td>
 
       {/* Owner */}

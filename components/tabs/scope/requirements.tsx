@@ -280,6 +280,7 @@ export function Requirements() {
   const [isReExtracting, setIsReExtracting] = useState(false)
   const [showReExtractConfirm, setShowReExtractConfirm] = useState(false)
   const [complianceCount, setComplianceCount] = useState(0)
+  const [complianceStats, setComplianceStats] = useState({ total: 0, compliant: 0, partial: 0, unaddressed: 0, coverage: 0 })
 
   const highlightedRowRef = useRef<HTMLDivElement>(null)
 
@@ -295,8 +296,16 @@ export function Requirements() {
           proposalsApi.get(proposalId).catch(() => ({ proposal: null })),
           complianceApi.list(proposalId).catch(() => ({ items: [], stats: { total: 0 } })),
         ])
-        const compData = compResponse as { items: unknown[]; stats: { total: number } }
-        setComplianceCount(compData.stats?.total || compData.items?.length || 0)
+        const compData = compResponse as { items: unknown[]; stats: { total: number; compliant: number; partial: number; unaddressed: number } }
+        const cStats = compData.stats || { total: 0, compliant: 0, partial: 0, unaddressed: 0 }
+        setComplianceCount(cStats.total || compData.items?.length || 0)
+        setComplianceStats({
+          total: cStats.total,
+          compliant: cStats.compliant,
+          partial: cStats.partial,
+          unaddressed: cStats.unaddressed,
+          coverage: cStats.total > 0 ? Math.round((cStats.compliant / cStats.total) * 100) : 0,
+        })
 
         // Transform API data to our format
         const reqData = (reqResponse as { requirements: Requirement[] }).requirements || []
@@ -526,15 +535,23 @@ export function Requirements() {
           What are we required to do — and are we covered?
         </h1>
 
-        {/* Stats Row */}
+        {/* Stats Row — switches data source based on active tab */}
         <div className="flex items-center" style={{ marginBottom: 14 }}>
-          {/* Stats */}
-          <div className="flex items-center">
-            <StatItem value={stats.total} label="total" />
-            <StatItem value={stats.compliant} label="compliant" color="#639922" />
-            <StatItem value={stats.partial} label="partial" color="#BA7517" />
-            <StatItem value={stats.gaps} label="gaps" color={stats.gaps > 0 ? '#A32D2D' : undefined} bold={stats.gaps > 0} isLast />
-          </div>
+          {activeTab === 'requirements' ? (
+            <div className="flex items-center">
+              <StatItem value={stats.total} label="total" />
+              <StatItem value={stats.compliant} label="compliant" color="#639922" />
+              <StatItem value={stats.partial} label="partial" color="#BA7517" />
+              <StatItem value={stats.gaps} label="gaps" color={stats.gaps > 0 ? '#A32D2D' : undefined} bold={stats.gaps > 0} isLast />
+            </div>
+          ) : (
+            <div className="flex items-center">
+              <StatItem value={complianceStats.total} label="total" />
+              <StatItem value={complianceStats.compliant} label="compliant" color="#639922" />
+              <StatItem value={complianceStats.partial} label="partial" color="#BA7517" />
+              <StatItem value={complianceStats.unaddressed} label="unaddressed" isLast />
+            </div>
+          )}
 
           {/* Coverage Bar */}
           <div className="flex items-center gap-2 ml-auto">
@@ -550,7 +567,7 @@ export function Requirements() {
             >
               <div
                 style={{
-                  width: `${stats.coverage}%`,
+                  width: `${activeTab === 'requirements' ? stats.coverage : complianceStats.coverage}%`,
                   height: '100%',
                   backgroundColor: '#F5C200',
                   borderRadius: 3,
@@ -559,7 +576,7 @@ export function Requirements() {
               />
             </div>
             <span style={{ fontSize: 13, fontWeight: 700, color: '#111110' }}>
-              {stats.coverage}%
+              {activeTab === 'requirements' ? stats.coverage : complianceStats.coverage}%
             </span>
           </div>
         </div>
