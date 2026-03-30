@@ -16,7 +16,7 @@ import { useAppContext } from '@/contexts/app-context'
 import { ProposalLayout, SectionId, SECTION_DEFAULT_VIEWS } from '@/components/layout/proposal-layout'
 
 // Tab components
-import { EstimateTab } from '@/components/tabs/estimate-tab'
+import { ScopeOfWork } from '@/components/tabs/staff/scope-of-work'
 import { RolesPricing } from '@/components/tabs/staff/roles-pricing'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
@@ -215,11 +215,7 @@ export function SectionNavigation() {
 
         {/* STAFF views - scrollable with padding */}
         {activeView === 'wbs-elements' && activeSection === 'staff' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <EstimateTab />
-            </div>
-          </div>
+          <ScopeOfWork />
         )}
         {activeView === 'labor-matrix' && activeSection === 'staff' && (
           <div className="flex-1 overflow-y-auto p-6">
