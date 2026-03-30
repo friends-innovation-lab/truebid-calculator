@@ -655,7 +655,7 @@ function AISummaryPanel({
                         fontSize: '11px',
                         fontWeight: 500,
                         padding: '4px 10px',
-                        borderRadius: '20px',
+                        borderRadius: '3px',
                         background: colors.bg,
                         color: colors.text,
                         border: `0.5px solid ${colors.border}`,
