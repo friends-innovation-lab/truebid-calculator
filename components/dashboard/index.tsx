@@ -1082,23 +1082,44 @@ export function Dashboard() {
         <div className="flex gap-6 flex-col lg:flex-row">
           {/* Proposals Column */}
           <div className="flex-1">
-            <p
-              className="text-[10px] font-bold tracking-[2px] uppercase mb-2.5"
-              style={{ color: '#C4C3BE' }}
-            >
-              Active proposals
-            </p>
-
-            <div className="flex flex-col gap-2">
-              {activeProposals.map(proposal => (
-                <ProposalCard
-                  key={proposal.id}
-                  proposal={proposal}
-                  onClick={() => handleOpenProposal(proposal.id)}
-                  onDelete={() => setProposalToDelete(proposal.id)}
-                />
-              ))}
-            </div>
+            {activeProposals.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', textAlign: 'center' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: '#F4F3EF', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                  <FileText size={22} color="#C4C3BE" />
+                </div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#111110', letterSpacing: '-0.2px', marginBottom: 6 }}>
+                  No active proposals
+                </div>
+                <div style={{ fontSize: 13, color: '#9B9A95', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
+                  Create your first proposal to get started. Upload an RFP and TrueBid will extract requirements, build your WBS, and help you write a winning response.
+                </div>
+                <button
+                  onClick={handleNewProposal}
+                  style={{ background: '#111110', color: '#FFFFFF', fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 7, border: 'none', cursor: 'pointer', letterSpacing: '-0.1px' }}
+                >
+                  + New Proposal
+                </button>
+              </div>
+            ) : (
+              <>
+                <p
+                  className="text-[10px] font-bold tracking-[2px] uppercase mb-2.5"
+                  style={{ color: '#C4C3BE' }}
+                >
+                  Active proposals
+                </p>
+                <div className="flex flex-col gap-2">
+                  {activeProposals.map(proposal => (
+                    <ProposalCard
+                      key={proposal.id}
+                      proposal={proposal}
+                      onClick={() => handleOpenProposal(proposal.id)}
+                      onDelete={() => setProposalToDelete(proposal.id)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* Right Panel */}
