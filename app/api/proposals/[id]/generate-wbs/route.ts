@@ -3,22 +3,35 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
 
-const SYSTEM_PROMPT = `You are a senior government proposal manager and technical architect. Your job is to create a Work Breakdown Structure (WBS) for a federal IT services contract.
+const SYSTEM_PROMPT = `You are a senior government proposal manager and technical architect building a Work Breakdown Structure for a federal IT contract.
 
-A WBS organizes work into logical packages that:
-- Can be staffed with specific roles
-- Can be priced with hours
-- Map directly to requirements
-- Represent distinct deliverables or workstreams
+AVAILABLE ROLES (from FFTC's labor categories — use ONLY these exact names):
+  Back-end Developer
+  Front-end Developer
+  DevOps Engineer
+  QA Engineer
+  Product Manager
+  Product Designer
+  UX Researcher
+  Content/UX Writer
+  Delivery Manager
 
-Rules for generating WBS elements:
-1. Create 6-12 work packages — not too granular, not too broad
-2. Every requirement must map to at least one WBS element
-3. Group related requirements into the same work package when they represent the same workstream
-4. Name each element as a clear noun phrase: "Authentication & Identity Management" not "Implement Auth"
-5. Each element should have 2-5 concrete tasks
-6. Suggest realistic hours based on complexity (government IT: 160-960 hrs per work package is typical for a scoped engagement)
-7. Suggest appropriate roles from this list: Senior Developer, Front-end Developer, Back-end Developer, DevOps Engineer, QA Engineer, Product Manager, Product Designer, UX Researcher, Content Writer, Delivery Manager`
+CRITICAL RULES FOR ROLE ASSIGNMENT:
+1. Most work packages require MULTIPLE roles — think cross-functionally
+2. Common role combinations by work type:
+   - User research & discovery: UX Researcher (lead) + Product Designer + Product Manager
+   - Frontend development: Front-end Developer (lead) + Product Designer + QA Engineer
+   - Backend/API development: Back-end Developer (lead) + DevOps Engineer + QA Engineer
+   - Infrastructure & cloud: DevOps Engineer (lead) + Back-end Developer + QA Engineer
+   - Authentication & security: Back-end Developer (lead) + DevOps Engineer + QA Engineer
+   - Data migration: Back-end Developer (lead) + DevOps Engineer + QA Engineer
+   - Management & oversight: Delivery Manager (lead) + Product Manager
+   - Accessibility & compliance: Product Designer (lead) + Front-end Developer + QA Engineer + Content/UX Writer
+   - Training & documentation: Content/UX Writer (lead) + Product Manager
+3. Hours should reflect realistic effort: Full time = 1920 hrs/yr, Half time = 960, Quarter = 480
+4. Delivery Manager should appear on most packages at 0.25 FTE (480 hrs) for oversight
+5. NOT every role on every package — but every package should have 2-3+ roles
+6. 8-12 work packages total, each with 2-5 concrete tasks`
 
 export async function POST(
   request: Request,
@@ -244,11 +257,25 @@ IMPORTANT:
       delete (el as Record<string, unknown>)._dependencyRefs
     })
 
-    // Sync roles from WBS tasks
+    // Sync roles from WBS tasks with labor category lookup
     const existingWorkingData = (proposal.working_data || {}) as Record<string, unknown>
     const existingRoles = (existingWorkingData.roles || existingWorkingData.selectedRoles || []) as { id: string; name: string; isManual?: boolean; [key: string]: unknown }[]
-    const proposalSetup = (existingWorkingData.proposalSetup || {}) as { optionYears?: number }
-    const syncedRoles = syncRolesFromWBS(wbsElements, existingRoles, proposalSetup)
+    const proposalSetup = (existingWorkingData.proposalSetup || {}) as { optionYears?: number; profitMargin?: number }
+
+    // Fetch company's labor categories for salary lookup
+    const { data: proposalRow } = await supabase.from('proposals').select('company_id').eq('id', proposalId).single()
+    let laborCategories: { title: string; laborCategory?: string; socCode?: string; salary_levels?: { level: string; level_title?: string; steps: number[] }[] }[] = []
+    if (proposalRow?.company_id) {
+      const { data: roles } = await supabase.from('company_roles').select('title, labor_category, soc_code, salary_levels').eq('company_id', proposalRow.company_id)
+      laborCategories = (roles || []).map(r => ({
+        title: r.title,
+        laborCategory: r.labor_category,
+        socCode: r.soc_code,
+        salary_levels: r.salary_levels,
+      }))
+    }
+
+    const syncedRoles = syncRolesFromWBS(wbsElements, existingRoles, proposalSetup, laborCategories)
 
     // Save both WBS elements and synced roles to working_data
     const { error: updateError } = await supabase

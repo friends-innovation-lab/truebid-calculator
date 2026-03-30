@@ -1,7 +1,41 @@
 /**
  * Sync roles from WBS task assignments into the roles pricing array.
  * Called after WBS generation and on task changes.
+ * Looks up salaries from labor categories and calculates bill rates.
  */
+
+// FFTC indirect rates (will come from Account → Company Settings later)
+const INDIRECT_RATES = {
+  fringe: 0.2116,
+  overhead: 0.3426,
+  ga: 0.1983,
+  hoursPerYear: 2080,
+  defaultProfit: 0.10,
+}
+
+// Default salaries by role name when no labor categories available
+const DEFAULT_SALARIES: Record<string, number> = {
+  'Back-end Developer': 120000,
+  'Front-end Developer': 115000,
+  'DevOps Engineer': 130000,
+  'QA Engineer': 105000,
+  'Product Manager': 125000,
+  'Product Designer': 115000,
+  'UX Researcher': 110000,
+  'Content/UX Writer': 95000,
+  'Delivery Manager': 135000,
+}
+
+export function calculateBillRate(salary: number, profit: number = INDIRECT_RATES.defaultProfit): number {
+  if (salary <= 0) return 0
+  const fringe = salary * INDIRECT_RATES.fringe
+  const overhead = salary * INDIRECT_RATES.overhead
+  const loaded = salary + fringe + overhead
+  const ga = loaded * INDIRECT_RATES.ga
+  const total = loaded + ga
+  const perHour = total / INDIRECT_RATES.hoursPerYear
+  return Math.round(perHour * (1 + profit) * 100) / 100
+}
 
 interface WBSTask {
   name?: string
@@ -17,6 +51,14 @@ interface WBSElement {
   }[]
 }
 
+interface LaborCategory {
+  title: string
+  laborCategory?: string
+  socCode?: string
+  salaryLevels?: { level: string; levelTitle: string; steps: number[] }[]
+  salary_levels?: { level: string; levelTitle?: string; level_title?: string; steps: number[] }[]
+}
+
 interface ExistingRole {
   id: string
   name: string
@@ -25,6 +67,10 @@ interface ExistingRole {
   billRateBase?: number
   laborCategory?: string | null
   level?: string | null
+  selectedLevel?: string
+  selectedStep?: number
+  currentSalary?: number
+  profitMargin?: number
   isManual?: boolean
   [key: string]: unknown
 }
@@ -32,15 +78,22 @@ interface ExistingRole {
 interface ProposalSetup {
   optionYears?: number
   billableHoursPerYear?: number
+  profitMargin?: number
 }
 
-interface SyncedRole {
+export interface SyncedRole {
   id: string
   name: string
   type: 'prime' | 'sub'
   subcontractorName: string | null
   billRateBase: number
   laborCategory: string | null
+  socCode: string | null
+  selectedLevel: string
+  selectedLevelTitle: string
+  selectedStep: number
+  currentSalary: number
+  profitMargin: number
   level: string | null
   totalHoursFromWBS: number
   isManual: boolean
@@ -57,19 +110,19 @@ export function syncRolesFromWBS(
   wbsElements: WBSElement[],
   existingRoles: ExistingRole[],
   setup?: ProposalSetup | null,
+  laborCategories?: LaborCategory[],
 ): SyncedRole[] {
   const optionYears = setup?.optionYears ?? 4
+  const profit = setup?.profitMargin ?? INDIRECT_RATES.defaultProfit
 
   // Aggregate hours by role across all tasks and labor estimates
   const roleHours: Record<string, number> = {}
 
   wbsElements.forEach(element => {
-    // From tasks array (new format)
     element.tasks?.forEach(task => {
       if (!task.role) return
       roleHours[task.role] = (roleHours[task.role] || 0) + (task.hours || 0)
     })
-    // From laborEstimates (legacy format)
     element.laborEstimates?.forEach(le => {
       if (!le.roleName) return
       const h = le.hoursByPeriod
@@ -86,14 +139,30 @@ export function syncRolesFromWBS(
       const yearCount = optionYears + 1
       const hoursPerYear = Math.round(totalHours / yearCount)
 
+      // Look up labor category
+      const laborCat = laborCategories?.find(lc => lc.title === roleName)
+      const levels = laborCat?.salaryLevels || laborCat?.salary_levels || []
+      const defaultLevel = levels.find(l => l.level === 'IC3') || levels[2] || levels[0]
+      const defaultSalary = defaultLevel?.steps?.[0] || DEFAULT_SALARIES[roleName] || 120000
+      const levelTitle = defaultLevel?.levelTitle || (defaultLevel as Record<string, unknown>)?.level_title as string || 'Mid-Level'
+
+      const currentSalary = existing?.currentSalary || defaultSalary
+      const billRate = existing?.billRateBase || calculateBillRate(currentSalary, profit)
+
       return {
         id: existing?.id || crypto.randomUUID(),
         name: roleName,
         type: (existing?.type as 'prime' | 'sub') || 'prime',
         subcontractorName: existing?.subcontractorName || null,
-        billRateBase: existing?.billRateBase || 0,
-        laborCategory: existing?.laborCategory || null,
-        level: existing?.level || null,
+        billRateBase: billRate,
+        laborCategory: laborCat?.laborCategory || null,
+        socCode: laborCat?.socCode || null,
+        selectedLevel: existing?.selectedLevel || defaultLevel?.level || 'IC3',
+        selectedLevelTitle: levelTitle,
+        selectedStep: existing?.selectedStep ?? 0,
+        currentSalary,
+        profitMargin: existing?.profitMargin ?? profit,
+        level: existing?.selectedLevel || defaultLevel?.level || 'IC3',
         totalHoursFromWBS: totalHours,
         isManual: false,
         hoursByYear: {
@@ -106,7 +175,7 @@ export function syncRolesFromWBS(
       }
     })
 
-  // Keep manually added roles that don't come from WBS
+  // Keep manually added roles
   const manualRoles: SyncedRole[] = existingRoles
     .filter(r => r.isManual && !roleHours[r.name])
     .map(r => ({
@@ -116,6 +185,12 @@ export function syncRolesFromWBS(
       subcontractorName: r.subcontractorName || null,
       billRateBase: r.billRateBase || 0,
       laborCategory: r.laborCategory || null,
+      socCode: null,
+      selectedLevel: r.selectedLevel || 'IC3',
+      selectedLevelTitle: 'Mid-Level',
+      selectedStep: r.selectedStep ?? 0,
+      currentSalary: r.currentSalary || 0,
+      profitMargin: r.profitMargin ?? INDIRECT_RATES.defaultProfit,
       level: r.level || null,
       totalHoursFromWBS: 0,
       isManual: true,
