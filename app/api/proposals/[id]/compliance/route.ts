@@ -163,7 +163,10 @@ export async function PUT(
 
   // Expect { items: [...] } with array of compliance items from extraction
   const items = body.items
+  console.log('[PUT /compliance] Received items count:', items?.length || 0)
+  console.log('[PUT /compliance] Body keys:', Object.keys(body))
   if (!Array.isArray(items)) {
+    console.error('[PUT /compliance] items is not an array:', typeof items)
     return NextResponse.json({ error: 'items must be an array' }, { status: 400 })
   }
 
@@ -199,7 +202,10 @@ export async function PUT(
     notes: `Section ${item.rfpSection || '?'} · ${item.type || 'unknown'} · ${item.source || ''}`,
   }))
 
+  console.log('[PUT /compliance] Transformed insertData count:', insertData.length)
+
   if (insertData.length === 0) {
+    console.warn('[PUT /compliance] No items to insert after transform!')
     return NextResponse.json({ items: [], count: 0 })
   }
 

@@ -1196,6 +1196,13 @@ export function Solicitation() {
       // STEP 1: Save ALL compliance items immediately (no linking)
       let complianceCount = 0
       const complianceMatrix = data.complianceMatrix
+
+      // DEBUG: Log raw extraction output before any processing
+      console.log('[DEBUG] RAW extracted count:', complianceMatrix?.length || 0)
+      console.log('[DEBUG] Sample raw items:', JSON.stringify(complianceMatrix?.slice(0, 3), null, 2))
+      console.log('[DEBUG] data keys:', Object.keys(data))
+      console.log('[DEBUG] complianceMatrix is:', typeof complianceMatrix, Array.isArray(complianceMatrix))
+
       if (complianceMatrix && complianceMatrix.length > 0 && proposalId) {
         try {
           // Strip requirementId — save everything as unlinked first
@@ -1203,13 +1210,23 @@ export function Solicitation() {
             ...item,
             requirementId: null,
           }))
-          const result = await complianceApi.bulkReplace(proposalId, itemsToSave) as { count?: number }
+          console.log('[DEBUG] Items to save count:', itemsToSave.length)
+
+          const result = await complianceApi.bulkReplace(proposalId, itemsToSave) as { count?: number; items?: unknown[] }
           complianceCount = result.count || itemsToSave.length
+          console.log(`[DEBUG] API returned count: ${result.count}, items: ${result.items?.length || 'undefined'}`)
           console.log(`[Solicitation] Saved ${complianceCount} compliance items to database`)
         } catch (error) {
+          console.error('[DEBUG] bulkReplace FAILED:', error)
           console.warn('[Solicitation] Failed to save compliance matrix:', error)
           complianceCount = complianceMatrix.length // Still show count in toast
         }
+      } else {
+        console.log('[DEBUG] Skipped compliance save:', {
+          hasMatrix: !!complianceMatrix,
+          length: complianceMatrix?.length || 0,
+          proposalId: !!proposalId,
+        })
       }
 
       // Mark compliance complete
