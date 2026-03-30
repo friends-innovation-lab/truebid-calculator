@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
 import { useAuth } from '@/contexts/auth-context'
 import { migrateLocalStorageToSupabase } from '@/hooks/use-proposal-sync'
+import { NewProposalModal } from '@/components/new-proposal-modal'
 import { EmptyState } from '@/components/ui/empty-state'
 import { proposalsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
@@ -937,25 +938,10 @@ export function Dashboard() {
   }, [activeProposals])
 
   // Handlers
-  const handleNewProposal = async () => {
+  const [showNewProposalModal, setShowNewProposalModal] = useState(false)
+  const handleNewProposal = () => {
     setActiveUtilityTool(null)
-    try {
-      const response = await proposalsApi.create({
-        title: 'New Proposal',
-        status: 'draft',
-        total_value: 0,
-        team_size: 0,
-        progress: 0,
-        starred: false,
-        archived: false,
-        contract_type: 'tm',
-      }) as { proposal: { id: string } }
-      router.push(`/${response.proposal.id}?tab=upload`)
-    } catch (error) {
-      console.error('Failed to create proposal:', error)
-      const newId = `prop-${Date.now()}`
-      router.push(`/${newId}?tab=upload`)
-    }
+    setShowNewProposalModal(true)
   }
 
   const handleOpenProposal = (proposalId: string) => {
@@ -1141,6 +1127,8 @@ export function Dashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <NewProposalModal open={showNewProposalModal} onClose={() => setShowNewProposalModal(false)} />
     </div>
   )
 }

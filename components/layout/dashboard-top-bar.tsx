@@ -3,11 +3,11 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { NewProposalModal } from '@/components/new-proposal-modal'
 import { LogOut, Settings, Sun, Moon, Monitor, LayoutDashboard, Plus } from 'lucide-react'
 import { Wordmark } from '@/components/ui/wordmark'
 import { useAuth } from '@/contexts/auth-context'
 import { createClient } from '@/lib/supabase/client'
-import { proposalsApi } from '@/lib/api'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -81,25 +81,7 @@ export function DashboardTopBar() {
     router.push('/login')
   }
 
-  const handleNewProposal = async () => {
-    try {
-      const response = await proposalsApi.create({
-        title: 'New Proposal',
-        status: 'draft',
-        total_value: 0,
-        team_size: 0,
-        progress: 0,
-        starred: false,
-        archived: false,
-        contract_type: 'tm',
-      }) as { proposal: { id: string } }
-      router.push(`/${response.proposal.id}?tab=upload`)
-    } catch (error) {
-      console.error('Failed to create proposal:', error)
-      const newId = `prop-${Date.now()}`
-      router.push(`/${newId}?tab=upload`)
-    }
-  }
+  const [showNewProposal, setShowNewProposal] = useState(false)
 
   const getInitials = (name: string) => {
     return name
@@ -160,7 +142,7 @@ export function DashboardTopBar() {
         {/* Right side: New Proposal + Avatar */}
         <div className="flex items-center gap-4">
           <button
-            onClick={handleNewProposal}
+            onClick={() => setShowNewProposal(true)}
             className="flex items-center gap-1.5 px-3.5 py-[7px] text-[13px] font-semibold rounded-md transition-fast"
             style={{
               backgroundColor: 'var(--ink)',
@@ -172,6 +154,7 @@ export function DashboardTopBar() {
             <Plus className="w-4 h-4" />
             New Proposal
           </button>
+          <NewProposalModal open={showNewProposal} onClose={() => setShowNewProposal(false)} />
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
