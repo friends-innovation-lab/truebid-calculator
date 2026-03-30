@@ -1,0 +1,856 @@
+'use client'
+
+import { useState, useMemo, useCallback } from 'react'
+import { useAppContext, type Role } from '@/contexts/app-context'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { EmptyState } from '@/components/ui/empty-state'
+import { formatCurrency } from '@/lib/utils'
+import {
+  Users,
+  Plus,
+  X,
+  Clock,
+  LayoutGrid,
+  Calendar,
+  Trash2,
+  FileDown,
+} from 'lucide-react'
+
+// ==================== TYPES ====================
+
+type ViewMode = 'pricing' | 'timeline'
+type RoleFilter = 'all' | 'prime' | 'sub'
+
+const YEAR_KEYS = ['base', 'option1', 'option2', 'option3', 'option4'] as const
+const YEAR_LABELS = ['Base yr', 'OY1', 'OY2', 'OY3', 'OY4']
+const YEAR_SHORT = ['BY', 'OY1', 'OY2', 'OY3', 'OY4']
+
+// ==================== HELPERS ====================
+
+function getActiveYears(role: Role): boolean[] {
+  return [role.years.base, role.years.option1, role.years.option2, role.years.option3, role.years.option4]
+}
+
+function getHoursForYear(role: Role, yearIndex: number): number {
+  const active = getActiveYears(role)
+  if (!active[yearIndex]) return 0
+  return role.billableHours || 1920
+}
+
+function getEscalatedRate(baseRate: number, yearIndex: number, escalation: number): number {
+  return baseRate * Math.pow(1 + escalation, yearIndex)
+}
+
+function getRoleTotalCost(role: Role, billRate: number, escalation: number): number {
+  let total = 0
+  const active = getActiveYears(role)
+  const hours = role.billableHours || 1920
+  for (let i = 0; i < 5; i++) {
+    if (!active[i]) continue
+    const rate = getEscalatedRate(billRate, i, escalation)
+    total += hours * rate * role.fte * role.quantity
+  }
+  return total
+}
+
+function getRoleTotalHours(role: Role): number {
+  const active = getActiveYears(role)
+  const hours = role.billableHours || 1920
+  let total = 0
+  for (let i = 0; i < 5; i++) {
+    if (active[i]) total += hours * role.fte * role.quantity
+  }
+  return total
+}
+
+// ==================== MAIN COMPONENT ====================
+
+export function RolesPricing() {
+  const {
+    selectedRoles,
+    addRole,
+    updateRole,
+    removeRole,
+    companyRoles,
+    indirectRates,
+    solicitation,
+    uiProfitMargin,
+    uiBillableHours,
+    calculateLoadedRate,
+  } = useAppContext()
+
+  const [viewMode, setViewMode] = useState<ViewMode>('pricing')
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')
+  const [escalation, setEscalation] = useState(
+    solicitation.pricingSettings?.laborEscalation
+      ? solicitation.pricingSettings.laborEscalation / 100
+      : 0.03
+  )
+  const [editingEscalation, setEditingEscalation] = useState(false)
+  const [showAddPanel, setShowAddPanel] = useState(false)
+  const [detailRole, setDetailRole] = useState<Role | null>(null)
+  const [editingCell, setEditingCell] = useState<{ roleId: string; yearIndex: number } | null>(null)
+  const [cellValue, setCellValue] = useState('')
+
+  // Calculate bill rates for each role
+  const getRoleBillRate = useCallback((role: Role): number => {
+    if (role.loadedRate) return role.loadedRate
+    if (typeof calculateLoadedRate === 'function') {
+      return calculateLoadedRate(role.baseSalary)
+    }
+    // Fallback calculation
+    const hourly = role.baseSalary / 2080
+    const fringe = hourly * (1 + (indirectRates.fringe || 0))
+    const oh = fringe * (1 + (indirectRates.overhead || 0))
+    const ga = oh * (1 + (indirectRates.ga || 0))
+    return ga * (1 + (uiProfitMargin || 8) / 100)
+  }, [calculateLoadedRate, indirectRates, uiProfitMargin])
+
+  // Compute summary stats
+  const stats = useMemo(() => {
+    let primeCost = 0; const subCost = 0; let totalHours = 0
+    selectedRoles.forEach(role => {
+      const billRate = getRoleBillRate(role)
+      const cost = getRoleTotalCost(role, billRate, escalation)
+      const hours = getRoleTotalHours(role)
+      // TODO: differentiate prime vs sub once role.type field exists
+      primeCost += cost
+      totalHours += hours
+    })
+    const odcs = solicitation.pricingSettings?.odcEscalation || 0
+    return {
+      totalValue: primeCost + subCost + odcs,
+      primeCost,
+      subCost,
+      odcs,
+      totalHours,
+    }
+  }, [selectedRoles, escalation, getRoleBillRate, solicitation.pricingSettings])
+
+  // Filter roles
+  const filteredRoles = useMemo(() => {
+    // For now all roles are prime — sub filtering will work when type field is added
+    return selectedRoles
+  }, [selectedRoles])
+
+  // Number of active option years from solicitation
+  const activeYearCount = useMemo(() => {
+    const pop = solicitation.periodOfPerformance
+    return 1 + (pop?.optionYears || 2)
+  }, [solicitation.periodOfPerformance])
+
+  // Handle inline cell edit
+  const handleCellClick = (roleId: string, yearIndex: number) => {
+    const role = selectedRoles.find(r => r.id === roleId)
+    if (!role) return
+    const hours = getHoursForYear(role, yearIndex)
+    setEditingCell({ roleId, yearIndex })
+    setCellValue(hours > 0 ? String(hours) : '')
+  }
+
+  const handleCellSave = () => {
+    if (!editingCell) return
+    const hours = parseInt(cellValue) || 0
+    const role = selectedRoles.find(r => r.id === editingCell.roleId)
+    if (!role) return
+
+    const yearKey = YEAR_KEYS[editingCell.yearIndex]
+    const newYears = { ...role.years, [yearKey]: hours > 0 }
+    updateRole(editingCell.roleId, {
+      years: newYears,
+      billableHours: hours > 0 ? hours : role.billableHours,
+    })
+    setEditingCell(null)
+  }
+
+  // Handle timeline block click (cycle: full → part → off)
+  const handleTimelineClick = (roleId: string, yearIndex: number) => {
+    const role = selectedRoles.find(r => r.id === roleId)
+    if (!role) return
+
+    const active = getActiveYears(role)
+    const currentHours = active[yearIndex] ? (role.billableHours || 1920) : 0
+    const yearKey = YEAR_KEYS[yearIndex]
+
+    if (currentHours >= 1800) {
+      // Full → Part (half time)
+      updateRole(roleId, {
+        years: { ...role.years, [yearKey]: true },
+        billableHours: 960,
+      })
+    } else if (currentHours > 0) {
+      // Part → Off
+      updateRole(roleId, {
+        years: { ...role.years, [yearKey]: false },
+      })
+    } else {
+      // Off → Full
+      updateRole(roleId, {
+        years: { ...role.years, [yearKey]: true },
+        billableHours: 1920,
+      })
+    }
+  }
+
+  // Add role from company library
+  const handleAddFromLibrary = (companyRole: { id: string; title: string; salary_levels?: unknown }) => {
+    addRole({
+      id: `role-${crypto.randomUUID()}`,
+      name: companyRole.title,
+      description: '',
+      icLevel: 'IC4',
+      baseSalary: 120000,
+      quantity: 1,
+      fte: 1,
+      storyPoints: 0,
+      billableHours: uiBillableHours || 1920,
+      years: {
+        base: true,
+        option1: (solicitation.periodOfPerformance?.optionYears || 0) >= 1,
+        option2: (solicitation.periodOfPerformance?.optionYears || 0) >= 2,
+        option3: false,
+        option4: false,
+      },
+    })
+    setShowAddPanel(false)
+  }
+
+  // ==================== RENDER ====================
+
+  return (
+    <div className="flex flex-col h-full" style={{ backgroundColor: '#FFFFFF' }}>
+      {/* PAGE HEADER */}
+      <div className="shrink-0" style={{ padding: '20px 24px 0', borderBottom: '0.5px solid #E8E7E2' }}>
+        <div style={{ fontSize: 11, color: '#6B6A65', letterSpacing: '0.5px', textTransform: 'uppercase', fontWeight: 500 }}>
+          Staff · Roles & Pricing
+        </div>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: '#111110', marginTop: 4 }}>
+          Who does this work and what does it cost?
+        </h1>
+
+        {/* SUMMARY STRIP */}
+        <div className="flex items-center gap-6" style={{ marginTop: 14, marginBottom: 14 }}>
+          <SummaryItem label="Total contract value" value={formatCurrency(stats.totalValue, 0)} bold />
+          <Divider />
+          <SummaryItem label="Prime labor" value={formatCurrency(stats.primeCost, 0)} />
+          <Divider />
+          <SummaryItem label="Sub labor" value={formatCurrency(stats.subCost, 0)} color="#5F5E5A" />
+          <Divider />
+          <SummaryItem label="ODCs" value={formatCurrency(stats.odcs, 0)} color="#5F5E5A" />
+          <Divider />
+          <SummaryItem label="Total hours" value={stats.totalHours.toLocaleString()} />
+
+          {/* VIEW TOGGLE */}
+          <div className="ml-auto flex" style={{ background: '#F0EDE6', borderRadius: 5, padding: 2, gap: 1 }}>
+            <ToggleSegment active={viewMode === 'pricing'} onClick={() => setViewMode('pricing')} icon={<LayoutGrid className="w-3.5 h-3.5" />} label="Pricing" />
+            <ToggleSegment active={viewMode === 'timeline'} onClick={() => setViewMode('timeline')} icon={<Calendar className="w-3.5 h-3.5" />} label="Timeline" />
+          </div>
+        </div>
+
+        {/* INNER TABS */}
+        <div className="flex gap-0" style={{ marginBottom: -1 }}>
+          <FilterTab label="All roles" count={selectedRoles.length} active={roleFilter === 'all'} onClick={() => setRoleFilter('all')} />
+          <FilterTab label="Prime only" count={selectedRoles.length} active={roleFilter === 'prime'} onClick={() => setRoleFilter('prime')} />
+          <FilterTab label="Subs only" count={0} active={roleFilter === 'sub'} onClick={() => setRoleFilter('sub')} />
+        </div>
+      </div>
+
+      {/* TOOLBAR */}
+      <div
+        className="shrink-0 flex items-center gap-2"
+        style={{ background: '#FAFAF9', borderBottom: '0.5px solid #F4F3EF', padding: '8px 16px' }}
+      >
+        {/* Escalation */}
+        <div className="flex items-center gap-1.5">
+          <Clock className="w-3.5 h-3.5" style={{ color: '#6B6A65' }} />
+          {editingEscalation ? (
+            <div className="flex items-center gap-1">
+              <Input
+                type="number"
+                value={Math.round(escalation * 100)}
+                onChange={(e) => setEscalation(parseFloat(e.target.value) / 100 || 0)}
+                className="w-16 h-6 text-xs"
+                onBlur={() => setEditingEscalation(false)}
+                onKeyDown={(e) => e.key === 'Enter' && setEditingEscalation(false)}
+                autoFocus
+              />
+              <span style={{ fontSize: 11, color: '#6B6A65' }}>% / yr</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setEditingEscalation(true)}
+              className="hover:underline"
+              style={{ fontSize: 11, color: '#6B6A65', background: 'none', border: 'none', cursor: 'pointer' }}
+            >
+              Escalation: {Math.round(escalation * 100)}% / yr
+            </button>
+          )}
+        </div>
+
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="ghost" size="sm" className="text-xs h-7">
+            <FileDown className="w-3.5 h-3.5 mr-1" />
+            Export BOE
+          </Button>
+          <Button size="sm" className="text-xs h-7" style={{ backgroundColor: '#111110' }} onClick={() => setShowAddPanel(true)}>
+            <Plus className="w-3.5 h-3.5 mr-1" />
+            Add role
+          </Button>
+        </div>
+      </div>
+
+      {/* CONTENT */}
+      <div className="flex-1 min-h-0 overflow-auto">
+        {filteredRoles.length === 0 ? (
+          <div className="p-8">
+            <EmptyState
+              icon={Users}
+              title="No roles priced yet"
+              description="Add the roles that will deliver this contract. Rates are calculated from your labor categories."
+              action={{ label: '+ Add role', onClick: () => setShowAddPanel(true) }}
+            />
+          </div>
+        ) : viewMode === 'pricing' ? (
+          <PricingView
+            roles={filteredRoles}
+            escalation={escalation}
+            activeYearCount={activeYearCount}
+            getRoleBillRate={getRoleBillRate}
+            editingCell={editingCell}
+            cellValue={cellValue}
+            onCellClick={handleCellClick}
+            onCellChange={setCellValue}
+            onCellSave={handleCellSave}
+            onRowClick={setDetailRole}
+            stats={stats}
+          />
+        ) : (
+          <TimelineView
+            roles={filteredRoles}
+            activeYearCount={activeYearCount}
+            getRoleBillRate={getRoleBillRate}
+            onBlockClick={handleTimelineClick}
+            onRowClick={setDetailRole}
+            stats={stats}
+          />
+        )}
+      </div>
+
+      {/* ADD ROLE PANEL */}
+      {showAddPanel && (
+        <AddRolePanel
+          companyRoles={companyRoles}
+          onAddFromLibrary={handleAddFromLibrary}
+          onClose={() => setShowAddPanel(false)}
+        />
+      )}
+
+      {/* ROLE DETAIL PANEL */}
+      {detailRole && (
+        <RoleDetailPanel
+          role={detailRole}
+          onUpdate={(updates) => { updateRole(detailRole.id, updates); setDetailRole({ ...detailRole, ...updates }) }}
+          onDelete={() => { removeRole(detailRole.id); setDetailRole(null) }}
+          onClose={() => setDetailRole(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ==================== PRICING VIEW ====================
+
+function PricingView({
+  roles, escalation, activeYearCount, getRoleBillRate,
+  editingCell, cellValue, onCellClick, onCellChange, onCellSave,
+  onRowClick, stats,
+}: {
+  roles: Role[]
+  escalation: number
+  activeYearCount: number
+  getRoleBillRate: (role: Role) => number
+  editingCell: { roleId: string; yearIndex: number } | null
+  cellValue: string
+  onCellClick: (roleId: string, yearIndex: number) => void
+  onCellChange: (value: string) => void
+  onCellSave: () => void
+  onRowClick: (role: Role) => void
+  stats: { totalValue: number; primeCost: number; totalHours: number }
+}) {
+  const yearCols = YEAR_LABELS.slice(0, activeYearCount)
+  const gridCols = `200px 72px 90px ${yearCols.map(() => '70px').join(' ')} 120px`
+
+  return (
+    <div style={{ minWidth: 700 }}>
+      {/* Header */}
+      <div
+        className="sticky top-0 z-10 grid"
+        style={{ gridTemplateColumns: gridCols, background: '#FAFAF9', borderBottom: '0.5px solid #E8E7E2' }}
+      >
+        <HeaderCell>Role</HeaderCell>
+        <HeaderCell>Type</HeaderCell>
+        <HeaderCell align="right">Bill rate</HeaderCell>
+        {yearCols.map(label => <HeaderCell key={label} align="right">{label}</HeaderCell>)}
+        <HeaderCell align="right">Total cost</HeaderCell>
+      </div>
+
+      {/* Section: Prime labor */}
+      <SectionHeader label="Prime labor" dotColor="#111110" />
+
+      {roles.map(role => {
+        const billRate = getRoleBillRate(role)
+        const totalCost = getRoleTotalCost(role, billRate, escalation)
+        return (
+          <div
+            key={role.id}
+            className="grid cursor-pointer hover:bg-[#FAFAF8]"
+            style={{ gridTemplateColumns: gridCols, borderBottom: '0.5px solid #F4F3EF' }}
+            onClick={() => onRowClick(role)}
+          >
+            <div style={{ padding: '10px 12px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#111110' }}>{role.name}</div>
+              <div style={{ fontSize: 10, color: '#6B6A65' }}>{role.icLevel} · {role.description || 'General'}</div>
+            </div>
+            <div style={{ padding: '10px 8px', display: 'flex', alignItems: 'center' }}>
+              <span style={{ background: '#111110', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3 }}>
+                Prime
+              </span>
+            </div>
+            <div style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#6B6A65' }}>
+              {formatCurrency(billRate)}
+            </div>
+            {yearCols.map((_, i) => {
+              const isEditing = editingCell?.roleId === role.id && editingCell.yearIndex === i
+              const active = getActiveYears(role)
+              const hours = active[i] ? (role.billableHours || 1920) : 0
+              return (
+                <div
+                  key={i}
+                  style={{ padding: '10px 8px', textAlign: 'right', fontSize: 12, color: hours > 0 ? '#111110' : '#C4C3BE', fontVariantNumeric: 'tabular-nums' }}
+                  onClick={(e) => { e.stopPropagation(); onCellClick(role.id, i) }}
+                >
+                  {isEditing ? (
+                    <input
+                      type="number"
+                      value={cellValue}
+                      onChange={(e) => onCellChange(e.target.value)}
+                      onBlur={onCellSave}
+                      onKeyDown={(e) => e.key === 'Enter' && onCellSave()}
+                      autoFocus
+                      style={{ width: 54, textAlign: 'right', fontSize: 12, border: 'none', borderBottom: '1.5px solid #F5C200', outline: 'none', background: 'transparent' }}
+                    />
+                  ) : (
+                    hours > 0 ? hours.toLocaleString() : '—'
+                  )}
+                </div>
+              )
+            })}
+            <div style={{ padding: '10px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#111110' }}>
+              {formatCurrency(totalCost, 0)}
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Subtotal */}
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: gridCols, background: '#FAFAF9', borderTop: '0.5px solid #D4D3CE' }}
+      >
+        <div style={{ padding: '8px 12px', gridColumn: `1 / ${3 + activeYearCount}`, fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
+          Prime subtotal
+        </div>
+        <div style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
+          {formatCurrency(stats.primeCost, 0)}
+        </div>
+      </div>
+
+      {/* Total */}
+      <div
+        className="grid"
+        style={{ gridTemplateColumns: gridCols, borderTop: '2px solid #111110' }}
+      >
+        <div style={{ padding: '12px', gridColumn: `1 / ${3 + activeYearCount}`, fontSize: 13, fontWeight: 800, color: '#111110' }}>
+          Total contract value
+        </div>
+        <div style={{ padding: '12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: '#111110' }}>
+          {formatCurrency(stats.totalValue, 0)}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ==================== TIMELINE VIEW ====================
+
+function TimelineView({
+  roles, activeYearCount, getRoleBillRate, onBlockClick, onRowClick, stats,
+}: {
+  roles: Role[]
+  activeYearCount: number
+  getRoleBillRate: (role: Role) => number
+  onBlockClick: (roleId: string, yearIndex: number) => void
+  onRowClick: (role: Role) => void
+  stats: { totalValue: number; totalHours: number }
+}) {
+  return (
+    <div>
+      {/* Legend */}
+      <div className="flex items-center gap-4 px-4 py-2" style={{ background: '#FAFAF9', borderBottom: '0.5px solid #F4F3EF' }}>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ background: '#111110' }} />
+          <span style={{ fontSize: 12, color: '#5F5E5A' }}>Full time (1.0 FTE)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ background: '#F5C200' }} />
+          <span style={{ fontSize: 12, color: '#5F5E5A' }}>Part time (&lt; 1.0 FTE)</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded-sm" style={{ background: '#F4F3EF' }} />
+          <span style={{ fontSize: 12, color: '#5F5E5A' }}>Off contract</span>
+        </div>
+      </div>
+
+      {/* Section: Prime */}
+      <SectionHeader label="Prime labor" dotColor="#111110" />
+
+      {roles.map(role => {
+        const billRate = getRoleBillRate(role)
+        const totalHours = getRoleTotalHours(role)
+        const active = getActiveYears(role)
+        const hours = role.billableHours || 1920
+
+        return (
+          <div
+            key={role.id}
+            className="grid cursor-pointer hover:bg-[#FAFAF8]"
+            style={{ gridTemplateColumns: '180px 1fr 90px', borderBottom: '0.5px solid #F4F3EF' }}
+            onClick={() => onRowClick(role)}
+          >
+            {/* Role cell */}
+            <div style={{ padding: '10px 12px' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#111110' }}>{role.name}</div>
+              <div style={{ fontSize: 10, color: '#6B6A65' }}>{formatCurrency(billRate)}/hr · Prime</div>
+            </div>
+
+            {/* Timeline blocks */}
+            <div className="flex items-center gap-1 px-2 py-2">
+              {Array.from({ length: activeYearCount }).map((_, i) => {
+                const isActive = active[i]
+                const isFullTime = isActive && hours >= 1800
+                const isPartTime = isActive && hours > 0 && hours < 1800
+
+                let bg = '#F4F3EF', fg = '#C4C3BE'
+                if (isFullTime) { bg = '#111110'; fg = '#FFFFFF' }
+                else if (isPartTime) { bg = '#F5C200'; fg = '#111110' }
+
+                return (
+                  <div
+                    key={i}
+                    className="flex-1 flex flex-col items-center justify-center cursor-pointer"
+                    style={{ height: 28, borderRadius: 4, background: bg, color: fg }}
+                    onClick={(e) => { e.stopPropagation(); onBlockClick(role.id, i) }}
+                  >
+                    <span style={{ fontSize: 8, fontWeight: 700 }}>{YEAR_SHORT[i]}</span>
+                    <span style={{ fontSize: 7 }}>{isActive ? hours.toLocaleString() : '—'}</span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Hours cell */}
+            <div style={{ padding: '10px 12px', textAlign: 'right' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#111110' }}>{totalHours.toLocaleString()}</div>
+              <div style={{ fontSize: 9, color: '#6B6A65' }}>{role.fte} FTE</div>
+            </div>
+          </div>
+        )
+      })}
+
+      {/* Footer */}
+      <div
+        className="sticky bottom-0 flex items-center justify-between px-4 py-3"
+        style={{ borderTop: '2px solid #111110', background: '#FAFAF9' }}
+      >
+        <span style={{ fontSize: 12, fontWeight: 600, color: '#5F5E5A' }}>
+          {roles.length} roles · {stats.totalHours.toLocaleString()} hours
+        </span>
+        <span style={{ fontSize: 13, fontWeight: 800, color: '#111110' }}>
+          {formatCurrency(stats.totalValue, 0)}
+        </span>
+      </div>
+    </div>
+  )
+}
+
+// ==================== ADD ROLE PANEL ====================
+
+function AddRolePanel({
+  companyRoles,
+  onAddFromLibrary,
+  onClose,
+}: {
+  companyRoles: { id: string; title: string; salary_levels?: unknown }[]
+  onAddFromLibrary: (role: { id: string; title: string; salary_levels?: unknown }) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState('')
+
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed inset-y-0 right-0 w-[480px] bg-white z-50 flex flex-col" style={{ borderLeft: '0.5px solid #E8E7E2' }}>
+        <div className="flex items-center justify-between p-4 shrink-0" style={{ borderBottom: '0.5px solid #E8E7E2' }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111110' }}>Add role</h2>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="h-7 w-7">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          {/* From library */}
+          {companyRoles.length > 0 && (
+            <div className="space-y-2">
+              <Label className="text-xs font-medium" style={{ color: '#6B6A65' }}>From your labor categories</Label>
+              <div className="space-y-1">
+                {companyRoles.map(role => (
+                  <button
+                    key={role.id}
+                    onClick={() => onAddFromLibrary(role)}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-gray-50 transition-colors"
+                    style={{ fontSize: 13, color: '#111110', border: '0.5px solid #E8E7E2' }}
+                  >
+                    {role.title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Custom role */}
+          <div className="space-y-2" style={{ borderTop: '0.5px solid #E8E7E2', paddingTop: 16 }}>
+            <Label htmlFor="custom-role-name" className="text-xs font-medium" style={{ color: '#6B6A65' }}>Or add a custom role</Label>
+            <div className="flex gap-2">
+              <Input
+                id="custom-role-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., Data Analyst"
+                className="text-sm"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && name.trim()) {
+                    onAddFromLibrary({ id: `custom-${crypto.randomUUID()}`, title: name.trim() })
+                    setName('')
+                  }
+                }}
+              />
+              <Button
+                size="sm"
+                disabled={!name.trim()}
+                onClick={() => {
+                  if (name.trim()) {
+                    onAddFromLibrary({ id: `custom-${crypto.randomUUID()}`, title: name.trim() })
+                    setName('')
+                  }
+                }}
+              >
+                Add
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ==================== ROLE DETAIL PANEL ====================
+
+function RoleDetailPanel({
+  role,
+  onUpdate,
+  onDelete,
+  onClose,
+}: {
+  role: Role
+  onUpdate: (updates: Partial<Role>) => void
+  onDelete: () => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div className="fixed inset-y-0 right-0 w-[480px] bg-white z-50 flex flex-col" style={{ borderLeft: '0.5px solid #E8E7E2' }}>
+        <div className="flex items-center justify-between p-4 shrink-0" style={{ borderBottom: '0.5px solid #E8E7E2' }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111110' }}>{role.name}</h2>
+          <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close" className="h-7 w-7">
+            <X className="w-4 h-4" />
+          </Button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="detail-name" className="text-xs font-medium">Role name</Label>
+            <Input
+              id="detail-name"
+              value={role.name}
+              onChange={(e) => onUpdate({ name: e.target.value })}
+              className="text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="detail-level" className="text-xs font-medium">Level</Label>
+            <Input
+              id="detail-level"
+              value={role.icLevel}
+              onChange={(e) => onUpdate({ icLevel: e.target.value as Role['icLevel'] })}
+              className="text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="detail-salary" className="text-xs font-medium">Base salary</Label>
+            <Input
+              id="detail-salary"
+              type="number"
+              value={role.baseSalary}
+              onChange={(e) => onUpdate({ baseSalary: parseFloat(e.target.value) || 0 })}
+              className="text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="detail-qty" className="text-xs font-medium">Quantity</Label>
+            <Input
+              id="detail-qty"
+              type="number"
+              value={role.quantity}
+              onChange={(e) => onUpdate({ quantity: parseInt(e.target.value) || 1 })}
+              className="text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="detail-fte" className="text-xs font-medium">FTE</Label>
+            <Input
+              id="detail-fte"
+              type="number"
+              step="0.1"
+              value={role.fte}
+              onChange={(e) => onUpdate({ fte: parseFloat(e.target.value) || 1 })}
+              className="text-sm"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="detail-hours" className="text-xs font-medium">Billable hours / year</Label>
+            <Input
+              id="detail-hours"
+              type="number"
+              value={role.billableHours || 1920}
+              onChange={(e) => onUpdate({ billableHours: parseInt(e.target.value) || 1920 })}
+              className="text-sm"
+            />
+          </div>
+        </div>
+
+        <div className="shrink-0 p-4" style={{ borderTop: '0.5px solid #E8E7E2' }}>
+          <Button variant="destructive" size="sm" onClick={onDelete} className="w-full">
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            Delete role
+          </Button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+// ==================== SHARED UI ATOMS ====================
+
+function SummaryItem({ label, value, bold, color }: { label: string; value: string; bold?: boolean; color?: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: bold ? 20 : 16, fontWeight: 800, color: color || '#111110' }}>{value}</div>
+      <div style={{ fontSize: 10, color: '#6B6A65', marginTop: 1 }}>{label}</div>
+    </div>
+  )
+}
+
+function Divider() {
+  return <div style={{ width: 0.5, height: 28, background: '#E8E7E2' }} />
+}
+
+function ToggleSegment({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1.5 px-3 py-1 rounded"
+      style={{
+        fontSize: 11,
+        fontWeight: 600,
+        color: active ? '#111110' : '#888',
+        background: active ? '#fff' : 'transparent',
+        boxShadow: active ? '0 0 0 0.5px #E8E7E2' : 'none',
+        border: 'none',
+        cursor: 'pointer',
+      }}
+    >
+      {icon}
+      {label}
+    </button>
+  )
+}
+
+function FilterTab({ label, count, active, onClick }: { label: string; count: number; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: '8px 14px',
+        fontSize: 12,
+        fontWeight: active ? 600 : 400,
+        color: active ? '#111110' : '#6B6A65',
+        borderBottom: active ? '2px solid #111110' : '2px solid transparent',
+        background: 'none',
+        border: 'none',
+        borderBottomWidth: 2,
+        borderBottomStyle: 'solid',
+        borderBottomColor: active ? '#111110' : 'transparent',
+        cursor: 'pointer',
+      }}
+    >
+      {label} <span style={{ color: '#6B6A65', fontWeight: 400 }}>{count}</span>
+    </button>
+  )
+}
+
+function HeaderCell({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) {
+  return (
+    <div style={{
+      padding: '8px 12px',
+      fontSize: 9,
+      fontWeight: 700,
+      letterSpacing: '1.5px',
+      textTransform: 'uppercase',
+      color: '#C4C3BE',
+      textAlign: align,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function SectionHeader({ label, dotColor }: { label: string; dotColor: string }) {
+  return (
+    <div style={{
+      padding: '5px 10px',
+      background: '#F4F3EF',
+      display: 'flex',
+      alignItems: 'center',
+      gap: 6,
+    }}>
+      <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor }} />
+      <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1px', color: '#5F5E5A' }}>
+        {label}
+      </span>
+    </div>
+  )
+}

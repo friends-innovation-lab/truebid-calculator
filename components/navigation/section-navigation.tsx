@@ -17,7 +17,7 @@ import { ProposalLayout, SectionId, SECTION_DEFAULT_VIEWS } from '@/components/l
 
 // Tab components
 import { EstimateTab } from '@/components/tabs/estimate-tab'
-import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
+import { RolesPricing } from '@/components/tabs/staff/roles-pricing'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
 import { LaborMatrix } from '@/components/tabs/staff/labor-matrix'
@@ -240,11 +240,7 @@ export function SectionNavigation() {
           </div>
         )}
         {activeView === 'roles-pricing' && activeSection === 'staff' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <RolesAndPricingTab />
-            </div>
-          </div>
+          <RolesPricing />
         )}
         {activeView === 'subs-partners' && activeSection === 'staff' && (
           <div className="flex-1 overflow-y-auto p-6">
