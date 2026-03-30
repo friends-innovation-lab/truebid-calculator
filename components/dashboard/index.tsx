@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/auth-context'
 import { migrateLocalStorageToSupabase } from '@/hooks/use-proposal-sync'
 import { NewProposalModal } from '@/components/new-proposal-modal'
 import { toast } from 'sonner'
-import { EmptyState } from '@/components/ui/empty-state'
 import { proposalsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -1015,20 +1014,37 @@ export function Dashboard() {
         style={{ backgroundColor: 'var(--canvas)' }}
       >
         <div className="max-w-[1280px] mx-auto">
-          <Greeting
-            firstName={firstName}
-            proposalCount={0}
-            mostUrgentProposal={null}
-            pipelineValue={0}
-          />
+          {/* Greeting with empty subtitle */}
+          <div className="mb-6">
+            <h1 className="font-extrabold text-[30px] tracking-[-0.8px]" style={{ color: 'var(--ink)' }}>
+              {getTimeBasedGreeting()}, {firstName}.
+            </h1>
+            <p className="text-[14px] mt-[5px]" style={{ color: '#9B9A95' }}>
+              Ready to start your first proposal?
+            </p>
+          </div>
 
-          <EmptyState
-            icon={FileText}
-            title="No proposals yet"
-            description="Create your first proposal to get started."
-            action={{ label: '+ New Proposal', onClick: handleNewProposal }}
-          />
+          {/* Empty state */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', textAlign: 'center' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: '#F4F3EF', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <FileText size={22} color="#C4C3BE" />
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111110', letterSpacing: '-0.2px', marginBottom: 6 }}>
+              No proposals yet
+            </div>
+            <div style={{ fontSize: 13, color: '#9B9A95', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
+              Create your first proposal to get started. Upload an RFP and TrueBid will extract requirements, build your WBS, and help you write a winning response.
+            </div>
+            <button
+              onClick={handleNewProposal}
+              style={{ background: '#111110', color: '#FFFFFF', fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 7, border: 'none', cursor: 'pointer', letterSpacing: '-0.1px' }}
+            >
+              + New Proposal
+            </button>
+          </div>
         </div>
+
+        <NewProposalModal open={showNewProposalModal} onClose={() => setShowNewProposalModal(false)} />
       </div>
     )
   }
