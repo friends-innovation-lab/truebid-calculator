@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
 import { useAppContext } from '@/contexts/app-context'
-import { proposalsApi, requirementsApi } from '@/lib/api'
+import { proposalsApi, requirementsApi, complianceApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
   Dialog,
@@ -1180,27 +1180,18 @@ export function Solicitation() {
       updateExtractionStep('requirements', 'complete')
       updateExtractionStep('compliance', 'active')
 
-      // Store compliance matrix if available
+      // Store compliance matrix in database
       let complianceCount = 0
       const complianceMatrix = data.complianceMatrix
-      if (complianceMatrix && complianceMatrix.length > 0) {
-        complianceCount = complianceMatrix.length
-        // Save compliance matrix to working_data
-        if (proposalId) {
-          try {
-            const existingProposal = await proposalsApi.get(proposalId) as {
-              proposal: { workingData?: Record<string, unknown> }
-            }
-            const existingWorkingData = existingProposal.proposal?.workingData || {}
-            await proposalsApi.update(proposalId, {
-              working_data: {
-                ...existingWorkingData,
-                complianceMatrix,
-              },
-            })
-          } catch (error) {
-            console.warn('[Solicitation] Failed to save compliance matrix:', error)
-          }
+      if (complianceMatrix && complianceMatrix.length > 0 && proposalId) {
+        try {
+          // Insert compliance items into database (replaces existing)
+          const result = await complianceApi.bulkReplace(proposalId, complianceMatrix) as { count?: number }
+          complianceCount = result.count || complianceMatrix.length
+          console.log(`[Solicitation] Saved ${complianceCount} compliance items to database`)
+        } catch (error) {
+          console.warn('[Solicitation] Failed to save compliance matrix:', error)
+          complianceCount = complianceMatrix.length // Still show count in toast
         }
       }
 

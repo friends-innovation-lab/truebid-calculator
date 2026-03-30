@@ -138,3 +138,108 @@ export async function POST(
 
   return NextResponse.json({ item }, { status: 201 })
 }
+
+// PUT - Bulk replace compliance items (delete all existing, insert new)
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { id } = await params
+
+  let body
+  try {
+    body = await request.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 })
+  }
+
+  // Expect { items: [...] } with array of compliance items from extraction
+  const items = body.items
+  if (!Array.isArray(items)) {
+    return NextResponse.json({ error: 'items must be an array' }, { status: 400 })
+  }
+
+  // Delete existing compliance items for this proposal
+  const { error: deleteError } = await supabase
+    .from('compliance_items')
+    .delete()
+    .eq('proposal_id', id)
+
+  if (deleteError) {
+    console.error('[PUT /compliance] Delete error:', deleteError)
+    return NextResponse.json({ error: deleteError.message }, { status: 500 })
+  }
+
+  // Transform extraction format to DB format and insert
+  // Extraction format: { ref, rfpSection, type, text, source, requirementId }
+  // DB format: { requirement_text, requirement_ref, source, compliance_status, notes }
+  const insertData = items.map((item: {
+    ref?: string
+    rfpSection?: string
+    type?: string
+    text?: string
+    source?: string
+    requirementId?: string | null
+  }) => ({
+    proposal_id: id,
+    requirement_text: item.text || '',
+    requirement_ref: item.ref || '',
+    // Map rfpSection to source: L/M/K/J = instruction, C/H = requirement
+    source: ['L', 'M', 'K', 'J'].includes(item.rfpSection || '') ? 'instruction' : 'requirement',
+    compliance_status: 'unaddressed',
+    // Store rfpSection and type in notes for display
+    notes: `Section ${item.rfpSection || '?'} · ${item.type || 'unknown'} · ${item.source || ''}`,
+  }))
+
+  if (insertData.length === 0) {
+    return NextResponse.json({ items: [], count: 0 })
+  }
+
+  const { data: inserted, error: insertError } = await supabase
+    .from('compliance_items')
+    .insert(insertData)
+    .select()
+
+  if (insertError) {
+    console.error('[PUT /compliance] Insert error:', insertError)
+    return NextResponse.json({ error: insertError.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ items: inserted, count: inserted?.length || 0 })
+}
+
+// DELETE - Delete all compliance items for a proposal
+export async function DELETE(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const supabase = await createClient()
+
+  const { data: { user }, error: authError } = await supabase.auth.getUser()
+
+  if (authError || !user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { id } = await params
+
+  const { error } = await supabase
+    .from('compliance_items')
+    .delete()
+    .eq('proposal_id', id)
+
+  if (error) {
+    console.error('[DELETE /compliance] Error:', error)
+    return NextResponse.json({ error: error.message }, { status: 500 })
+  }
+
+  return NextResponse.json({ success: true })
+}

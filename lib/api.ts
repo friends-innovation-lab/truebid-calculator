@@ -356,6 +356,14 @@ export const complianceApi = {
       body: JSON.stringify({ confirm: true }),
     }).then(handleResponse),
 
+  // Bulk replace all compliance items for a proposal (from extraction)
+  bulkReplace: (proposalId: string, items: Array<Record<string, unknown>>) =>
+    fetch(`${API_BASE}/proposals/${proposalId}/compliance`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ items }),
+    }).then(handleResponse),
+
   create: (proposalId: string, data: Record<string, unknown>) =>
     fetch(`${API_BASE}/proposals/${proposalId}/compliance`, {
       method: 'POST',
