@@ -39,47 +39,53 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
 
-  // Sync initial values when panel opens
+  // Sync initial values only when panel first opens (not on every solicitation change)
+  const hasInitialized = useRef(false)
   useEffect(() => {
-    if (open) {
+    if (open && !hasInitialized.current) {
+      hasInitialized.current = true
       const ct = solicitation?.contractType?.toLowerCase()
       if (ct === 'ffp') setContractType('ffp')
       else if (ct === 'cpff') setContractType('cpff')
       else setContractType('tm')
       setOptionYears(solicitation?.periodOfPerformance?.optionYears ?? 4)
     }
+    if (!open) hasInitialized.current = false
   }, [open, solicitation])
 
-  const save = (updates: Record<string, unknown>) => {
+  const save = (overrides: { ct?: string; oy?: number; sa?: string; bh?: number; esc?: number }) => {
+    const ct = overrides.ct ?? contractType
+    const oy = overrides.oy ?? optionYears
+    const sa = overrides.sa ?? setAside
+    const bh = overrides.bh ?? billableHours
+    const esc = overrides.esc ?? escalation
+
     setSaveStatus('saving')
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(async () => {
       try {
-        // Update solicitation context
         const ctMap: Record<string, 'T&M' | 'FFP' | 'CPFF'> = { tm: 'T&M', ffp: 'FFP', cpff: 'CPFF' }
         updateSolicitation({
-          contractType: ctMap[contractType] || contractType as 'T&M',
-          periodOfPerformance: { baseYear: true, optionYears },
-          setAside: setAside as never,
+          contractType: ctMap[ct] || 'T&M',
+          periodOfPerformance: { baseYear: true, optionYears: oy },
+          setAside: sa as never,
           pricingSettings: {
-            billableHours,
+            billableHours: bh,
             profitMargin: solicitation?.pricingSettings?.profitMargin || 8,
             escalationEnabled: true,
-            laborEscalation: escalation,
+            laborEscalation: esc,
             odcEscalation: solicitation?.pricingSettings?.odcEscalation || 0,
           },
-          ...updates,
         })
 
-        // Also save proposalSetup to working_data
         await proposalsApi.update(proposalId, {
           working_data: {
             proposalSetup: {
-              contractType,
-              optionYears,
-              setAside,
-              billableHoursPerYear: billableHours,
-              escalationRate: escalation / 100,
+              contractType: ct,
+              optionYears: oy,
+              setAside: sa,
+              billableHoursPerYear: bh,
+              escalationRate: esc / 100,
             },
           },
         })
@@ -88,7 +94,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
       } catch {
         setSaveStatus('idle')
       }
-    }, 500)
+    }, 300)
   }
 
   if (!open) return null
@@ -114,7 +120,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
               {CONTRACT_TYPES.map(ct => (
                 <button
                   key={ct.value}
-                  onClick={() => { setContractType(ct.value); save({}) }}
+                  onClick={() => { setContractType(ct.value); save({ ct: ct.value }) }}
                   style={{
                     flex: 1, padding: '7px 0', fontSize: 12,
                     fontWeight: contractType === ct.value ? 600 : 500,
@@ -136,7 +142,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
               {[0, 1, 2, 3, 4].map(n => (
                 <button
                   key={n}
-                  onClick={() => { setOptionYears(n); save({}) }}
+                  onClick={() => { setOptionYears(n); save({ oy: n }) }}
                   style={{
                     width: 40, height: 34, fontSize: 13, fontWeight: 600,
                     background: optionYears === n ? '#111110' : '#F4F3EF',
@@ -158,7 +164,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
             <label style={{ fontSize: 12, fontWeight: 600, color: '#111110', display: 'block', marginBottom: 6 }}>Set-aside type</label>
             <select
               value={setAside}
-              onChange={(e) => { setSetAside(e.target.value); save({}) }}
+              onChange={(e) => { setSetAside(e.target.value); save({ sa: e.target.value }) }}
               style={{ width: '100%', height: 38, fontSize: 13, color: '#111110', border: '0.5px solid #E8E7E2', borderRadius: 6, padding: '0 10px', background: '#FFFFFF' }}
             >
               {SET_ASIDES.map(sa => <option key={sa} value={sa}>{sa}</option>)}
@@ -174,7 +180,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
               type="number"
               value={billableHours}
               onChange={(e) => setBillableHours(parseInt(e.target.value) || 1920)}
-              onBlur={() => save({})}
+              onBlur={() => save({})  /* uses current state values */}
               className="text-sm"
             />
             <p style={{ fontSize: 11, color: '#9B9A95', marginTop: 4 }}>1.0 FTE = {billableHours.toLocaleString()} hrs/yr</p>
@@ -188,7 +194,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
                 type="number"
                 value={escalation}
                 onChange={(e) => setEscalation(parseFloat(e.target.value) || 3)}
-                onBlur={() => save({})}
+                onBlur={() => save({})  /* uses current state values */}
                 className="text-sm w-20"
               />
               <span style={{ fontSize: 13, color: '#5F5E5A' }}>% per year</span>
