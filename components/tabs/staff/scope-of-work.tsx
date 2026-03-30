@@ -462,15 +462,15 @@ function DetailSlideout({
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
 
-  const debouncedUpdate = useCallback((updates: Partial<WBSElementData>) => {
-    setSaveStatus('saving')
+  // Trigger save status indicator on blur
+  const triggerSave = useCallback(() => {
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    setSaveStatus('saving')
     saveTimeout.current = setTimeout(() => {
-      onUpdate(updates)
       setSaveStatus('saved')
       setTimeout(() => setSaveStatus('idle'), 2000)
-    }, 500)
-  }, [onUpdate])
+    }, 300)
+  }, [])
 
   const tasks = getTasksFromLabor(element)
   const extEl = element as WBSElementData & {
@@ -497,8 +497,20 @@ function DetailSlideout({
         {/* 1. Name & Description */}
         <SectionLabel>Name & Description</SectionLabel>
         <div className="space-y-3">
-          <Input value={element.title} onChange={(e) => debouncedUpdate({ title: e.target.value })} className="text-sm font-medium" />
-          <Textarea value={element.description || element.why || ''} onChange={(e) => debouncedUpdate({ description: e.target.value, why: e.target.value })} placeholder="Describe the scope of this work package..." rows={3} className="text-sm" />
+          <Input
+            value={element.title}
+            onChange={(e) => onUpdate({ title: e.target.value })}
+            onBlur={triggerSave}
+            className="text-sm font-medium"
+          />
+          <Textarea
+            value={element.description || element.why || ''}
+            onChange={(e) => onUpdate({ description: e.target.value, why: e.target.value })}
+            onBlur={triggerSave}
+            placeholder="Describe the scope of this work package..."
+            rows={3}
+            className="text-sm"
+          />
         </div>
 
         <SectionDivider />
@@ -552,7 +564,7 @@ function DetailSlideout({
         <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>How were hours determined? Required for BOE export.</div>
         <select
           value={extEl.estimationType || 'engineering_estimate'}
-          onChange={(e) => debouncedUpdate({ estimationType: e.target.value } as Partial<WBSElementData>)}
+          onChange={(e) => { onUpdate({ estimationType: e.target.value } as Partial<WBSElementData>); triggerSave() }}
           style={{ width: '100%', height: 34, fontSize: 13, color: '#111110', border: '0.5px solid #E8E7E2', borderRadius: 6, padding: '0 10px' }}
         >
           {ESTIMATION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
@@ -562,7 +574,8 @@ function DetailSlideout({
             <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 4 }}>Historical reference</div>
             <Input
               value={extEl.historicalReference || ''}
-              onChange={(e) => debouncedUpdate({ historicalReference: e.target.value } as Partial<WBSElementData>)}
+              onChange={(e) => onUpdate({ historicalReference: e.target.value } as Partial<WBSElementData>)}
+              onBlur={triggerSave}
               placeholder="e.g. DoS Doorway — Authentication module, 2023"
               className="text-sm"
             />
@@ -576,7 +589,8 @@ function DetailSlideout({
         <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>Narrative explaining how hours were derived. Appears in BOE export.</div>
         <Textarea
           value={extEl.basisOfEstimate || ''}
-          onChange={(e) => debouncedUpdate({ basisOfEstimate: e.target.value } as Partial<WBSElementData>)}
+          onChange={(e) => onUpdate({ basisOfEstimate: e.target.value } as Partial<WBSElementData>)}
+          onBlur={triggerSave}
           placeholder="Explain how hours were determined. Reference specific requirements, past projects, team velocity, sprint assumptions, or other supporting rationale."
           rows={4}
           className="text-sm"
@@ -645,7 +659,14 @@ function DetailSlideout({
         {/* 9. Notes */}
         <SectionLabel>Notes</SectionLabel>
         <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 8 }}>Visible to directors with collaboration links</div>
-        <Textarea value={element.notes || ''} onChange={(e) => debouncedUpdate({ notes: e.target.value })} placeholder="Internal notes about this work package..." rows={3} className="text-sm" />
+        <Textarea
+          value={element.notes || ''}
+          onChange={(e) => onUpdate({ notes: e.target.value })}
+          onBlur={triggerSave}
+          placeholder="Internal notes about this work package..."
+          rows={3}
+          className="text-sm"
+        />
       </div>
 
       {/* Panel Footer */}
@@ -662,9 +683,24 @@ function DetailSlideout({
           </button>
         )}
         <div className="flex items-center gap-3">
-          {saveStatus === 'saving' && <span style={{ fontSize: 12, color: '#6B6A65' }}>Saving...</span>}
-          {saveStatus === 'saved' && <span style={{ fontSize: 12, color: '#639922' }}>✓ Saved</span>}
-          {saveStatus === 'error' && <span style={{ fontSize: 12, color: '#A32D2D' }}>Save failed</span>}
+          {saveStatus === 'saving' && (
+            <span className="flex items-center gap-1.5" style={{ fontSize: 11, color: '#6B6A65' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#BA7517' }} />
+              Saving...
+            </span>
+          )}
+          {saveStatus === 'saved' && (
+            <span className="flex items-center gap-1.5" style={{ fontSize: 11, color: '#639922' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#639922' }} />
+              Saved
+            </span>
+          )}
+          {saveStatus === 'error' && (
+            <span className="flex items-center gap-1.5" style={{ fontSize: 11, color: '#A32D2D' }}>
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#A32D2D' }} />
+              Failed to save
+            </span>
+          )}
           <button onClick={onClose} style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: '0.5px solid #E8E7E2', borderRadius: 5, padding: '4px 10px', cursor: 'pointer' }}>
             Close
           </button>
