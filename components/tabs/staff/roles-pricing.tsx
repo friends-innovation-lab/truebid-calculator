@@ -35,11 +35,6 @@ function getActiveYears(role: Role): boolean[] {
   return [role.years.base, role.years.option1, role.years.option2, role.years.option3, role.years.option4]
 }
 
-function getHoursForYear(role: Role, yearIndex: number): number {
-  const active = getActiveYears(role)
-  if (!active[yearIndex]) return 0
-  return role.billableHours || 1920
-}
 
 function getEscalatedRate(baseRate: number, yearIndex: number, escalation: number): number {
   return baseRate * Math.pow(1 + escalation, yearIndex)
@@ -156,7 +151,8 @@ export function RolesPricing() {
   const handleCellClick = (roleId: string, yearIndex: number) => {
     const role = selectedRoles.find(r => r.id === roleId)
     if (!role) return
-    const hours = getHoursForYear(role, yearIndex)
+    const hourKey = HOURS_YEAR_KEYS[yearIndex]
+    const hours = role.hoursByYear?.[hourKey] || 0
     setEditingCell({ roleId, yearIndex })
     setCellValue(hours > 0 ? String(hours) : '')
   }
@@ -168,10 +164,15 @@ export function RolesPricing() {
     if (!role) return
 
     const yearKey = YEAR_KEYS[editingCell.yearIndex]
-    const newYears = { ...role.years, [yearKey]: hours > 0 }
+    const hourKey = HOURS_YEAR_KEYS[editingCell.yearIndex]
+    const newHoursByYear = {
+      ...(role.hoursByYear || { baseYear: 0, oy1: 0, oy2: 0, oy3: 0, oy4: 0 }),
+      [hourKey]: hours,
+    }
     updateRole(editingCell.roleId, {
-      years: newYears,
-      billableHours: hours > 0 ? hours : role.billableHours,
+      years: { ...role.years, [yearKey]: hours > 0 },
+      hoursByYear: newHoursByYear,
+      billableHours: hourKey === 'baseYear' ? hours : role.billableHours,
     })
     setEditingCell(null)
   }
@@ -447,8 +448,7 @@ function PricingView({
             </div>
             {yearCols.map((_, i) => {
               const isEditing = editingCell?.roleId === role.id && editingCell.yearIndex === i
-              const active = getActiveYears(role)
-              const hours = active[i] ? (role.billableHours || 1920) : 0
+              const hours = role.hoursByYear?.[HOURS_YEAR_KEYS[i]] || 0
               return (
                 <div
                   key={i}
