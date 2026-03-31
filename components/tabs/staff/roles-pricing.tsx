@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useCallback, Fragment } from 'react'
+import React, { useState, useMemo, useCallback, Fragment, useRef } from 'react'
 import { useAppContext, type Role } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +17,7 @@ import {
   Calendar,
   FileDown,
 } from 'lucide-react'
+import { toast } from 'sonner'
 
 // ==================== TYPES ====================
 
@@ -749,6 +750,18 @@ function RoleDetailPanel({
   const [profit, setProfit] = useState((extRole.profitMargin ?? 0.10) * 100)
   const [roleType, setRoleType] = useState<'prime' | 'sub'>(extRole.type as 'prime' | 'sub' || 'prime')
   const [subName, setSubName] = useState(extRole.subcontractorName || '')
+  const [subRate, setSubRate] = useState(role.subRate ?? 0)
+  const [subMarkup, setSubMarkup] = useState(role.subMarkup ?? 10)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Wrap onUpdate with a debounced "Role saved" toast
+  const saveRole = (updates: Partial<Role>) => {
+    onUpdate(updates)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => {
+      toast.success('Role saved', { description: `${role.name} updated`, duration: 3000 })
+    }, 600)
+  }
 
   // Get steps for current level (from labor categories or defaults)
   const getStepsForLevel = (level: string): number[] => {
@@ -783,14 +796,14 @@ function RoleDetailPanel({
     setSelectedStep(0)
     const newSteps = getStepsForLevel(level)
     const newSalary = newSteps[0] || salary
-    onUpdate({ icLevel: level as Role['icLevel'], baseSalary: newSalary })
+    saveRole({ icLevel: level as Role['icLevel'], baseSalary: newSalary })
   }
 
   // Handle step change
   const handleStepChange = (stepIndex: number) => {
     setSelectedStep(stepIndex)
     const newSalary = currentSteps[stepIndex] || salary
-    onUpdate({ baseSalary: newSalary })
+    saveRole({ baseSalary: newSalary })
   }
 
   // Update bill rate when profit changes
@@ -798,7 +811,7 @@ function RoleDetailPanel({
     setProfit(newProfit)
     if (salary > 0) {
       const newBillRate = calculateBillRate(salary, newProfit / 100)
-      onUpdate({ loadedRate: newBillRate } as Partial<Role>)
+      saveRole({ loadedRate: newBillRate } as Partial<Role>)
     }
   }
 
@@ -819,66 +832,9 @@ function RoleDetailPanel({
           {/* 1. Role name */}
           <div className="space-y-1.5">
             <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Role name</div>
-            <Input value={role.name} onChange={(e) => onUpdate({ name: e.target.value })} className="text-sm" />
+            <Input value={role.name} onChange={(e) => saveRole({ name: e.target.value })} className="text-sm" />
             {laborCat && <span style={{ fontSize: 10, color: '#6B6A65' }}>Labor category: {laborCat.title}</span>}
           </div>
-
-          <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
-
-          {/* SECTION 1 — LEVEL BUTTONS */}
-          <div className="space-y-2">
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Seniority level</div>
-            <div className="flex gap-1">
-              {IC_LEVELS.map(({ level, title }) => (
-                <button
-                  key={level}
-                  onClick={() => handleLevelChange(level)}
-                  className="flex flex-col items-center"
-                  style={{
-                    padding: '6px 10px',
-                    borderRadius: 5,
-                    border: 'none',
-                    cursor: 'pointer',
-                    background: selectedLevel === level ? '#111110' : '#F4F3EF',
-                    color: selectedLevel === level ? '#FFFFFF' : '#5F5E5A',
-                  }}
-                >
-                  <span style={{ fontSize: 11, fontWeight: 600 }}>{level}</span>
-                  <span style={{ fontSize: 9, opacity: 0.8 }}>{title}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* SECTION 2 — STEP BUTTONS */}
-          {currentSteps.length > 0 && (
-            <div className="space-y-2">
-              <div>
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Step</div>
-                <div style={{ fontSize: 11, color: '#9B9A95' }}>Salary increments within this level</div>
-              </div>
-              <div className="flex gap-1">
-                {currentSteps.map((stepSalary, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleStepChange(i)}
-                    style={{
-                      fontSize: 11,
-                      fontWeight: 600,
-                      padding: '6px 10px',
-                      borderRadius: 5,
-                      border: 'none',
-                      cursor: 'pointer',
-                      background: selectedStep === i ? '#111110' : '#F4F3EF',
-                      color: selectedStep === i ? '#FFFFFF' : '#5F5E5A',
-                    }}
-                  >
-                    ${stepSalary.toLocaleString()}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
 
@@ -889,7 +845,7 @@ function RoleDetailPanel({
               {(['prime', 'sub'] as const).map(t => (
                 <button
                   key={t}
-                  onClick={() => { setRoleType(t); onUpdate({ type: t } as Partial<Role>) }}
+                  onClick={() => { setRoleType(t); saveRole({ type: t } as Partial<Role>) }}
                   style={{
                     flex: 1, padding: '6px 0', fontSize: 12,
                     fontWeight: roleType === t ? 600 : 400,
@@ -903,83 +859,199 @@ function RoleDetailPanel({
               ))}
             </div>
             {roleType === 'sub' && (
-              <div className="space-y-1.5 mt-2">
-                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Subcontractor name</div>
-                <Input
-                  value={subName}
-                  onChange={(e) => { setSubName(e.target.value); onUpdate({ subcontractorName: e.target.value } as Partial<Role>) }}
-                  placeholder="e.g. Skybrid Solutions"
-                  className="text-sm"
-                />
+              <div className="space-y-3 mt-2">
+                <div className="space-y-1.5">
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Subcontractor name</div>
+                  <Input
+                    value={subName}
+                    onChange={(e) => { setSubName(e.target.value); saveRole({ subcontractorName: e.target.value } as Partial<Role>) }}
+                    placeholder="e.g. Skybrid Solutions"
+                    className="text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Sub cost rate</div>
+                  <div style={{ fontSize: 10, color: '#9B9A95' }}>What you pay the subcontractor per hour</div>
+                  <Input
+                    type="number"
+                    value={subRate || ''}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value) || 0
+                      setSubRate(val)
+                      const billRate = val * (1 + subMarkup / 100)
+                      saveRole({ subRate: val, loadedRate: billRate })
+                    }}
+                    placeholder="0.00"
+                    className="text-sm"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Markup</div>
+                  <div style={{ fontSize: 10, color: '#9B9A95' }}>Your margin on this subcontractor</div>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={subMarkup}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0
+                        setSubMarkup(val)
+                        const billRate = subRate * (1 + val / 100)
+                        saveRole({ subMarkup: val, loadedRate: billRate })
+                      }}
+                      className="text-sm w-20"
+                    />
+                    <span style={{ fontSize: 11, color: '#5F5E5A' }}>%</span>
+                  </div>
+                </div>
+
+                {subRate > 0 && (
+                  <>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#111110' }}>
+                      Bill rate: {fmt(subRate * (1 + subMarkup / 100))}/hr
+                    </div>
+                    <div style={{ background: '#FAFAF9', border: '0.5px solid #E8E7E2', borderRadius: 7, padding: '12px 14px' }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#6B6A65', marginBottom: 10 }}>Sub rate breakdown</div>
+                      <div className="space-y-1">
+                        <BreakdownRow label="Their rate" value={`${fmt(subRate)}/hr`} />
+                        <BreakdownRow label={`+ Markup (${subMarkup.toFixed(0)}%)`} value={`+${fmt(subRate * subMarkup / 100)}/hr`} />
+                        <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
+                        <BreakdownRow label="Bill rate" value={`${fmt(subRate * (1 + subMarkup / 100))}/hr`} highlight />
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             )}
           </div>
 
-          <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
+          {roleType === 'prime' && (
+            <>
+              <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
 
-          {/* SECTION 3 — RATE BREAKDOWN TABLE */}
-          {breakdown && (
-            <div style={{ background: '#FAFAF9', border: '0.5px solid #E8E7E2', borderRadius: 7, padding: '12px 14px' }}>
-              <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#6B6A65', marginBottom: 10 }}>Bill rate calculation</div>
-              <div className="space-y-1">
-                <BreakdownRow label="Base salary" value={`${fmt(breakdown.salary)}/yr`} />
-                <BreakdownRow label={`+ Fringe (${(INDIRECT.fringe * 100).toFixed(2)}%)`} value={`${fmt(breakdown.fringe)}/yr`} />
-                <BreakdownRow label={`+ Overhead (${(INDIRECT.overhead * 100).toFixed(2)}%)`} value={`${fmt(breakdown.oh)}/yr`} />
-                <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
-                <BreakdownRow label="Loaded cost" value={`${fmt(breakdown.loaded)}/yr`} />
-                <BreakdownRow label={`+ G&A (${(INDIRECT.ga * 100).toFixed(2)}%)`} value={`${fmt(breakdown.gaAmt)}/yr`} />
-                <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
-                <BreakdownRow label="Total cost" value={`${fmt(breakdown.totalCost)}/yr`} />
-                <BreakdownRow label={`÷ ${INDIRECT.hoursPerYear.toLocaleString()} hours`} value="─────────────" muted />
-                <BreakdownRow label="Cost per hour" value={`${fmt(breakdown.costPerHour)}/hr`} />
-                <BreakdownRow label={`+ Profit (${profit.toFixed(0)}%)`} value={`${fmt(breakdown.profitAmt)}/hr`} />
-                <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
-                <BreakdownRow label="Bill rate" value={`${fmt(breakdown.billRate)}/hr`} highlight />
+              {/* SECTION 1 — LEVEL BUTTONS */}
+              <div className="space-y-2">
+                <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Seniority level</div>
+                <div className="flex gap-1">
+                  {IC_LEVELS.map(({ level, title }) => (
+                    <button
+                      key={level}
+                      onClick={() => handleLevelChange(level)}
+                      className="flex flex-col items-center"
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 5,
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: selectedLevel === level ? '#111110' : '#F4F3EF',
+                        color: selectedLevel === level ? '#FFFFFF' : '#5F5E5A',
+                      }}
+                    >
+                      <span style={{ fontSize: 11, fontWeight: 600 }}>{level}</span>
+                      <span style={{ fontSize: 9, opacity: 0.8 }}>{title}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
 
-          {/* SECTION 4 — PROFIT MARGIN */}
-          <div className="flex items-center gap-2">
-            <span style={{ fontSize: 11, color: '#5F5E5A' }}>Profit margin:</span>
-            <input
-              type="number"
-              step="0.5"
-              value={profit}
-              onChange={(e) => handleProfitChange(parseFloat(e.target.value) || 10)}
-              style={{
-                width: 50,
-                height: 28,
-                fontSize: 12,
-                fontFamily: 'JetBrains Mono, monospace',
-                textAlign: 'center',
-                border: '0.5px solid #E8E7E2',
-                borderRadius: 4,
-              }}
-            />
-            <span style={{ fontSize: 11, color: '#5F5E5A' }}>%</span>
-          </div>
+              {/* SECTION 2 — STEP BUTTONS */}
+              {currentSteps.length > 0 && (
+                <div className="space-y-2">
+                  <div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Step</div>
+                    <div style={{ fontSize: 11, color: '#9B9A95' }}>Salary increments within this level</div>
+                  </div>
+                  <div className="flex gap-1">
+                    {currentSteps.map((stepSalary, i) => (
+                      <button
+                        key={i}
+                        onClick={() => handleStepChange(i)}
+                        style={{
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: '6px 10px',
+                          borderRadius: 5,
+                          border: 'none',
+                          cursor: 'pointer',
+                          background: selectedStep === i ? '#111110' : '#F4F3EF',
+                          color: selectedStep === i ? '#FFFFFF' : '#5F5E5A',
+                        }}
+                      >
+                        ${stepSalary.toLocaleString()}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* SECTION 5 — OPTION YEAR RATES */}
-          {breakdown && (
-            <div>
-              <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 6 }}>
-                With {Math.round(escalation * 100)}% annual escalation:
+              <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
+
+              {/* SECTION 3 — RATE BREAKDOWN TABLE */}
+              {breakdown && (
+                <div style={{ background: '#FAFAF9', border: '0.5px solid #E8E7E2', borderRadius: 7, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#6B6A65', marginBottom: 10 }}>Bill rate calculation</div>
+                  <div className="space-y-1">
+                    <BreakdownRow label="Base salary" value={`${fmt(breakdown.salary)}/yr`} />
+                    <BreakdownRow label={`+ Fringe (${(INDIRECT.fringe * 100).toFixed(2)}%)`} value={`${fmt(breakdown.fringe)}/yr`} />
+                    <BreakdownRow label={`+ Overhead (${(INDIRECT.overhead * 100).toFixed(2)}%)`} value={`${fmt(breakdown.oh)}/yr`} />
+                    <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
+                    <BreakdownRow label="Loaded cost" value={`${fmt(breakdown.loaded)}/yr`} />
+                    <BreakdownRow label={`+ G&A (${(INDIRECT.ga * 100).toFixed(2)}%)`} value={`${fmt(breakdown.gaAmt)}/yr`} />
+                    <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
+                    <BreakdownRow label="Total cost" value={`${fmt(breakdown.totalCost)}/yr`} />
+                    <BreakdownRow label={`÷ ${INDIRECT.hoursPerYear.toLocaleString()} hours`} value="─────────────" muted />
+                    <BreakdownRow label="Cost per hour" value={`${fmt(breakdown.costPerHour)}/hr`} />
+                    <BreakdownRow label={`+ Profit (${profit.toFixed(0)}%)`} value={`${fmt(breakdown.profitAmt)}/hr`} />
+                    <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
+                    <BreakdownRow label="Bill rate" value={`${fmt(breakdown.billRate)}/hr`} highlight />
+                  </div>
+                </div>
+              )}
+
+              {/* SECTION 4 — PROFIT MARGIN */}
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: 11, color: '#5F5E5A' }}>Profit margin:</span>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={profit}
+                  onChange={(e) => handleProfitChange(parseFloat(e.target.value) || 10)}
+                  style={{
+                    width: 50,
+                    height: 28,
+                    fontSize: 12,
+                    fontFamily: 'JetBrains Mono, monospace',
+                    textAlign: 'center',
+                    border: '0.5px solid #E8E7E2',
+                    borderRadius: 4,
+                  }}
+                />
+                <span style={{ fontSize: 11, color: '#5F5E5A' }}>%</span>
               </div>
-              <div className="flex gap-4">
-                {['Base yr', 'OY1', 'OY2', 'OY3', 'OY4'].map((label, i) => {
-                  const rate = breakdown.billRate * Math.pow(1 + escalation, i)
-                  return (
-                    <div key={label}>
-                      <div style={{ fontSize: 9, color: '#9B9A95', marginBottom: 2 }}>{label}</div>
-                      <div style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: i === 0 ? '#111110' : '#9B9A95' }}>
-                        {fmt(rate)}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
+
+              {/* SECTION 5 — OPTION YEAR RATES */}
+              {breakdown && (
+                <div>
+                  <div style={{ fontSize: 11, color: '#9B9A95', marginBottom: 6 }}>
+                    With {Math.round(escalation * 100)}% annual escalation:
+                  </div>
+                  <div className="flex gap-4">
+                    {['Base yr', 'OY1', 'OY2', 'OY3', 'OY4'].map((label, i) => {
+                      const rate = breakdown.billRate * Math.pow(1 + escalation, i)
+                      return (
+                        <div key={label}>
+                          <div style={{ fontSize: 9, color: '#9B9A95', marginBottom: 2 }}>{label}</div>
+                          <div style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: i === 0 ? '#111110' : '#9B9A95' }}>
+                            {fmt(rate)}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
+            </>
           )}
 
           <div style={{ borderTop: '0.5px solid #E8E7E2' }} />

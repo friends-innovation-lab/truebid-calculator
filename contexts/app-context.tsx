@@ -869,6 +869,8 @@ export interface Role {
   isManual?: boolean;
   type?: 'prime' | 'sub';
   subcontractorName?: string | null;
+  subRate?: number;
+  subMarkup?: number;
 }
 
 // ==================== SUBCONTRACTORS ====================
