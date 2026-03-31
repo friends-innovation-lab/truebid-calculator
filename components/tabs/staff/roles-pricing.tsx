@@ -428,21 +428,21 @@ function PricingView({
             style={{ gridTemplateColumns: gridCols, borderBottom: '0.5px solid #F4F3EF' }}
             onClick={() => onRowClick(role)}
           >
-            <div style={{ padding: '10px 12px' }}>
+            <div style={{ padding: '14px 12px' }}>
               <div className="flex items-center gap-1.5">
                 <span style={{ fontSize: 12, fontWeight: 600, color: billRate === 0 ? '#BA7517' : '#111110' }}>{role.name}</span>
               </div>
-              <div style={{ fontSize: 10, color: '#6B6A65' }}>
+              <div style={{ fontSize: 10, color: '#6B6A65', lineHeight: 1.5, marginTop: 3 }}>
                 {role.icLevel} · {role.description || 'General'}
                 {wbsRoleData.has(role.name) && <span style={{ color: '#6B6A65' }}> · {wbsRoleData.get(role.name)?.toLocaleString()} hrs from WBS</span>}
               </div>
             </div>
-            <div style={{ padding: '10px 8px', display: 'flex', alignItems: 'center' }}>
+            <div style={{ padding: '14px 8px', display: 'flex', alignItems: 'center' }}>
               <span style={{ background: '#111110', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3 }}>
                 Prime
               </span>
             </div>
-            <div style={{ padding: '10px 12px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#6B6A65' }}>
+            <div style={{ padding: '14px 12px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#6B6A65' }}>
               {formatCurrency(billRate)}
             </div>
             {yearCols.map((_, i) => {
@@ -452,7 +452,7 @@ function PricingView({
               return (
                 <div
                   key={i}
-                  style={{ padding: '10px 8px', textAlign: 'right', fontSize: 12, color: hours > 0 ? '#111110' : '#C4C3BE', fontVariantNumeric: 'tabular-nums' }}
+                  style={{ padding: '14px 8px', textAlign: 'right', fontSize: 12, color: hours > 0 ? '#111110' : '#C4C3BE', fontVariantNumeric: 'tabular-nums' }}
                   onClick={(e) => { e.stopPropagation(); onCellClick(role.id, i) }}
                 >
                   {isEditing ? (
@@ -471,7 +471,7 @@ function PricingView({
                 </div>
               )
             })}
-            <div style={{ padding: '10px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#111110' }}>
+            <div style={{ padding: '14px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#111110' }}>
               {formatCurrency(totalCost, 0)}
             </div>
           </div>
