@@ -850,6 +850,25 @@ export interface Role {
   annualCost?: number;
   billableHours?: number;
   hourlyRate?: number;
+  selectedLevel?: string;
+  selectedLevelTitle?: string;
+  selectedStep?: number;
+  currentSalary?: number;
+  billRateBase?: number;
+  profitMargin?: number;
+  laborCategory?: string | null;
+  socCode?: string | null;
+  hoursByYear?: {
+    baseYear: number;
+    oy1: number;
+    oy2: number;
+    oy3: number;
+    oy4: number;
+  };
+  totalHoursFromWBS?: number;
+  isManual?: boolean;
+  type?: 'prime' | 'sub';
+  subcontractorName?: string | null;
 }
 
 // ==================== SUBCONTRACTORS ====================

@@ -4,6 +4,8 @@
  * Looks up salaries from labor categories and calculates bill rates.
  */
 
+import type { Role } from '@/contexts/app-context'
+
 // FFTC indirect rates (will come from Account → Company Settings later)
 const INDIRECT_RATES = {
   fringe: 0.2116,
@@ -106,12 +108,52 @@ export interface SyncedRole {
   }
 }
 
+function mapToRole(r: SyncedRole, setup?: ProposalSetup | null): Role {
+  const billableHrs = setup?.billableHoursPerYear || 1920
+  const contractYears = (setup?.optionYears ?? 4) + 1
+  const hoursPerYear = Math.round((r.totalHoursFromWBS || 0) / contractYears)
+  const fte = Math.round((hoursPerYear / billableHrs) * 100) / 100
+
+  return {
+    id: r.id,
+    name: r.name,
+    description: r.laborCategory || r.name,
+    icLevel: (r.selectedLevel || 'IC3') as Role['icLevel'],
+    baseSalary: r.currentSalary || 0,
+    quantity: 1,
+    fte,
+    storyPoints: 0,
+    years: {
+      base: (r.hoursByYear?.baseYear || 0) > 0,
+      option1: (r.hoursByYear?.oy1 || 0) > 0,
+      option2: (r.hoursByYear?.oy2 || 0) > 0,
+      option3: (r.hoursByYear?.oy3 || 0) > 0,
+      option4: (r.hoursByYear?.oy4 || 0) > 0,
+    },
+    loadedRate: r.billRateBase || 0,
+    billableHours: hoursPerYear,
+    type: r.type || 'prime',
+    subcontractorName: r.subcontractorName || null,
+    selectedLevel: r.selectedLevel || 'IC3',
+    selectedLevelTitle: r.selectedLevelTitle || '',
+    selectedStep: r.selectedStep || 0,
+    currentSalary: r.currentSalary || 0,
+    billRateBase: r.billRateBase || 0,
+    profitMargin: r.profitMargin || 0.10,
+    laborCategory: r.laborCategory || null,
+    socCode: r.socCode || null,
+    hoursByYear: r.hoursByYear,
+    totalHoursFromWBS: r.totalHoursFromWBS || 0,
+    isManual: r.isManual || false,
+  }
+}
+
 export function syncRolesFromWBS(
   wbsElements: WBSElement[],
   existingRoles: ExistingRole[],
   setup?: ProposalSetup | null,
   laborCategories?: LaborCategory[],
-): SyncedRole[] {
+): Role[] {
   const optionYears = setup?.optionYears ?? 4
   const profit = setup?.profitMargin ?? INDIRECT_RATES.defaultProfit
 
@@ -197,5 +239,6 @@ export function syncRolesFromWBS(
       hoursByYear: { baseYear: 0, oy1: 0, oy2: 0, oy3: 0, oy4: 0 },
     }))
 
-  return [...wbsRoles, ...manualRoles]
+  const allRoles = [...wbsRoles, ...manualRoles]
+  return allRoles.map(r => mapToRole(r, setup))
 }

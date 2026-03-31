@@ -87,7 +87,7 @@ export function RolesPricing() {
     const wbs = estimateWbsElements as unknown as { tasks?: { role: string | null; hours: number }[]; laborEstimates?: { roleName: string; hoursByPeriod: { base: number; option1: number; option2: number; option3: number; option4: number } }[] }[]
     const synced = syncRolesFromWBS(wbs, [], null)
     const map = new Map<string, number>()
-    synced.forEach(r => map.set(r.name, r.totalHoursFromWBS))
+    synced.forEach(r => map.set(r.name, r.totalHoursFromWBS || 0))
     return map
   }, [estimateWbsElements])
 
