@@ -11,6 +11,7 @@ import {
   Users,
   Plus,
   Pencil,
+  Copy,
   Trash2,
   Search,
   ChevronDown,
@@ -149,6 +150,17 @@ export function LaborPage() {
     toast.success('Role added')
   }
 
+  const handleDuplicateRole = (role: CompanyRole) => {
+    const duplicate: CompanyRole = {
+      ...JSON.parse(JSON.stringify(role)),
+      id: `cr-${Date.now()}`,
+      title: `${role.title} (Copy)`,
+    }
+    addCompanyRole(duplicate)
+    setEditingRoleId(duplicate.id)
+    toast.success(`Duplicated "${role.title}"`)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -222,6 +234,7 @@ export function LaborPage() {
             isExpanded={expandedRoleId === role.id}
             onToggleExpand={() => setExpandedRoleId(expandedRoleId === role.id ? null : role.id)}
             onEdit={() => setEditingRoleId(role.id)}
+            onDuplicate={() => handleDuplicateRole(role)}
             onDelete={() => {
               removeCompanyRole(role.id)
               toast.success('Role deleted')
@@ -260,6 +273,7 @@ function RoleCard({
   isExpanded,
   onToggleExpand,
   onEdit,
+  onDuplicate,
   onDelete,
   salaryStructure,
 }: {
@@ -267,6 +281,7 @@ function RoleCard({
   isExpanded: boolean
   onToggleExpand: () => void
   onEdit: () => void
+  onDuplicate: () => void
   onDelete: () => void
   salaryStructure: SalaryStructure
 }) {
@@ -325,6 +340,14 @@ function RoleCard({
             className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600"
           >
             <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); onDuplicate() }}
+            className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600"
+          >
+            <Copy className="w-3.5 h-3.5" />
           </Button>
           <Button
             variant="ghost"
