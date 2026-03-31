@@ -113,7 +113,9 @@ export interface SyncedRole {
 function mapToRole(r: SyncedRole, setup?: ProposalSetup | null): Role {
   const billableHrs = setup?.billableHoursPerYear || 1920
   const contractYears = (setup?.optionYears ?? 4) + 1
-  const hoursPerYear = Math.round((r.totalHoursFromWBS || 0) / contractYears)
+  const rawHoursPerYear = Math.round((r.totalHoursFromWBS || 0) / contractYears)
+  // Cap at billable hours — cannot exceed one full-time person per year
+  const hoursPerYear = Math.min(rawHoursPerYear, billableHrs)
   const fte = Math.round((hoursPerYear / billableHrs) * 100) / 100
 
   return {
