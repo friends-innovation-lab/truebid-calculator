@@ -500,7 +500,7 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
     })
 
     // Convert to WBS elements format with BOE fields
-    const wbsElements = parsed.map(el => ({
+    let wbsElements = parsed.map(el => ({
       id: crypto.randomUUID(),
       ref: el.ref,
       wbsNumber: el.ref.replace('WBS-', '').replace(/^0/, '') + '.0',
@@ -554,6 +554,68 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
         .map(ref => refToWbsId.get(ref))
         .filter((id): id is string => id != null)
       delete (el as Record<string, unknown>)._dependencyRefs
+    })
+
+    // Enforce always-present roles on every work package
+    const ALWAYS_PRESENT_ROLES = [
+      {
+        role: 'Delivery Manager',
+        taskName: 'Delivery oversight and coordination',
+        loeType: 'management',
+        basisOfEstimate: '0.25 FTE oversight per USDS Playbook — standard on all work packages',
+      },
+      {
+        role: 'Product Manager',
+        taskName: 'Product direction and acceptance',
+        loeType: 'management',
+        basisOfEstimate: '0.25 FTE product direction per USDS Playbook',
+      },
+      {
+        role: 'Technical Lead',
+        taskName: 'Technical architecture and code review',
+        loeType: 'development',
+        basisOfEstimate: '0.25 FTE minimum technical oversight on all packages',
+      },
+    ]
+
+    const QUARTER_FTE_HOURS = Math.round(1920 * 0.25) // 480 hrs
+
+    wbsElements = wbsElements.map(element => {
+      const tasks = [...element.tasks]
+      const laborEstimates = [...element.laborEstimates]
+
+      ALWAYS_PRESENT_ROLES.forEach(({ role, taskName, loeType, basisOfEstimate }) => {
+        // Check by role name — not by task name — because the AI might name tasks differently
+        const hasRole = tasks.some(t => t.role?.toLowerCase().trim() === role.toLowerCase().trim())
+
+        if (!hasRole) {
+          tasks.push({
+            id: crypto.randomUUID(),
+            name: taskName,
+            role: role,
+            hours: QUARTER_FTE_HOURS,
+            loeType: loeType,
+            chargeCode: null,
+            basisOfEstimate: basisOfEstimate,
+          })
+          laborEstimates.push({
+            id: crypto.randomUUID(),
+            roleId: '',
+            roleName: role,
+            hoursByPeriod: { base: QUARTER_FTE_HOURS, option1: 0, option2: 0, option3: 0, option4: 0 },
+            rationale: taskName,
+            confidence: 'medium' as const,
+            isAISuggested: true,
+            isOrphaned: false,
+            loeType: loeType,
+            basisOfEstimate: basisOfEstimate,
+          })
+        }
+      })
+
+      const totalHours = tasks.reduce((sum, t) => sum + (t.hours || 0), 0)
+
+      return { ...element, tasks, laborEstimates, totalHours }
     })
 
     // Sync roles from WBS tasks with labor category lookup
