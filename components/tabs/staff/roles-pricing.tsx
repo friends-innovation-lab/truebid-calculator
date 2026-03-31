@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useMemo, useCallback, Fragment, useRef } from 'react'
+import React, { useState, useMemo, useCallback, Fragment, useRef, useEffect } from 'react'
 import { useAppContext, type Role } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -753,6 +753,12 @@ function RoleDetailPanel({
   const [subRate, setSubRate] = useState(role.subRate ?? 0)
   const [subMarkup, setSubMarkup] = useState(role.subMarkup ?? 10)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Sync local state when role prop changes (e.g., after hydration or switching roles)
+  useEffect(() => {
+    setSubRate(role.subRate ?? 0)
+    setSubMarkup(role.subMarkup ?? 10)
+  }, [role.id, role.subRate, role.subMarkup])
 
   // Wrap onUpdate with a debounced "Role saved" toast
   const saveRole = (updates: Partial<Role>) => {

@@ -84,7 +84,16 @@ function hydrateContext(
   apiProposal?: { title?: string; solicitation?: string; client?: string; contractType?: string; dueDate?: string } | null,
 ) {
   // These casts are safe — the data shape comes from the same context that wrote it
-  if (data.selectedRoles || data.roles) setters.setSelectedRoles((data.selectedRoles || data.roles) as Parameters<ContextSetters['setSelectedRoles']>[0])
+  const roles = data.selectedRoles || data.roles
+  console.log('Hydrating roles:',
+    (roles as { name?: string; type?: string; subRate?: number; subMarkup?: number }[] | undefined)?.map(r => ({
+      name: r.name,
+      type: r.type,
+      subRate: r.subRate,
+      subMarkup: r.subMarkup
+    }))
+  )
+  if (roles) setters.setSelectedRoles(roles as Parameters<ContextSetters['setSelectedRoles']>[0])
   if (data.subcontractors) setters.setSubcontractors(data.subcontractors as Parameters<ContextSetters['setSubcontractors']>[0])
   if (data.teamingPartners) setters.setTeamingPartners(data.teamingPartners as Parameters<ContextSetters['setTeamingPartners']>[0])
   if (data.estimateWbsElements) setters.setEstimateWbsElements(data.estimateWbsElements as Parameters<ContextSetters['setEstimateWbsElements']>[0])
