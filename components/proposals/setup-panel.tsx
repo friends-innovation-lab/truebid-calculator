@@ -24,18 +24,19 @@ const SET_ASIDES = [
 ]
 
 export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
-  const { solicitation, updateSolicitation } = useAppContext()
+  const { solicitation, updateSolicitation, proposalSetup, setProposalSetup } = useAppContext()
 
-  // Read from solicitation context (populated during creation)
-  const [contractType, setContractType] = useState(
-    solicitation?.contractType?.toLowerCase() === 'ffp' ? 'ffp'
+  // Read from proposalSetup context first, fall back to solicitation
+  const [contractType, setContractType] = useState<'tm' | 'ffp' | 'cpff'>(
+    proposalSetup?.contractType ||
+    (solicitation?.contractType?.toLowerCase() === 'ffp' ? 'ffp'
     : solicitation?.contractType?.toLowerCase() === 'cpff' ? 'cpff'
-    : 'tm'
+    : 'tm')
   )
-  const [optionYears, setOptionYears] = useState(solicitation?.periodOfPerformance?.optionYears ?? 4)
-  const [setAside, setSetAside] = useState(solicitation?.setAside || '8(a) Sole Source')
-  const [billableHours, setBillableHours] = useState(solicitation?.pricingSettings?.billableHours || 1920)
-  const [escalation, setEscalation] = useState(solicitation?.pricingSettings?.laborEscalation || 3)
+  const [optionYears, setOptionYears] = useState(proposalSetup?.optionYears ?? solicitation?.periodOfPerformance?.optionYears ?? 4)
+  const [setAside, setSetAside] = useState(proposalSetup?.setAside || solicitation?.setAside || '8(a) Sole Source')
+  const [billableHours, setBillableHours] = useState(proposalSetup?.billableHoursPerYear || solicitation?.pricingSettings?.billableHours || 1920)
+  const [escalation, setEscalation] = useState(proposalSetup?.escalationRate ? proposalSetup.escalationRate * 100 : solicitation?.pricingSettings?.laborEscalation || 3)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
 
@@ -54,7 +55,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
   }, [open, solicitation])
 
   const save = (overrides: { ct?: string; oy?: number; sa?: string; bh?: number; esc?: number }) => {
-    const ct = overrides.ct ?? contractType
+    const ct = (overrides.ct ?? contractType) as 'tm' | 'ffp' | 'cpff'
     const oy = overrides.oy ?? optionYears
     const sa = overrides.sa ?? setAside
     const bh = overrides.bh ?? billableHours
@@ -65,6 +66,8 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
     saveTimeout.current = setTimeout(async () => {
       try {
         const ctMap: Record<string, 'T&M' | 'FFP' | 'CPFF'> = { tm: 'T&M', ffp: 'FFP', cpff: 'CPFF' }
+
+        // Update solicitation context
         updateSolicitation({
           contractType: ctMap[ct] || 'T&M',
           periodOfPerformance: { baseYear: true, optionYears: oy },
@@ -78,15 +81,21 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
           },
         })
 
+        // Update proposalSetup context
+        const updatedSetup = {
+          contractType: ct,
+          optionYears: oy,
+          setAside: sa,
+          billableHoursPerYear: bh,
+          escalationRate: esc / 100,
+          proposalDueDate: proposalSetup?.proposalDueDate,
+        }
+        setProposalSetup(updatedSetup)
+
+        // Persist to Supabase
         await proposalsApi.update(proposalId, {
           working_data: {
-            proposalSetup: {
-              contractType: ct,
-              optionYears: oy,
-              setAside: sa,
-              billableHoursPerYear: bh,
-              escalationRate: esc / 100,
-            },
+            proposalSetup: updatedSetup,
           },
         })
         setSaveStatus('saved')
@@ -120,7 +129,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
               {CONTRACT_TYPES.map(ct => (
                 <button
                   key={ct.value}
-                  onClick={() => { setContractType(ct.value); save({ ct: ct.value }) }}
+                  onClick={() => { setContractType(ct.value as 'tm' | 'ffp' | 'cpff'); save({ ct: ct.value }) }}
                   style={{
                     flex: 1, padding: '7px 0', fontSize: 12,
                     fontWeight: contractType === ct.value ? 600 : 500,

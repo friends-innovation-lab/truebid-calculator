@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation'
 import { LogOut, Settings, LayoutDashboard, Sun, Moon, Monitor } from 'lucide-react'
 import { Wordmark } from '@/components/ui/wordmark'
 import { useAuth } from '@/contexts/auth-context'
+import { useAppContext } from '@/contexts/app-context'
 import { createClient } from '@/lib/supabase/client'
 import { cn } from '@/lib/utils'
 import {
@@ -61,6 +62,10 @@ export function TopBar({
   const params = useParams()
   const proposalId = params?.id as string | undefined
   const { user } = useAuth()
+  const { proposalSetup } = useAppContext()
+
+  // Contract type from context takes precedence over prop
+  const effectiveContractType = proposalSetup?.contractType || contractType
 
   const [theme, setTheme] = useState<Theme>('system')
   const [setupOpen, setSetupOpen] = useState(false)
@@ -174,9 +179,9 @@ export function TopBar({
             })}
 
             {/* Status badges */}
-            {(contractType || daysUntilDue !== null && daysUntilDue !== undefined) && (
+            {(effectiveContractType || daysUntilDue !== null && daysUntilDue !== undefined) && (
               <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
-                {contractType && (() => {
+                {effectiveContractType && (() => {
                   const labelMap: Record<string, string> = {
                     'tm': 'T&M', 'TM': 'T&M', 'T&M': 'T&M',
                     'ffp': 'FFP', 'FFP': 'FFP',
@@ -191,7 +196,7 @@ export function TopBar({
                       style={{ cursor: 'pointer' }}
                       title="Edit proposal setup"
                     >
-                      {labelMap[contractType] || contractType}
+                      {labelMap[effectiveContractType] || effectiveContractType}
                       <span style={{ fontSize: 8, marginLeft: 3, opacity: 0.6 }}>▾</span>
                     </span>
                   )

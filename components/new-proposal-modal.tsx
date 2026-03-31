@@ -37,6 +37,7 @@ export function NewProposalModal({ open, onClose }: NewProposalModalProps) {
   const [contractType, setContractType] = useState('tm')
   const [optionYears, setOptionYears] = useState(4)
   const [setAside, setSetAside] = useState('8(a) Sole Source')
+  const [dueDate, setDueDate] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [nameError, setNameError] = useState(false)
 
@@ -68,6 +69,7 @@ export function NewProposalModal({ open, onClose }: NewProposalModalProps) {
             setAside,
             billableHoursPerYear: 1920,
             escalationRate: 0.03,
+            proposalDueDate: dueDate || undefined,
           },
           solicitation: {
             title: name.trim(),
@@ -164,6 +166,19 @@ export function NewProposalModal({ open, onClose }: NewProposalModalProps) {
                 onChange={(e) => setAgency(e.target.value)}
                 placeholder="e.g. Dept. of State"
               />
+            </div>
+
+            {/* 4. Proposal Due Date */}
+            <div>
+              <label style={{ fontSize: 12, fontWeight: 600, color: '#111110', display: 'block', marginBottom: 6 }}>
+                Proposal due date
+              </label>
+              <Input
+                type="date"
+                value={dueDate}
+                onChange={(e) => setDueDate(e.target.value)}
+              />
+              <p style={{ fontSize: 11, color: '#6B6A65', marginTop: 4 }}>Can be updated after uploading RFP</p>
             </div>
           </div>
 

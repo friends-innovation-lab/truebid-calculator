@@ -311,6 +311,17 @@ export const calculateWBSQuality = (element: WBSElement): QualityResult => {
   return { grade, score: Math.max(0, score), issues };
 };
 
+// ==================== PROPOSAL SETUP TYPE ====================
+
+export interface ProposalSetup {
+  contractType: 'tm' | 'ffp' | 'cpff';
+  optionYears: number;
+  setAside: string;
+  billableHoursPerYear: number;
+  escalationRate: number;
+  proposalDueDate?: string;
+}
+
 // ==================== PRICING SETTINGS TYPE ====================
 
 export interface PricingSettings {
@@ -1085,7 +1096,11 @@ interface AppContextType {
   isSolicitationEditorOpen: boolean;
   openSolicitationEditor: () => void;
   closeSolicitationEditor: () => void;
-  
+
+  // Proposal Setup (persists contract type, option years, etc.)
+  proposalSetup: ProposalSetup | null;
+  setProposalSetup: (setup: ProposalSetup | null) => void;
+
   // Helper to get pricing settings with defaults
   getPricingSettings: () => PricingSettings;
   
@@ -1450,6 +1465,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       updatedAt: new Date().toISOString()
     });
   };
+
+  // ==================== PROPOSAL SETUP STATE ====================
+  const [proposalSetup, setProposalSetup] = useState<ProposalSetup | null>(null);
 
   // ==================== SOLICITATION EDITOR SLIDEOUT CONTROL ====================
   const [isSolicitationEditorOpen, setIsSolicitationEditorOpen] = useState(false);
@@ -2449,7 +2467,11 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     openSolicitationEditor,
     closeSolicitationEditor,
     getPricingSettings,
-    
+
+    // Proposal Setup
+    proposalSetup,
+    setProposalSetup,
+
     // Company Settings
     companySettings,
     setCompanySettings,

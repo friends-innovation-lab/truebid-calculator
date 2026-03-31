@@ -49,6 +49,14 @@ interface WorkingData {
   odcs?: unknown[]
   perDiem?: unknown[]
   extractedRequirements?: unknown[]
+  proposalSetup?: {
+    contractType: 'tm' | 'ffp' | 'cpff'
+    optionYears: number
+    setAside: string
+    billableHoursPerYear: number
+    escalationRate: number
+    proposalDueDate?: string
+  }
   gsaEnabled?: boolean
   lastSaved?: string
   // Extra fields not managed by context (e.g., solicitationRawText)
@@ -67,6 +75,7 @@ const MANAGED_FIELDS = [
   'odcs',
   'perDiem',
   'extractedRequirements',
+  'proposalSetup',
   'gsaEnabled',
   'lastSaved',
 ]
@@ -75,7 +84,7 @@ const MANAGED_FIELDS = [
 type ContextSetters = Pick<
   ReturnType<typeof useAppContext>,
   'setSolicitation' | 'updateSolicitation' | 'setSelectedRoles' | 'setSubcontractors' |
-  'setTeamingPartners' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType'
+  'setTeamingPartners' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType' | 'setProposalSetup'
 >
 
 function hydrateContext(
@@ -94,6 +103,7 @@ function hydrateContext(
     }))
   )
   if (roles) setters.setSelectedRoles(roles as Parameters<ContextSetters['setSelectedRoles']>[0])
+  if (data.proposalSetup) setters.setProposalSetup(data.proposalSetup as Parameters<ContextSetters['setProposalSetup']>[0])
   if (data.subcontractors) setters.setSubcontractors(data.subcontractors as Parameters<ContextSetters['setSubcontractors']>[0])
   if (data.teamingPartners) setters.setTeamingPartners(data.teamingPartners as Parameters<ContextSetters['setTeamingPartners']>[0])
   if (data.estimateWbsElements) setters.setEstimateWbsElements(data.estimateWbsElements as Parameters<ContextSetters['setEstimateWbsElements']>[0])
@@ -135,6 +145,7 @@ export function useProposalSync(proposalId: string) {
     perDiem,
     extractedRequirements,
     contractType,
+    proposalSetup,
     setSolicitation,
     updateSolicitation,
     setSelectedRoles,
@@ -146,6 +157,7 @@ export function useProposalSync(proposalId: string) {
     setPerDiem,
     setExtractedRequirements,
     setContractType,
+    setProposalSetup,
     resetSolicitation,
   } = useAppContext()
 
@@ -158,7 +170,7 @@ export function useProposalSync(proposalId: string) {
 
   const setters = {
     setSolicitation, updateSolicitation, setSelectedRoles, setSubcontractors,
-    setTeamingPartners, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType,
+    setTeamingPartners, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType, setProposalSetup,
   }
 
   // Clear all working data state (call when proposal changes)
@@ -300,6 +312,7 @@ export function useProposalSync(proposalId: string) {
       odcs,
       perDiem,
       extractedRequirements,
+      proposalSetup,
       gsaEnabled,
       lastSaved: new Date().toISOString(),
     }
@@ -315,6 +328,7 @@ export function useProposalSync(proposalId: string) {
       odcs,
       perDiem,
       extractedRequirements,
+      proposalSetup,
       gsaEnabled,
     }
     const dataHash = JSON.stringify(managedData)
@@ -367,6 +381,7 @@ export function useProposalSync(proposalId: string) {
     perDiem,
     extractedRequirements,
     contractType,
+    proposalSetup,
   ])
 }
 
