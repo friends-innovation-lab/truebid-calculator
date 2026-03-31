@@ -440,9 +440,21 @@ function PricingView({
               </div>
             </div>
             <div style={{ padding: '14px 8px', display: 'flex', alignItems: 'center' }}>
-              <span style={{ background: '#111110', color: '#fff', fontSize: 9, fontWeight: 700, padding: '2px 6px', borderRadius: 3 }}>
-                Prime
-              </span>
+              {(() => {
+                const isPrime = (role.type || 'prime') === 'prime'
+                return (
+                  <span style={{
+                    background: isPrime ? '#111110' : '#F4F3EF',
+                    color: isPrime ? '#fff' : '#5F5E5A',
+                    fontSize: 9,
+                    fontWeight: 700,
+                    padding: '2px 6px',
+                    borderRadius: 3
+                  }}>
+                    {isPrime ? 'Prime' : 'Sub'}
+                  </span>
+                )
+              })()}
             </div>
             <div style={{ padding: '14px 12px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#6B6A65' }}>
               {formatCurrency(billRate)}
