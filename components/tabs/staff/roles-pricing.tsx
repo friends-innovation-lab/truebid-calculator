@@ -431,11 +431,6 @@ function PricingView({
             <div style={{ padding: '10px 12px' }}>
               <div className="flex items-center gap-1.5">
                 <span style={{ fontSize: 12, fontWeight: 600, color: billRate === 0 ? '#BA7517' : '#111110' }}>{role.name}</span>
-                {wbsRoleData.has(role.name) ? (
-                  <span style={{ fontSize: 9, fontWeight: 500, background: '#E1F5EE', color: '#085041', border: '0.5px solid #5DCAA5', padding: '1px 5px', borderRadius: 3 }}>From WBS</span>
-                ) : (
-                  <span style={{ fontSize: 9, fontWeight: 500, background: '#F4F3EF', color: '#6B6A65', padding: '1px 5px', borderRadius: 3 }}>Manual</span>
-                )}
               </div>
               <div style={{ fontSize: 10, color: '#6B6A65' }}>
                 {role.icLevel} · {role.description || 'General'}
