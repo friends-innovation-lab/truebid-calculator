@@ -41,6 +41,7 @@ function mapContractTypeToDashboard(type: string): 'tm' | 'ffp' | 'hybrid' {
 interface WorkingData {
   solicitation?: Record<string, unknown>
   selectedRoles?: unknown[]
+  roles?: unknown[]
   subcontractors?: unknown[]
   teamingPartners?: unknown[]
   estimateWbsElements?: unknown[]
@@ -58,6 +59,7 @@ interface WorkingData {
 const MANAGED_FIELDS = [
   'solicitation',
   'selectedRoles',
+  'roles',
   'subcontractors',
   'teamingPartners',
   'estimateWbsElements',
@@ -82,7 +84,7 @@ function hydrateContext(
   apiProposal?: { title?: string; solicitation?: string; client?: string; contractType?: string; dueDate?: string } | null,
 ) {
   // These casts are safe — the data shape comes from the same context that wrote it
-  if (data.selectedRoles) setters.setSelectedRoles(data.selectedRoles as Parameters<ContextSetters['setSelectedRoles']>[0])
+  if (data.selectedRoles || data.roles) setters.setSelectedRoles((data.selectedRoles || data.roles) as Parameters<ContextSetters['setSelectedRoles']>[0])
   if (data.subcontractors) setters.setSubcontractors(data.subcontractors as Parameters<ContextSetters['setSubcontractors']>[0])
   if (data.teamingPartners) setters.setTeamingPartners(data.teamingPartners as Parameters<ContextSetters['setTeamingPartners']>[0])
   if (data.estimateWbsElements) setters.setEstimateWbsElements(data.estimateWbsElements as Parameters<ContextSetters['setEstimateWbsElements']>[0])
@@ -281,6 +283,7 @@ export function useProposalSync(proposalId: string) {
       ...extraFieldsRef.current,
       solicitation,
       selectedRoles,
+      roles: selectedRoles,
       subcontractors,
       teamingPartners,
       estimateWbsElements,
