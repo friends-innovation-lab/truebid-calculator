@@ -116,6 +116,7 @@ export function ScopeOfWork() {
     setEstimateWbsElements,
     extractedRequirements,
     solicitation,
+    setSelectedRoles,
   } = useAppContext()
 
   const wbsElements = estimateWbsElements as unknown as WBSElementData[]
@@ -199,10 +200,16 @@ export function ScopeOfWork() {
         throw new Error(errorData.error || `Generation failed (${response.status})`)
       }
 
-      const { wbsElements: generated, count, rolesCount } = await response.json()
+      const { wbsElements: generated, roles, count, rolesCount } = await response.json()
 
       if (generated && generated.length > 0) {
         setEstimateWbsElements(generated as never)
+
+        // Update roles in context immediately so Roles & Pricing reflects the change
+        if (roles && roles.length > 0) {
+          setSelectedRoles(roles)
+        }
+
         toast.success(`${count} work packages created · ${rolesCount || 0} roles added to Roles & Pricing`)
       } else {
         toast.error('No work packages were generated')
