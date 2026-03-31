@@ -434,13 +434,7 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
     }
 
-    // Parse JSON — strip markdown backticks
-    let jsonText = responseText.trim()
-    if (jsonText.startsWith('```json')) jsonText = jsonText.slice(7)
-    else if (jsonText.startsWith('```')) jsonText = jsonText.slice(3)
-    if (jsonText.endsWith('```')) jsonText = jsonText.slice(0, -3)
-    jsonText = jsonText.trim()
-
+    // Extract JSON array robustly — handles markdown fences, preamble text, etc.
     let parsed: {
       ref: string
       name: string
@@ -454,9 +448,14 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
     }[]
 
     try {
-      parsed = JSON.parse(jsonText)
+      const arrayMatch = responseText.match(/\[[\s\S]*\]/)
+      if (!arrayMatch) {
+        console.error('[generate-wbs] No JSON array found in:', responseText.substring(0, 500))
+        return NextResponse.json({ error: 'AI did not return a JSON array' }, { status: 500 })
+      }
+      parsed = JSON.parse(arrayMatch[0])
     } catch {
-      console.error('[generate-wbs] Failed to parse AI response:', jsonText.slice(0, 500))
+      console.error('[generate-wbs] Parse failed:', responseText.substring(0, 500))
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }
 
