@@ -158,17 +158,13 @@ export function syncRolesFromWBS(
   setup?: ProposalSetup | null,
   laborCategories?: LaborCategory[],
 ): Role[] {
-  const optionYears = setup?.optionYears ?? 4
   const profit = setup?.profitMargin ?? INDIRECT_RATES.defaultProfit
+  const billableHrs = setup?.billableHoursPerYear || 1920
 
-  // Aggregate hours by role across all tasks and labor estimates
+  // Aggregate hours by role from laborEstimates only (tasks duplicate the same data)
   const roleHours: Record<string, number> = {}
 
   wbsElements.forEach(element => {
-    element.tasks?.forEach(task => {
-      if (!task.role) return
-      roleHours[task.role] = (roleHours[task.role] || 0) + (task.hours || 0)
-    })
     element.laborEstimates?.forEach(le => {
       if (!le.roleName) return
       const h = le.hoursByPeriod
@@ -182,8 +178,20 @@ export function syncRolesFromWBS(
     .filter(([, hours]) => hours > 0)
     .map(([roleName, totalHours]) => {
       const existing = existingRoles.find(r => r.name === roleName)
-      const yearCount = optionYears + 1
-      const hoursPerYear = Math.round(totalHours / yearCount)
+
+      // Sum per-year hours across all elements for this role from laborEstimates
+      const yearHours = { baseYear: 0, oy1: 0, oy2: 0, oy3: 0, oy4: 0 }
+      wbsElements.forEach(el => {
+        el.laborEstimates?.forEach(le => {
+          if (le.roleName !== roleName) return
+          const h = le.hoursByPeriod
+          yearHours.baseYear += h.base || 0
+          yearHours.oy1 += h.option1 || 0
+          yearHours.oy2 += h.option2 || 0
+          yearHours.oy3 += h.option3 || 0
+          yearHours.oy4 += h.option4 || 0
+        })
+      })
 
       // Look up labor category
       const laborCat = laborCategories?.find(lc => lc.title === roleName)
@@ -212,11 +220,11 @@ export function syncRolesFromWBS(
         totalHoursFromWBS: totalHours,
         isManual: false,
         hoursByYear: {
-          baseYear: hoursPerYear,
-          oy1: optionYears >= 1 ? hoursPerYear : 0,
-          oy2: optionYears >= 2 ? hoursPerYear : 0,
-          oy3: optionYears >= 3 ? hoursPerYear : 0,
-          oy4: optionYears >= 4 ? hoursPerYear : 0,
+          baseYear: Math.min(yearHours.baseYear, billableHrs),
+          oy1: Math.min(yearHours.oy1, billableHrs),
+          oy2: Math.min(yearHours.oy2, billableHrs),
+          oy3: Math.min(yearHours.oy3, billableHrs),
+          oy4: Math.min(yearHours.oy4, billableHrs),
         },
       }
     })
