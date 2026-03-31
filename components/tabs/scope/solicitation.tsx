@@ -25,11 +25,24 @@ import {
   Plus,
   Check,
 } from 'lucide-react'
-import * as pdfjs from 'pdfjs-dist'
 
-// Configure PDF.js worker - use local file for reliability
-if (typeof window !== 'undefined') {
-  pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+// PDF.js is loaded dynamically to avoid SSR issues
+ 
+type PDFDocumentProxy = any
+
+// Lazy-load pdfjs only on client side
+let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null
+function getPdfjs(): Promise<typeof import('pdfjs-dist')> {
+  if (typeof window === 'undefined') {
+    return Promise.reject(new Error('pdfjs can only be used on client'))
+  }
+  if (!pdfjsPromise) {
+    pdfjsPromise = import('pdfjs-dist').then((pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs'
+      return pdfjs
+    })
+  }
+  return pdfjsPromise
 }
 
 // ============================================================================
@@ -118,7 +131,7 @@ function PDFViewer({
   const [pageNum, setPageNum] = useState(1)
   const [scale, setScale] = useState(1.0)
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const pdfDocRef = useRef<pdfjs.PDFDocumentProxy | null>(null)
+  const pdfDocRef = useRef<PDFDocumentProxy | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Render PDF page at high DPI for sharp text on retina displays
@@ -142,7 +155,6 @@ function PDFViewer({
     canvas.style.width = `${cssViewport.width}px`
     canvas.style.height = `${cssViewport.height}px`
 
-    // @ts-expect-error - pdfjs-dist v5 types expect canvas but canvasContext works
     await page.render({
       canvasContext: context,
       viewport,
@@ -158,6 +170,7 @@ function PDFViewer({
 
     const loadPdf = async () => {
       try {
+        const pdfjs = await getPdfjs()
         const pdf = await pdfjs.getDocument(pdfState.url!).promise
         pdfDocRef.current = pdf
         setPageNum(1)
@@ -1024,6 +1037,7 @@ export function Solicitation() {
     // Get page count
     let numPages = 1
     try {
+      const pdfjs = await getPdfjs()
       const pdf = await pdfjs.getDocument(tempUrl).promise
       numPages = pdf.numPages
     } catch (error) {
