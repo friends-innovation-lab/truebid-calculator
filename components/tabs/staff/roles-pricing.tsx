@@ -794,6 +794,18 @@ function RoleDetailPanel({
     return { salary, fringe, oh, loaded, gaAmt, totalCost, costPerHour, profitAmt, billRate }
   })() : null
 
+  // Sync calculated rate back to role so table row stays in sync
+  useEffect(() => {
+    if (!breakdown) return
+    onUpdate({
+      loadedRate: breakdown.billRate,
+      currentSalary: breakdown.salary,
+      selectedLevel,
+      selectedStep,
+      billRateBase: breakdown.billRate
+    })
+  }, [selectedLevel, selectedStep]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const fmt = (n: number) => '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   // Handle level change
