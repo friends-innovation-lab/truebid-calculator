@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo, useCallback } from 'react'
+import React, { useState, useMemo, useCallback, Fragment } from 'react'
 import { useAppContext, type Role } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,8 +24,10 @@ type ViewMode = 'pricing' | 'timeline'
 type RoleFilter = 'all' | 'prime' | 'sub'
 
 const YEAR_KEYS = ['base', 'option1', 'option2', 'option3', 'option4'] as const
+const HOURS_YEAR_KEYS = ['baseYear', 'oy1', 'oy2', 'oy3', 'oy4'] as const
 const YEAR_LABELS = ['Base yr', 'OY1', 'OY2', 'OY3', 'OY4']
 const YEAR_SHORT = ['BY', 'OY1', 'OY2', 'OY3', 'OY4']
+const ESCALATION_MULTIPLIERS = [1.0, 1.03, 1.0609, 1.0927, 1.1255]
 
 // ==================== HELPERS ====================
 
@@ -118,26 +120,25 @@ export function RolesPricing() {
     return ga * (1 + (uiProfitMargin || 8) / 100)
   }, [calculateLoadedRate, indirectRates, uiProfitMargin])
 
-  // Compute summary stats
+  // Compute summary stats with year-by-year breakdown
   const stats = useMemo(() => {
-    let primeCost = 0; const subCost = 0; let totalHours = 0
-    selectedRoles.forEach(role => {
-      const billRate = getRoleBillRate(role)
-      const cost = getRoleTotalCost(role, billRate, escalation)
-      const hours = getRoleTotalHours(role)
-      // TODO: differentiate prime vs sub once role.type field exists
-      primeCost += cost
-      totalHours += hours
+    let totalHours = 0
+    const yearCosts = HOURS_YEAR_KEYS.map((key, i) => {
+      return selectedRoles.reduce((sum, role) => {
+        const hours = role.hoursByYear?.[key] || 0
+        const rate = role.loadedRate || (role.baseSalary ? role.baseSalary / 2080 : 0)
+        return sum + (hours * rate * ESCALATION_MULTIPLIERS[i])
+      }, 0)
     })
-    const odcs = solicitation.pricingSettings?.odcEscalation || 0
-    return {
-      totalValue: primeCost + subCost + odcs,
-      primeCost,
-      subCost,
-      odcs,
-      totalHours,
-    }
-  }, [selectedRoles, escalation, getRoleBillRate, solicitation.pricingSettings])
+
+    selectedRoles.forEach(role => {
+      totalHours += getRoleTotalHours(role)
+    })
+
+    const totalValue = yearCosts.reduce((sum, c) => sum + c, 0)
+
+    return { totalValue, yearCosts, totalHours }
+  }, [selectedRoles, getRoleBillRate, escalation]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter roles
   const filteredRoles = useMemo(() => {
@@ -242,13 +243,18 @@ export function RolesPricing() {
 
         {/* SUMMARY STRIP */}
         <div className="flex items-center gap-6" style={{ marginTop: 14, marginBottom: 14 }}>
-          <SummaryItem label="Total contract value" value={formatCurrency(stats.totalValue, 0)} bold />
+          <div>
+            <div style={{ fontSize: 20, fontWeight: 800, color: '#111110' }}>{formatCurrency(stats.totalValue, 0)}</div>
+            <div style={{ fontSize: 10, color: '#6B6A65', marginTop: 1 }}>Total contract value</div>
+            <div style={{ fontSize: 10, color: '#9B9A95', marginTop: 1 }}>Across {activeYearCount} contract years</div>
+          </div>
           <Divider />
-          <SummaryItem label="Prime labor" value={formatCurrency(stats.primeCost, 0)} />
-          <Divider />
-          <SummaryItem label="Sub labor" value={formatCurrency(stats.subCost, 0)} color="#5F5E5A" />
-          <Divider />
-          <SummaryItem label="ODCs" value={formatCurrency(stats.odcs, 0)} color="#5F5E5A" />
+          {HOURS_YEAR_KEYS.slice(0, activeYearCount).map((key, i) => (
+            <Fragment key={key}>
+              <SummaryItem label={YEAR_LABELS[i]} value={formatCurrency(stats.yearCosts[i], 0)} />
+              {i < activeYearCount - 1 && <Divider />}
+            </Fragment>
+          ))}
           <Divider />
           <SummaryItem label="Total hours" value={stats.totalHours.toLocaleString()} />
 
@@ -389,7 +395,7 @@ function PricingView({
   onCellChange: (value: string) => void
   onCellSave: () => void
   onRowClick: (role: Role) => void
-  stats: { totalValue: number; primeCost: number; totalHours: number }
+  stats: { totalValue: number; yearCosts: number[]; totalHours: number }
   wbsRoleData: Map<string, number>
 }) {
   const yearCols = YEAR_LABELS.slice(0, activeYearCount)
@@ -486,7 +492,7 @@ function PricingView({
           Prime subtotal
         </div>
         <div style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
-          {formatCurrency(stats.primeCost, 0)}
+          {formatCurrency(stats.totalValue, 0)}
         </div>
       </div>
 
