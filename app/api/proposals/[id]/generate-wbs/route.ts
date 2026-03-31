@@ -157,38 +157,65 @@ USER TRAINING & CHANGE MANAGEMENT:
 HOURS ESTIMATION PRINCIPLES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Base your hour estimates on Agile delivery norms adapted for government IT:
+THINK ACROSS THE FULL CONTRACT PERIOD:
+Government IT contracts have distinct phases.
+Structure work accordingly:
 
-SPRINT-BASED THINKING:
+  BASE YEAR — Setup, discovery, initial build:
+    Infrastructure provisioning
+    User research and discovery
+    Core feature development (phase 1)
+    Initial deployment and testing
+    Expect: highest hours for most roles
+
+  OPTION YEARS 1-2 — Feature delivery:
+    Continued development
+    Additional feature sets
+    Ongoing operations
+    Expect: similar to base year for development roles
+
+  OPTION YEARS 3-4 — Maturity and operations:
+    Reduced new development
+    Increased operations and maintenance
+    Knowledge transfer begins
+    Expect: lower hours for dev roles, stable for ops roles
+
+HOUR TARGETS PER ROLE:
+Unless there is a specific reason a role is part-time, assume FULL TIME (1,920 hrs/yr):
+
+  Full time:      1,920 hrs/yr (standard)
+  Three-quarter:  1,440 hrs/yr (0.75 FTE)
+  Half time:        960 hrs/yr (0.5 FTE)
+  Quarter time:     480 hrs/yr (0.25 FTE — use ONLY for DM and PM oversight roles, not primary delivery roles)
+
+DO NOT default to low hours unless the role genuinely has limited work on this package. A developer working on a major feature suite should be at 1,920 hrs/yr not 480 hrs/yr.
+
+DELIVERY MANAGER — 0.25 FTE on EVERY package:
+  Always 480 hrs/yr base year
+  Always 480 hrs/yr each option year
+  This is non-negotiable per USDS Playbook
+  Task: "Delivery oversight and coordination"
+
+PRODUCT MANAGER — 0.25 FTE on EVERY package except pure operations/infrastructure:
+  Always 480 hrs/yr
+  Task: "Product direction and acceptance"
+
+TECHNICAL LEAD — appears on every development-heavy package:
+  Full time (1,920 hrs) on core build packages
+  Half time (960 hrs) on lighter packages
+  Task: "Technical architecture and code review"
+
+DESIGN LEAD — appears on every user-facing package:
+  Full time (1,920 hrs) on design-heavy work
+  Half time (960 hrs) on lighter packages
+  Task: "Design direction and system consistency"
+
+SPRINT-BASED SANITY CHECK:
   1 sprint = 2 weeks = ~80 hrs per developer
-  A medium feature = 1-2 sprints per dev
-  A complex feature = 3-5 sprints per dev
+  Full year = ~24 sprints
+  A developer at 1,920 hrs/yr = full 24 sprints
 
-  Use this as a sanity check: If a task would take more than 5 sprints for a single developer, it should be broken into smaller tasks.
-
-GOVERNMENT OVERHEAD FACTOR:
-  Government IT projects have significantly more overhead than commercial projects:
-  - Requirements documentation
-  - Security reviews and approvals
-  - Stakeholder reviews and sign-offs
-  - Testing and acceptance procedures
-  - Change management processes
-
-  Apply a 1.3x multiplier to any hour estimate you would make for a commercial project of equivalent scope.
-
-FTE ALLOCATION GUIDANCE:
-  Use the billable hours per year provided in the contract setup as your FTE baseline.
-
-  Full time (1.0 FTE):  all available hours
-  Heavy (0.75 FTE):     75% of available hours
-  Standard (0.5 FTE):   50% of available hours
-  Light (0.25 FTE):     25% of available hours
-  Advisory (<0.25 FTE): specific task hours only
-
-  The Delivery Manager is typically at 0.25 FTE across most work packages (advisory/oversight role).
-  QA Engineer is typically at 0.5 FTE on development-heavy packages and 1.0 FTE on testing-phase packages.
-
-NEVER estimate zero hours for a role that is needed. If a role is needed but at low allocation, use 0.25 FTE worth of hours rather than omitting them entirely.
+  If you estimate fewer than 960 hrs for a primary delivery role on a package that spans the full contract period, question whether that role truly belongs on this package or whether the package should be combined with another.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WORK PACKAGE NAMING AND STRUCTURE
@@ -217,7 +244,7 @@ Each work package must have:
 AVAILABLE ROLES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Use ONLY roles from this list. These map to the labor categories in Account Settings:
+Available FFTC roles (use ONLY these 11):
 
   Back-end Developer
   Front-end Developer
@@ -228,6 +255,8 @@ Use ONLY roles from this list. These map to the labor categories in Account Sett
   UX Researcher
   Content/UX Writer
   Delivery Manager
+  Technical Lead
+  Design Lead
 
 Do not invent new role names. If a work package needs a "Security Engineer", map that to DevOps Engineer. If it needs a "Business Analyst", map that to Product Manager.
 

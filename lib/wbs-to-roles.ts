@@ -26,6 +26,8 @@ const DEFAULT_SALARIES: Record<string, number> = {
   'UX Researcher': 110000,
   'Content/UX Writer': 95000,
   'Delivery Manager': 135000,
+  'Technical Lead': 145000,
+  'Design Lead': 130000,
 }
 
 export function calculateBillRate(salary: number, profit: number = INDIRECT_RATES.defaultProfit): number {
