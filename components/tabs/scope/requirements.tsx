@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
 import { ClipboardList, Search, Download, Plus, ChevronDown, RefreshCw } from 'lucide-react'
+import { useAppContext } from '@/contexts/app-context'
 import { requirementsApi, complianceApi, sectionsApi, proposalsApi } from '@/lib/api'
 import { ComplianceMatrix } from '@/components/tabs/scope/compliance-matrix'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -284,6 +285,20 @@ export function Requirements() {
 
   const highlightedRowRef = useRef<HTMLDivElement>(null)
 
+  // Build reverse lookup: requirement ID → WBS numbers
+  const { estimateWbsElements } = useAppContext()
+  const requirementToWBSMap = useMemo(() => {
+    const map: Record<string, string[]> = {}
+    const elements = estimateWbsElements as unknown as { wbsNumber: string; requirementLinks?: string[] }[]
+    elements?.forEach(element => {
+      element.requirementLinks?.forEach(reqId => {
+        if (!map[reqId]) map[reqId] = []
+        map[reqId].push(element.wbsNumber)
+      })
+    })
+    return map
+  }, [estimateWbsElements])
+
   // Load requirements on mount
   useEffect(() => {
     if (!proposalId) return
@@ -343,12 +358,14 @@ export function Requirements() {
   // Stats calculations
   const stats = useMemo(() => {
     const total = requirements.length
+    const linked = requirements.filter(r => (requirementToWBSMap[r.id] || []).length > 0).length
+    const unlinked = total - linked
     const compliant = requirements.filter(r => r.status === 'compliant').length
     const partial = requirements.filter(r => r.status === 'partial').length
     const gaps = requirements.filter(r => r.status === 'gap').length
-    const coverage = total > 0 ? Math.round((compliant / total) * 100) : 0
-    return { total, compliant, partial, gaps, coverage }
-  }, [requirements])
+    const coverage = total > 0 ? Math.round((linked / total) * 100) : 0
+    return { total, linked, unlinked, compliant, partial, gaps, coverage }
+  }, [requirements, requirementToWBSMap])
 
   // Type counts
   const typeCounts = useMemo(() => ({
@@ -540,9 +557,8 @@ export function Requirements() {
           {activeTab === 'requirements' ? (
             <div className="flex items-center">
               <StatItem value={stats.total} label="total" />
-              <StatItem value={stats.compliant} label="compliant" color="#639922" />
-              <StatItem value={stats.partial} label="partial" color="#BA7517" />
-              <StatItem value={stats.gaps} label="gaps" color={stats.gaps > 0 ? '#A32D2D' : undefined} bold={stats.gaps > 0} isLast />
+              <StatItem value={stats.linked} label="linked" color="#639922" />
+              <StatItem value={stats.unlinked} label="unlinked" color={stats.unlinked > 0 ? '#A32D2D' : undefined} bold={stats.unlinked > 0} isLast />
             </div>
           ) : (
             <div className="flex items-center">
@@ -752,6 +768,7 @@ export function Requirements() {
             requirements={filteredRequirements}
             selectedRef={selectedRef}
             onSelectRef={setSelectedRef}
+            requirementToWBSMap={requirementToWBSMap}
           />
         ) : (
           <div className="flex-1 overflow-y-auto">
@@ -892,16 +909,17 @@ interface RequirementsTableProps {
   requirements: Requirement[]
   selectedRef: string | null
   onSelectRef: (ref: string) => void
+  requirementToWBSMap: Record<string, string[]>
 }
 
-function RequirementsTable({ requirements, selectedRef, onSelectRef }: RequirementsTableProps) {
+function RequirementsTable({ requirements, selectedRef, onSelectRef, requirementToWBSMap }: RequirementsTableProps) {
   return (
     <div>
       {/* Header */}
       <div
         className="sticky top-0 grid"
         style={{
-          gridTemplateColumns: '72px 80px 1fr 110px 80px 60px',
+          gridTemplateColumns: '72px 80px 1fr 110px 120px 60px',
           backgroundColor: '#FAFAF9',
           borderBottom: '0.5px solid #E8E7E2',
         }}
@@ -915,74 +933,81 @@ function RequirementsTable({ requirements, selectedRef, onSelectRef }: Requireme
       </div>
 
       {/* Rows */}
-      {requirements.map(req => (
-        <div
-          key={req.id}
-          onClick={() => onSelectRef(req.ref)}
-          className="grid cursor-pointer hover:bg-[#FAFAF8]"
-          style={{
-            gridTemplateColumns: '72px 80px 1fr 110px 80px 60px',
-            borderBottom: '0.5px solid #F4F3EF',
-            borderLeft: `3px solid ${getStatusColor(req.status)}`,
-            backgroundColor: selectedRef === req.ref ? '#FBF9F0' : 'transparent',
-          }}
-        >
-          <TableCell>
-            <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#6B6A65' }}>
-              {req.ref}
-            </span>
-          </TableCell>
-          <TableCell>
-            <TypeBadge type={req.type} />
-          </TableCell>
-          <TableCell>
-            <span style={{ fontSize: 14, color: '#111110', lineHeight: 1.5 }}>
-              {req.text}
-            </span>
-          </TableCell>
-          <TableCell>
-            <span style={{ fontSize: 12, color: '#6B6A65', whiteSpace: 'nowrap' }}>
-              {req.source}
-            </span>
-          </TableCell>
-          <TableCell>
-            {/* WBS column - read-only display, assigned in Staff tab */}
-            {req.wbsLinks && req.wbsLinks.length > 0 ? (
-              <span
+      {requirements.map(req => {
+        const wbsRefs = requirementToWBSMap[req.id] || []
+        const isLinked = wbsRefs.length > 0
+        const dotColor = isLinked ? '#639922' : '#A32D2D'
+
+        return (
+          <div
+            key={req.id}
+            onClick={() => onSelectRef(req.ref)}
+            className="grid cursor-pointer hover:bg-[#FAFAF8]"
+            style={{
+              gridTemplateColumns: '72px 80px 1fr 110px 120px 60px',
+              borderBottom: '0.5px solid #F4F3EF',
+              borderLeft: `3px solid ${dotColor}`,
+              backgroundColor: selectedRef === req.ref ? '#FBF9F0' : 'transparent',
+            }}
+          >
+            <TableCell>
+              <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 12, color: '#6B6A65' }}>
+                {req.ref}
+              </span>
+            </TableCell>
+            <TableCell>
+              <TypeBadge type={req.type} />
+            </TableCell>
+            <TableCell>
+              <span style={{ fontSize: 14, color: '#111110', lineHeight: 1.5 }}>
+                {req.text}
+              </span>
+            </TableCell>
+            <TableCell>
+              <span style={{ fontSize: 12, color: '#6B6A65', whiteSpace: 'nowrap' }}>
+                {req.source}
+              </span>
+            </TableCell>
+            <TableCell>
+              {wbsRefs.length > 0 ? (
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {wbsRefs.map(ref => (
+                    <span
+                      key={ref}
+                      style={{
+                        fontSize: 9,
+                        fontWeight: 600,
+                        padding: '1px 6px',
+                        borderRadius: 3,
+                        background: '#E1F5EE',
+                        color: '#085041',
+                        border: '0.5px solid #5DCAA5',
+                      }}
+                    >
+                      {ref}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span style={{ fontSize: 10, color: '#C4C3BE', fontStyle: 'italic' }}>
+                  Not linked
+                </span>
+              )}
+            </TableCell>
+            <TableCell align="center">
+              <div
                 style={{
-                  padding: '2px 7px',
-                  borderRadius: 3,
-                  fontSize: 9,
-                  fontWeight: 600,
-                  backgroundColor: '#E1F5EE',
-                  color: '#085041',
-                  border: '0.5px solid #5DCAA5',
+                  width: 8,
+                  height: 8,
+                  borderRadius: '50%',
+                  backgroundColor: dotColor,
+                  margin: '0 auto',
                 }}
-              >
-                {req.wbsLinks.length} linked
-              </span>
-            ) : (
-              <span
-                style={{ fontSize: 11, color: '#C4C3BE' }}
-                title="WBS link assigned in Staff → Scope of Work"
-              >
-                —
-              </span>
-            )}
-          </TableCell>
-          <TableCell align="center">
-            <div
-              style={{
-                width: 8,
-                height: 8,
-                borderRadius: '50%',
-                backgroundColor: getStatusColor(req.status),
-                margin: '0 auto',
-              }}
-            />
-          </TableCell>
-        </div>
-      ))}
+              />
+            </TableCell>
+          </div>
+        )
+      })}
     </div>
   )
 }
