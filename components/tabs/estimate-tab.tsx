@@ -1746,7 +1746,38 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, allW
                     <div key={labor.id} className={`group border rounded-lg p-4 ${labor.isOrphaned ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white hover:border-gray-300'} transition-colors`}>
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium ${labor.isOrphaned ? 'text-red-700' : 'text-gray-900'}`}>{labor.roleName}</span>
+                          <select
+                            value={labor.roleName || ''}
+                            onChange={(e) => {
+                              const updatedEstimates = element.laborEstimates.map(le =>
+                                le.id === labor.id ? { ...le, roleName: e.target.value } : le
+                              )
+                              onUpdate(element.id, { laborEstimates: updatedEstimates })
+                            }}
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 500,
+                              padding: '2px 6px',
+                              borderRadius: 3,
+                              background: labor.isOrphaned ? '#FEF2F2' : '#F4F3EF',
+                              color: labor.isOrphaned ? '#B91C1C' : '#5F5E5A',
+                              border: '0.5px solid #E8E7E2',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <option value="">Select role...</option>
+                            <option value="Back-end Developer">Back-end Developer</option>
+                            <option value="Front-end Developer">Front-end Developer</option>
+                            <option value="DevOps Engineer">DevOps Engineer</option>
+                            <option value="QA Engineer">QA Engineer</option>
+                            <option value="Product Manager">Product Manager</option>
+                            <option value="Product Designer">Product Designer</option>
+                            <option value="UX Researcher">UX Researcher</option>
+                            <option value="Content/UX Writer">Content/UX Writer</option>
+                            <option value="Delivery Manager">Delivery Manager</option>
+                            <option value="Technical Lead">Technical Lead</option>
+                            <option value="Design Lead">Design Lead</option>
+                          </select>
                           {labor.isOrphaned && <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">Not in team</Badge>}
                           <Badge variant="outline" className={`text-[10px] ${CONFIDENCE_CONFIG[labor.confidence].color}`}>{CONFIDENCE_CONFIG[labor.confidence].label}</Badge>
                         </div>
