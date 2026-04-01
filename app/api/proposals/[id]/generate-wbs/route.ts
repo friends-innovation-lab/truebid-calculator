@@ -512,10 +512,20 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
     }
 
     // Build ref → ID lookup from requirements
+    // Map ALL possible ref formats so AI's "REQ-001" always finds a match
     const refToId = new Map<string, string>()
-    requirements.forEach(r => {
-      const ref = r.referenceNumber || r.reference_number || r.id
-      refToId.set(ref, r.id)
+    requirements.forEach((r, index) => {
+      if (r.referenceNumber) {
+        refToId.set(r.referenceNumber, r.id)
+      }
+      if (r.reference_number) {
+        refToId.set(r.reference_number, r.id)
+      }
+      // Auto-generated REQ-NNN format in case reference_number is missing
+      const autoRef = `REQ-${String(index + 1).padStart(3, '0')}`
+      refToId.set(autoRef, r.id)
+      // Always map by ID too
+      refToId.set(r.id, r.id)
     })
 
     // Convert to WBS elements format with BOE fields
