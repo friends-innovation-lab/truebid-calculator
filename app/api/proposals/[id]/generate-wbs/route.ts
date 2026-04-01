@@ -449,7 +449,7 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 8000,
+      max_tokens: 32768,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
     })
@@ -458,6 +458,14 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       .filter(block => block.type === 'text')
       .map(block => (block as { type: 'text'; text: string }).text)
       .join('')
+
+    if (message.stop_reason === 'max_tokens') {
+      console.error('[generate-wbs] Response truncated — hit max_tokens limit')
+      return NextResponse.json(
+        { error: 'AI response was truncated. Try reducing the number of requirements or generating in smaller batches.' },
+        { status: 500 }
+      )
+    }
 
     if (!responseText) {
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
@@ -503,7 +511,7 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
     let wbsElements = parsed.map(el => ({
       id: crypto.randomUUID(),
       ref: el.ref,
-      wbsNumber: el.ref.replace('WBS-', '').replace(/^0/, '') + '.0',
+      wbsNumber: el.ref.replace(/^WBS-0*/, 'WBS-'),
       title: el.name,
       description: el.description,
       why: el.description,
