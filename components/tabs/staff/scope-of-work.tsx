@@ -566,6 +566,8 @@ function DetailSlideout({
 }) {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [editingCustomRoleTaskId, setEditingCustomRoleTaskId] = useState<string | null>(null)
+  const [customRoleInput, setCustomRoleInput] = useState('')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
 
   // Trigger save status indicator on blur
@@ -684,6 +686,7 @@ function DetailSlideout({
 
               // Check if current role is in availableRoles or is custom
               const isCustomRole = task.role && !availableRoles.includes(task.role)
+              const isEditingThis = editingCustomRoleTaskId === task.id
 
               return (
                 <div key={task.id} className="flex items-center gap-2">
@@ -691,25 +694,62 @@ function DetailSlideout({
                   <span style={{ fontSize: 9, fontWeight: 700, background: loe.bg, color: loe.text, padding: '2px 6px', borderRadius: 3, flexShrink: 0 }} title={(task as WBSTask & { loeType?: string }).loeType || 'development'}>
                     {loe.label}
                   </span>
-                  <select
-                    value={isCustomRole ? '__custom__' : (task.role || '')}
-                    onChange={(e) => {
-                      if (e.target.value === '__custom__') {
-                        const customRole = prompt('Enter custom role name:')
-                        if (customRole) handleRoleChange(customRole)
-                      } else {
-                        handleRoleChange(e.target.value)
-                      }
-                      triggerSave()
-                    }}
-                    style={{ width: 120, height: 24, fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '0 4px', borderRadius: 3, border: '0.5px solid #E8E7E2', flexShrink: 0 }}
-                  >
-                    <option value="">Select role...</option>
-                    {availableRoles.map(role => (
-                      <option key={role} value={role}>{role}</option>
-                    ))}
-                    <option value="__custom__">{isCustomRole ? `Other: ${task.role}` : 'Other...'}</option>
-                  </select>
+                  {isEditingThis ? (
+                    <div className="flex items-center gap-1">
+                      <input
+                        type="text"
+                        value={customRoleInput}
+                        onChange={(e) => setCustomRoleInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && customRoleInput.trim()) {
+                            handleRoleChange(customRoleInput.trim())
+                            setEditingCustomRoleTaskId(null)
+                            setCustomRoleInput('')
+                            triggerSave()
+                          } else if (e.key === 'Escape') {
+                            setEditingCustomRoleTaskId(null)
+                            setCustomRoleInput('')
+                          }
+                        }}
+                        autoFocus
+                        placeholder="Type role name..."
+                        style={{ width: 100, height: 24, fontSize: 10, padding: '0 6px', borderRadius: 3, border: '1px solid #F5C200', background: '#FFFDF5' }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (customRoleInput.trim()) {
+                            handleRoleChange(customRoleInput.trim())
+                            triggerSave()
+                          }
+                          setEditingCustomRoleTaskId(null)
+                          setCustomRoleInput('')
+                        }}
+                        style={{ fontSize: 10, fontWeight: 600, background: '#111110', color: '#fff', padding: '4px 8px', borderRadius: 3, border: 'none', cursor: 'pointer' }}
+                      >
+                        OK
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={isCustomRole ? '__custom__' : (task.role || '')}
+                      onChange={(e) => {
+                        if (e.target.value === '__custom__') {
+                          setCustomRoleInput(isCustomRole ? (task.role || '') : '')
+                          setEditingCustomRoleTaskId(task.id)
+                        } else {
+                          handleRoleChange(e.target.value)
+                          triggerSave()
+                        }
+                      }}
+                      style={{ width: 120, height: 24, fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '0 4px', borderRadius: 3, border: '0.5px solid #E8E7E2', flexShrink: 0 }}
+                    >
+                      <option value="">Select role...</option>
+                      {availableRoles.map(role => (
+                        <option key={role} value={role}>{role}</option>
+                      ))}
+                      <option value="__custom__">{isCustomRole ? `Other: ${task.role}` : 'Other...'}</option>
+                    </select>
+                  )}
                   <input
                     type="number"
                     value={hoursByPeriod.base}

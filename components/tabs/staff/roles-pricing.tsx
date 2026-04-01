@@ -16,6 +16,7 @@ import {
   LayoutGrid,
   Calendar,
   FileDown,
+  Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -355,6 +356,7 @@ export function RolesPricing() {
             onCellChange={setCellValue}
             onCellSave={handleCellSave}
             onRowClick={setDetailRole}
+            onRemoveRole={removeRole}
             stats={stats}
             wbsRoleData={wbsRoleData}
           />
@@ -398,7 +400,7 @@ export function RolesPricing() {
 function PricingView({
   roles, escalation, activeYearCount, getRoleBillRate,
   editingCell, cellValue, onCellClick, onCellChange, onCellSave,
-  onRowClick, stats, wbsRoleData,
+  onRowClick, onRemoveRole, stats, wbsRoleData,
 }: {
   roles: Role[]
   escalation: number
@@ -410,11 +412,12 @@ function PricingView({
   onCellChange: (value: string) => void
   onCellSave: () => void
   onRowClick: (role: Role) => void
+  onRemoveRole: (roleId: string) => void
   stats: { totalValue: number; yearCosts: number[]; totalHours: number }
   wbsRoleData: Map<string, number>
 }) {
   const yearCols = YEAR_LABELS.slice(0, activeYearCount)
-  const gridCols = `200px 72px 90px ${yearCols.map(() => '70px').join(' ')} 120px`
+  const gridCols = `200px 72px 90px ${yearCols.map(() => '70px').join(' ')} 100px 36px`
 
   return (
     <div style={{ minWidth: 700 }}>
@@ -428,6 +431,7 @@ function PricingView({
         <HeaderCell align="right">Bill rate</HeaderCell>
         {yearCols.map(label => <HeaderCell key={label} align="right">{label}</HeaderCell>)}
         <HeaderCell align="right">Total cost</HeaderCell>
+        <HeaderCell>{''}</HeaderCell>
       </div>
 
       {/* Section: Prime labor */}
@@ -500,6 +504,21 @@ function PricingView({
             <div style={{ padding: '14px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#111110' }}>
               {formatCurrency(totalCost, 0)}
             </div>
+            <div style={{ padding: '14px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (confirm(`Remove "${role.name}" from this proposal?`)) {
+                    onRemoveRole(role.id)
+                  }
+                }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 4, color: '#C4C3BE' }}
+                className="hover:bg-red-50 hover:text-red-500"
+                title="Remove role"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
         )
       })}
@@ -515,6 +534,7 @@ function PricingView({
         <div style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
           {formatCurrency(stats.totalValue, 0)}
         </div>
+        <div />
       </div>
 
       {/* Total */}
@@ -528,6 +548,7 @@ function PricingView({
         <div style={{ padding: '12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: '#111110' }}>
           {formatCurrency(stats.totalValue, 0)}
         </div>
+        <div />
       </div>
     </div>
   )
