@@ -289,12 +289,12 @@ export function Requirements() {
   const { estimateWbsElements } = useAppContext()
   const requirementToWBSMap = useMemo(() => {
     const map: Record<string, string[]> = {}
-    const elements = estimateWbsElements as unknown as { ref: string; requirementLinks?: string[] }[]
+    const elements = estimateWbsElements as unknown as { wbsNumber: string; requirementLinks?: string[] }[]
     elements?.forEach(element => {
       element.requirementLinks?.forEach(reqId => {
         if (!map[reqId]) map[reqId] = []
-        if (!map[reqId].includes(element.ref)) {
-          map[reqId].push(element.ref)
+        if (!map[reqId].includes(element.wbsNumber)) {
+          map[reqId].push(element.wbsNumber)
         }
       })
     })
