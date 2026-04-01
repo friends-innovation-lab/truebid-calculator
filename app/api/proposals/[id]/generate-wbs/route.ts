@@ -447,12 +447,12 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const message = await anthropic.messages.create({
+    const message = await anthropic.messages.stream({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 32768,
       system: SYSTEM_PROMPT,
       messages: [{ role: 'user', content: userPrompt }],
-    })
+    }).finalMessage()
 
     const responseText = message.content
       .filter(block => block.type === 'text')
