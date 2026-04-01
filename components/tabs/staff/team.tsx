@@ -1,11 +1,13 @@
 'use client'
 
 import React, { useState } from 'react'
+import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { X, Plus, Upload } from 'lucide-react'
+import { X, Plus, Upload, Copy, Send } from 'lucide-react'
+import { toast } from 'sonner'
 
 // ==================== TYPES ====================
 
@@ -19,6 +21,17 @@ interface TeamMember {
   agreementStatus: 'signed' | 'pending' | 'none'
   agreementType: string | null
   notes: string | null
+}
+
+interface Director {
+  id: string
+  name: string
+  role: string
+  email: string
+  token: string | null
+  tokenExpiry: string | null
+  lastViewed: string | null
+  createdAt: string
 }
 
 interface TeamStats {
@@ -98,9 +111,27 @@ function getSetAsideCompliance(setAside: string): ComplianceRule | null {
   return rules[setAside] || null
 }
 
+// ==================== DATE HELPERS ====================
+
+function getDaysUntil(dateStr: string): number {
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diff = date.getTime() - now.getTime()
+  return Math.ceil(diff / (1000 * 60 * 60 * 24))
+}
+
+function getDaysAgo(dateStr: string): number {
+  const now = new Date()
+  const date = new Date(dateStr)
+  const diff = now.getTime() - date.getTime()
+  return Math.floor(diff / (1000 * 60 * 60 * 24))
+}
+
 // ==================== MAIN COMPONENT ====================
 
 export function Team() {
+  const params = useParams()
+  const proposalId = params?.id as string
   const { selectedRoles, proposalSetup } = useAppContext()
 
   // Team members state (will be persisted to context/API later)
@@ -118,6 +149,12 @@ export function Team() {
     }
   ])
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
+
+  // Directors state
+  const [directors, setDirectors] = useState<Director[]>([])
+  const [showAddDirector, setShowAddDirector] = useState(false)
+  const [newDirector, setNewDirector] = useState({ name: '', role: '', email: '' })
+  const [sendingLink, setSendingLink] = useState<string | null>(null)
 
   // Calculate prime work share from roles
   const totalHours = selectedRoles.reduce(
@@ -137,14 +174,14 @@ export function Team() {
     primeCount: teamMembers.filter(m => m.type === 'prime').length,
     subCount: teamMembers.filter(m => m.type === 'sub').length,
     partnerCount: teamMembers.filter(m => m.type === 'partner').length,
-    directorCount: 0, // Will be populated from directors
+    directorCount: directors.length,
     primeWorkShare: primeShare,
   }
 
   // Get compliance rule for current set-aside
   const compliance = getSetAsideCompliance(proposalSetup?.setAside || '')
 
-  // Handlers
+  // Team member handlers
   const handleAddMember = () => {
     const newMember: TeamMember = {
       id: `member-${crypto.randomUUID()}`,
@@ -171,6 +208,65 @@ export function Team() {
   const handleDeleteMember = (id: string) => {
     setTeamMembers(prev => prev.filter(m => m.id !== id))
     setSelectedMember(null)
+  }
+
+  // Director handlers
+  const handleAddDirector = () => {
+    if (!newDirector.name || !newDirector.email) return
+
+    const director: Director = {
+      id: `director-${crypto.randomUUID()}`,
+      name: newDirector.name,
+      role: newDirector.role,
+      email: newDirector.email,
+      token: null,
+      tokenExpiry: null,
+      lastViewed: null,
+      createdAt: new Date().toISOString(),
+    }
+    setDirectors([...directors, director])
+    setNewDirector({ name: '', role: '', email: '' })
+    setShowAddDirector(false)
+  }
+
+  const handleSendLink = async (directorId: string) => {
+    setSendingLink(directorId)
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/director-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ directorId }),
+      })
+
+      if (!res.ok) throw new Error('Failed to generate link')
+
+      const data = await res.json()
+
+      // Update director with new token
+      setDirectors(prev => prev.map(d =>
+        d.id === directorId
+          ? { ...d, token: data.token, tokenExpiry: data.tokenExpiry }
+          : d
+      ))
+
+      toast.success('Link sent', { description: 'Director will receive an email with the review link.' })
+    } catch {
+      toast.error('Failed to send link')
+    } finally {
+      setSendingLink(null)
+    }
+  }
+
+  const handleCopyLink = (director: Director) => {
+    if (!director.token) return
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : ''
+    const link = `${baseUrl}/director-review/${director.token}`
+    navigator.clipboard.writeText(link)
+    toast.success('Copied!', { duration: 2000 })
+  }
+
+  const handleDeleteDirector = (id: string) => {
+    setDirectors(prev => prev.filter(d => d.id !== id))
   }
 
   return (
@@ -275,19 +371,149 @@ export function Team() {
           </div>
         </section>
 
-        {/* DIRECTOR REVIEW section - placeholder for Prompt 4 */}
-        <section style={{ padding: '0 24px 24px' }}>
-          <div style={{
-            fontSize: 9,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '1.5px',
-            color: '#6B6A65',
-            marginBottom: 12,
-          }}>
-            Director Review
+        {/* DIRECTOR REVIEW section */}
+        <section style={{ borderTop: '0.5px solid #F4F3EF', padding: '16px 20px' }}>
+          {/* Section header */}
+          <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
+            <div className="flex items-center gap-2">
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '1.5px',
+                color: '#6B6A65',
+              }}>
+                Director review
+              </span>
+              <span style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: '#6B6A65',
+                background: '#F4F3EF',
+                padding: '2px 6px',
+                borderRadius: 10,
+              }}>
+                {directors.length}
+              </span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => setShowAddDirector(true)}
+            >
+              <Plus className="w-3.5 h-3.5 mr-1" />
+              Add director
+            </Button>
           </div>
-          {/* Content will be added in Prompt 4 */}
+
+          {/* Hint text */}
+          <p style={{
+            fontSize: 11,
+            color: '#6B6A65',
+            lineHeight: 1.5,
+            marginBottom: 10,
+          }}>
+            Directors receive a private link to review WBS elements and assign hours.
+            Links expire after 14 days and can be resent.
+          </p>
+
+          {/* Director list */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {directors.map(director => (
+              <DirectorCard
+                key={director.id}
+                director={director}
+                onSendLink={() => handleSendLink(director.id)}
+                onCopyLink={() => handleCopyLink(director)}
+                onDelete={() => handleDeleteDirector(director.id)}
+                isSending={sendingLink === director.id}
+              />
+            ))}
+          </div>
+
+          {/* Add director form */}
+          {showAddDirector && (
+            <div
+              style={{
+                marginTop: 10,
+                padding: 14,
+                background: '#FAFAF9',
+                border: '0.5px solid #E8E7E2',
+                borderRadius: 7,
+              }}
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <Input
+                  placeholder="Name"
+                  value={newDirector.name}
+                  onChange={(e) => setNewDirector({ ...newDirector, name: e.target.value })}
+                  className="text-sm flex-1"
+                />
+                <Input
+                  placeholder="Role (e.g. VP of Engineering)"
+                  value={newDirector.role}
+                  onChange={(e) => setNewDirector({ ...newDirector, role: e.target.value })}
+                  className="text-sm flex-1"
+                />
+                <Input
+                  placeholder="Email"
+                  type="email"
+                  value={newDirector.email}
+                  onChange={(e) => setNewDirector({ ...newDirector, email: e.target.value })}
+                  className="text-sm flex-1"
+                />
+              </div>
+              <div className="flex items-center gap-2 justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => {
+                    setShowAddDirector(false)
+                    setNewDirector({ name: '', role: '', email: '' })
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  className="text-xs h-7"
+                  style={{ backgroundColor: '#111110' }}
+                  onClick={handleAddDirector}
+                  disabled={!newDirector.name || !newDirector.email}
+                >
+                  Add director
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state */}
+          {directors.length === 0 && !showAddDirector && (
+            <div
+              style={{
+                padding: '24px',
+                textAlign: 'center',
+                background: '#FAFAF9',
+                border: '1px dashed #D4D3CE',
+                borderRadius: 7,
+              }}
+            >
+              <p style={{ fontSize: 12, color: '#9B9A95', marginBottom: 8 }}>
+                No directors added yet
+              </p>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs"
+                onClick={() => setShowAddDirector(true)}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add your first director
+              </Button>
+            </div>
+          )}
         </section>
       </div>
 
@@ -300,6 +526,206 @@ export function Team() {
           onClose={() => setSelectedMember(null)}
         />
       )}
+    </div>
+  )
+}
+
+// ==================== DIRECTOR CARD ====================
+
+function DirectorCard({
+  director,
+  onSendLink,
+  onCopyLink,
+  onDelete,
+  isSending,
+}: {
+  director: Director
+  onSendLink: () => void
+  onCopyLink: () => void
+  onDelete: () => void
+  isSending: boolean
+}) {
+  // Get initials from name
+  const nameParts = director.name.split(' ')
+  const initials = nameParts.length >= 2
+    ? `${nameParts[0][0]}${nameParts[nameParts.length - 1][0]}`.toUpperCase()
+    : (nameParts[0]?.[0] || '?').toUpperCase()
+
+  // Determine token status
+  const hasToken = !!director.token
+  const isExpired = director.tokenExpiry ? new Date(director.tokenExpiry) < new Date() : false
+  const isActive = hasToken && !isExpired
+
+  // Calculate days
+  const daysUntilExpiry = director.tokenExpiry ? getDaysUntil(director.tokenExpiry) : 0
+  const daysSinceExpiry = director.tokenExpiry ? getDaysAgo(director.tokenExpiry) : 0
+  const daysSinceViewed = director.lastViewed ? getDaysAgo(director.lastViewed) : null
+
+  return (
+    <div
+      className="flex items-center gap-3"
+      style={{
+        padding: '12px 14px',
+        background: '#FFFFFF',
+        border: '0.5px solid #E8E7E2',
+        borderRadius: 7,
+      }}
+    >
+      {/* Avatar */}
+      <div
+        style={{
+          width: 32,
+          height: 32,
+          borderRadius: '50%',
+          background: '#111110',
+          color: '#FFFFFF',
+          fontSize: 11,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0,
+        }}
+      >
+        {initials}
+      </div>
+
+      {/* Info */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#111110' }}>
+          {director.name}
+        </div>
+        <div style={{ fontSize: 11, color: '#6B6A65' }}>
+          {director.role || director.email}
+        </div>
+      </div>
+
+      {/* Status block */}
+      <div style={{ textAlign: 'right', marginRight: 8 }}>
+        {isActive && (
+          <>
+            <span style={{
+              fontSize: 9,
+              fontWeight: 600,
+              padding: '2px 7px',
+              borderRadius: 3,
+              background: '#EAF3DE',
+              color: '#27500A',
+            }}>
+              Link active
+            </span>
+            <div style={{ fontSize: 10, color: '#6B6A65', marginTop: 2 }}>
+              Expires in {daysUntilExpiry} days
+            </div>
+            {daysSinceViewed !== null ? (
+              <div style={{ fontSize: 10, color: '#6B6A65' }}>
+                Last viewed: {daysSinceViewed} days ago
+              </div>
+            ) : (
+              <div style={{ fontSize: 10, color: '#C4C3BE' }}>
+                Not yet opened
+              </div>
+            )}
+          </>
+        )}
+        {hasToken && isExpired && (
+          <>
+            <span style={{
+              fontSize: 9,
+              fontWeight: 600,
+              padding: '2px 7px',
+              borderRadius: 3,
+              background: '#FCEBEB',
+              color: '#501313',
+            }}>
+              Link expired
+            </span>
+            <div style={{ fontSize: 10, color: '#6B6A65', marginTop: 2 }}>
+              Expired {daysSinceExpiry} days ago
+            </div>
+            {!director.lastViewed && (
+              <div style={{ fontSize: 10, color: '#C4C3BE' }}>
+                Never opened
+              </div>
+            )}
+          </>
+        )}
+        {!hasToken && (
+          <span style={{
+            fontSize: 9,
+            fontWeight: 600,
+            padding: '2px 7px',
+            borderRadius: 3,
+            background: '#F4F3EF',
+            color: '#5F5E5A',
+          }}>
+            No link sent
+          </span>
+        )}
+      </div>
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-1">
+        {isActive && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-6 px-2"
+              onClick={onCopyLink}
+            >
+              <Copy className="w-3 h-3 mr-1" />
+              Copy link
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-6 px-2"
+              onClick={onSendLink}
+              disabled={isSending}
+            >
+              <Send className="w-3 h-3 mr-1" />
+              Resend
+            </Button>
+          </>
+        )}
+        {hasToken && isExpired && (
+          <Button
+            size="sm"
+            className="text-xs h-6 px-2"
+            style={{ backgroundColor: '#111110' }}
+            onClick={onSendLink}
+            disabled={isSending}
+          >
+            {isSending ? 'Sending...' : 'Send new link'}
+          </Button>
+        )}
+        {!hasToken && (
+          <Button
+            size="sm"
+            className="text-xs h-6 px-2"
+            style={{ backgroundColor: '#111110' }}
+            onClick={onSendLink}
+            disabled={isSending}
+          >
+            {isSending ? 'Sending...' : 'Send link'}
+          </Button>
+        )}
+        <button
+          onClick={onDelete}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 4,
+            color: '#C4C3BE',
+          }}
+          className="hover:text-red-500"
+          title="Remove director"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   )
 }
