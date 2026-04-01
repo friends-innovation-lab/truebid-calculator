@@ -186,19 +186,30 @@ Unless there is a specific reason a role is part-time, assume FULL TIME (1,920 h
   Full time:      1,920 hrs/yr (standard)
   Three-quarter:  1,440 hrs/yr (0.75 FTE)
   Half time:        960 hrs/yr (0.5 FTE)
-  Quarter time:     480 hrs/yr (0.25 FTE — use ONLY for DM and PM oversight roles, not primary delivery roles)
+  Quarter time:     480 hrs/yr (0.25 FTE — use sparingly, not for primary delivery roles)
 
 DO NOT default to low hours unless the role genuinely has limited work on this package. A developer working on a major feature suite should be at 1,920 hrs/yr not 480 hrs/yr.
 
-DELIVERY MANAGER — 0.25 FTE on EVERY package:
-  Always 480 hrs/yr base year
-  Always 480 hrs/yr each option year
-  This is non-negotiable per USDS Playbook
-  Task: "Delivery oversight and coordination"
+PROGRAM MANAGEMENT RULE — NON-NEGOTIABLE:
 
-PRODUCT MANAGER — 0.25 FTE on EVERY package except pure operations/infrastructure:
-  Always 480 hrs/yr
-  Task: "Product direction and acceptance"
+FFTC's Delivery Manager and Product Manager are FULL-TIME (1.0 FTE) on every project.
+
+ALWAYS create WBS-01 as a dedicated "Program Management & Delivery" package.
+This is the ONLY place DM and PM appear.
+
+  WBS-01: Program Management & Delivery
+    Task 1: Delivery management, sprint ceremonies, client relationships, reporting, risk management
+      Role: Delivery Manager
+      Hours: [billableHoursPerYear] per year
+      LOE: management
+
+    Task 2: Product vision, backlog, stakeholder alignment, acceptance, roadmap, feature prioritization
+      Role: Product Manager
+      Hours: [billableHoursPerYear] per year
+      LOE: management
+
+DO NOT add Delivery Manager or Product Manager to any other work package.
+All other packages contain delivery work only.
 
 TECHNICAL LEAD — appears on every development-heavy package:
   Full time (1,920 hrs) on core build packages
@@ -508,7 +519,7 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
     })
 
     // Convert to WBS elements format with BOE fields
-    let wbsElements = parsed.map(el => ({
+    const wbsElements = parsed.map(el => ({
       id: crypto.randomUUID(),
       ref: el.ref,
       wbsNumber: el.ref.replace(/^WBS-0*/, 'WBS-'),
@@ -575,81 +586,6 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
         .map(ref => refToWbsId.get(ref))
         .filter((id): id is string => id != null)
       delete (el as Record<string, unknown>)._dependencyRefs
-    })
-
-    // Enforce always-present roles on every work package
-    const ALWAYS_PRESENT_ROLES = [
-      {
-        role: 'Delivery Manager',
-        taskName: 'Delivery oversight and coordination',
-        loeType: 'management',
-        basisOfEstimate: '0.25 FTE oversight per USDS Playbook — standard on all work packages',
-      },
-      {
-        role: 'Product Manager',
-        taskName: 'Product direction and acceptance',
-        loeType: 'management',
-        basisOfEstimate: '0.25 FTE product direction per USDS Playbook',
-      },
-      {
-        role: 'Technical Lead',
-        taskName: 'Technical architecture and code review',
-        loeType: 'development',
-        basisOfEstimate: '0.25 FTE minimum technical oversight on all packages',
-      },
-    ]
-
-    const QUARTER_FTE_HOURS = Math.round(1920 * 0.25) // 480 hrs
-
-    wbsElements = wbsElements.map(element => {
-      const tasks = [...element.tasks]
-      const laborEstimates = [...element.laborEstimates]
-
-      ALWAYS_PRESENT_ROLES.forEach(({ role, taskName, loeType, basisOfEstimate }) => {
-        // Check by role name — not by task name — because the AI might name tasks differently
-        const hasRole = tasks.some(t => t.role?.toLowerCase().trim() === role.toLowerCase().trim())
-
-        if (!hasRole) {
-          tasks.push({
-            id: crypto.randomUUID(),
-            name: taskName,
-            role: role,
-            hours: QUARTER_FTE_HOURS,
-            hoursByYear: {
-              baseYear: QUARTER_FTE_HOURS,
-              oy1: optionYears >= 1 ? QUARTER_FTE_HOURS : 0,
-              oy2: optionYears >= 2 ? QUARTER_FTE_HOURS : 0,
-              oy3: optionYears >= 3 ? QUARTER_FTE_HOURS : 0,
-              oy4: optionYears >= 4 ? QUARTER_FTE_HOURS : 0,
-            },
-            loeType: loeType,
-            chargeCode: null,
-            basisOfEstimate: basisOfEstimate,
-          })
-          laborEstimates.push({
-            id: crypto.randomUUID(),
-            roleId: '',
-            roleName: role,
-            hoursByPeriod: {
-              base: QUARTER_FTE_HOURS,
-              option1: optionYears >= 1 ? QUARTER_FTE_HOURS : 0,
-              option2: optionYears >= 2 ? QUARTER_FTE_HOURS : 0,
-              option3: optionYears >= 3 ? QUARTER_FTE_HOURS : 0,
-              option4: optionYears >= 4 ? QUARTER_FTE_HOURS : 0,
-            },
-            rationale: taskName,
-            confidence: 'medium' as const,
-            isAISuggested: true,
-            isOrphaned: false,
-            loeType: loeType,
-            basisOfEstimate: basisOfEstimate,
-          })
-        }
-      })
-
-      const totalHours = tasks.reduce((sum, t) => sum + (t.hours || 0), 0)
-
-      return { ...element, tasks, laborEstimates, totalHours }
     })
 
     // Sync roles from WBS tasks with labor category lookup
