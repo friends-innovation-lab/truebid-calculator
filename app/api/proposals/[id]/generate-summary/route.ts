@@ -75,7 +75,11 @@ export async function POST(
     }
 
     // Accept inline data from request body (avoids race with debounced DB sync)
-    let bodyData: { solicitation?: Record<string, unknown>; requirements?: Array<{ text?: string; title?: string; type?: string; sourceSection?: string }> } = {}
+    let bodyData: {
+      rfpText?: string
+      solicitation?: Record<string, unknown>
+      requirements?: Array<{ text?: string; title?: string; type?: string; sourceSection?: string }>
+    } = {}
     try {
       const contentType = request.headers.get('content-type') || ''
       if (contentType.includes('application/json')) {
@@ -87,19 +91,24 @@ export async function POST(
 
     // Get the working data which contains the solicitation info and extracted requirements
     const workingData = proposal.working_data || {}
-    const solicitation = bodyData.solicitation || workingData.solicitation || {}
-    const requirements = bodyData.requirements || workingData.extractedRequirements || []
     const strategy = proposal.strategy || {}
 
-    console.log('[generate-summary] Working data keys:', Object.keys(workingData))
-    console.log('[generate-summary] Using inline data:', !!bodyData.solicitation)
-    console.log('[generate-summary] Solicitation title:', solicitation.title)
-    console.log('[generate-summary] Requirements count:', requirements.length)
+    // Prefer rfpText (raw PDF text) for richer context, fall back to structured data
+    const rfpText = bodyData.rfpText || (workingData as Record<string, unknown>).rfpText as string || ''
 
-    // Build context from solicitation and requirements
-    const documentContext = buildDocumentContext(solicitation, requirements)
+    let documentContext: string
 
-    console.log('[generate-summary] Document context length:', documentContext.length)
+    if (rfpText && rfpText.length >= 100) {
+      // Use raw PDF text directly — has more context than structured extraction
+      documentContext = rfpText
+      console.log('[generate-summary] Using rfpText directly:', rfpText.length, 'chars')
+    } else {
+      // Fall back to structured data
+      const solicitation = bodyData.solicitation || (workingData as Record<string, unknown>).solicitation || {}
+      const requirements = bodyData.requirements || (workingData as Record<string, unknown>).extractedRequirements || []
+      documentContext = buildDocumentContext(solicitation as Record<string, unknown>, requirements as Array<{ text?: string; title?: string; type?: string; sourceSection?: string }>)
+      console.log('[generate-summary] Using structured context:', documentContext.length, 'chars')
+    }
 
     if (!documentContext || documentContext.length < 100) {
       return NextResponse.json(

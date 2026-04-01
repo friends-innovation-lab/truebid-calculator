@@ -180,202 +180,195 @@ export function UploadTab({ onContinue }: UploadTabProps) {
     }
   }, [])
 
-  // File upload and analysis - NOW CALLS REAL API
+  // File upload and analysis — parallel extraction
   const handleFileUpload = async (file: File) => {
     setUploadedFileName(file.name)
     setState('analyzing')
     setProgress(0)
     setErrorMessage(null)
 
-    // Progress animation interval
-    let progressInterval: NodeJS.Timeout | null = null
-
     try {
-      // Stage 1: Uploading
+      // Stage 1: Extract text from PDF
       setProgress(10)
-      setProgressText('Uploading document...')
-      
+      setProgressText('Extracting text from PDF...')
+
       const formData = new FormData()
       formData.append('file', file)
 
-      // Stage 2: Processing - start animated progress
-      setProgress(15)
-      setProgressText('Extracting text from PDF...')
-      
-      // Animate progress from 15% to 85% over ~60 seconds
-      let currentProgress = 15
-      progressInterval = setInterval(() => {
-        currentProgress += 0.5
-        if (currentProgress >= 85) {
-          currentProgress = 85
-        }
-        setProgress(Math.round(currentProgress))
-        
-        // Update text at milestones
-        if (currentProgress >= 25 && currentProgress < 50) {
-          setProgressText('AI analyzing requirements...')
-        } else if (currentProgress >= 50 && currentProgress < 75) {
-          setProgressText('Extracting metadata and roles...')
-        } else if (currentProgress >= 75) {
-          setProgressText('Finalizing extraction...')
-        }
-      }, 500) // Update every 500ms
-
-      const response = await fetch('/api/extract-rfp', {
+      const textResponse = await fetch('/api/extract-rfp', {
         method: 'POST',
         body: formData,
       })
 
-      // Clear the interval once we get a response
-      if (progressInterval) {
-        clearInterval(progressInterval)
-        progressInterval = null
+      if (!textResponse.ok) {
+        const errorData = await textResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || `Upload failed: ${textResponse.status}`)
       }
 
-      // Stage 3: Processing response
+      const textData = await textResponse.json()
+
+      if (!textData.success) {
+        throw new Error(textData.error || 'Text extraction failed')
+      }
+
+      const rfpText: string = textData.text
+      const pageCount: number = textData.pageCount || 50
+
+      // Stage 2: Save rfpText to working_data immediately
+      setProgress(20)
+      setProgressText('Running AI analysis...')
+
+      if (proposalId) {
+        try {
+          const existingProposal = await proposalsApi.get(proposalId as string) as {
+            proposal: { workingData?: Record<string, unknown> }
+          }
+          const existingWorkingData = existingProposal.proposal?.workingData || {}
+          await proposalsApi.update(proposalId as string, {
+            working_data: {
+              ...existingWorkingData,
+              rfpText,
+            },
+          })
+        } catch (error) {
+          console.warn('[Upload] Failed to save rfpText:', error)
+        }
+      }
+
+      // Stage 3: Run all three AI operations in parallel
+      setProgress(30)
+      setProgressText('Analyzing requirements, compliance, and generating summary...')
+
+      const [summaryResult, requirementsResult, complianceResult] = await Promise.allSettled([
+        fetch(`/api/proposals/${proposalId}/generate-summary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Summary failed')
+          return data
+        }),
+
+        fetch(`/api/proposals/${proposalId}/extract-requirements`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText, pageCount }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Requirements failed')
+          return data
+        }),
+
+        fetch(`/api/proposals/${proposalId}/extract-compliance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Compliance failed')
+          return data
+        }),
+      ])
+
+      // Stage 4: Process results
       setProgress(90)
       setProgressText('Processing results...')
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `Upload failed: ${response.status}`)
-      }
+      // Process requirements (has metadata)
+      if (requirementsResult.status === 'fulfilled') {
+        const { metadata, requirements, suggestedRoles } = requirementsResult.value
 
-      const data: ExtractionResponse = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Extraction failed')
-      }
-
-      // Stage 4: Finalizing
-      setProgress(95)
-      setProgressText('Updating workspace...')
-
-      // Map API response to context format
-      const { metadata, requirements, suggestedRoles } = data
-
-      // Update solicitation in context
-      updateSolicitation({
-        solicitationNumber: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : '',
-        title: metadata.title,
-        clientAgency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : '',
-        contractType: mapContractType(metadata.contractType),
-        naicsCode: metadata.naicsCode !== 'N/A' ? metadata.naicsCode : '',
-        proposalDueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : '',
-        periodOfPerformance: {
-          baseYear: true,
-          optionYears: metadata.periodOfPerformance.options,
-        },
-        setAside: mapSetAside(metadata.setAside),
-        placeOfPerformance: {
-          type: metadata.placeOfPerformance?.toLowerCase().includes('remote') 
-            ? 'remote' as const
-            : metadata.placeOfPerformance?.toLowerCase().includes('hybrid')
-              ? 'hybrid' as const
-              : 'on-site' as const,
-          locations: metadata.placeOfPerformance !== 'N/A' ? [metadata.placeOfPerformance] : [],
-          travelRequired: false,
-          travelPercent: 0,
-        },
-        analyzedFromDocument: file.name,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-
-      // Store extracted requirements for Estimate tab
-      if (setExtractedRequirements && requirements.length > 0) {
-        setExtractedRequirements(requirements)
-
-        // Also save to API if we have a proposal ID
-        if (proposalId) {
-          try {
-            await requirementsApi.create(proposalId as string, requirements)
-            console.log('[Upload] Saved requirements to API')
-          } catch (error) {
-            console.warn('[Upload] Failed to save requirements to API:', error)
-            // Continue anyway - localStorage backup will handle this
-          }
-        }
-      }
-
-      // Update proposal in Supabase with extracted metadata
-      if (proposalId) {
-        try {
-          await proposalsApi.update(proposalId as string, {
+        if (metadata) {
+          updateSolicitation({
+            solicitationNumber: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : '',
             title: metadata.title,
-            agency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : null,
-            solicitation: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : null,
-            contractType: mapContractType(metadata.contractType).toLowerCase(),
-            dueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : null,
-            periodOfPerformance: `1 Base + ${metadata.periodOfPerformance.options} Options`,
+            clientAgency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : '',
+            contractType: mapContractType(metadata.contractType),
+            naicsCode: metadata.naicsCode !== 'N/A' ? metadata.naicsCode : '',
+            proposalDueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : '',
+            periodOfPerformance: {
+              baseYear: true,
+              optionYears: metadata.periodOfPerformance?.options || 0,
+            },
+            setAside: mapSetAside(metadata.setAside),
+            placeOfPerformance: {
+              type: metadata.placeOfPerformance?.toLowerCase().includes('remote')
+                ? 'remote' as const
+                : metadata.placeOfPerformance?.toLowerCase().includes('hybrid')
+                  ? 'hybrid' as const
+                  : 'on-site' as const,
+              locations: metadata.placeOfPerformance !== 'N/A' ? [metadata.placeOfPerformance] : [],
+              travelRequired: false,
+              travelPercent: 0,
+            },
+            analyzedFromDocument: file.name,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
           })
-          console.log('[Upload] Updated proposal with extracted metadata')
 
-          // Save raw text to working_data for compliance matrix Section L extraction
-          // This is done separately to merge with existing working_data
-          if (data.solicitationRawText) {
-            console.log('[Upload] Raw text length:', data.solicitationRawText.length)
+          if (proposalId) {
             try {
-              const existingProposal = await proposalsApi.get(proposalId as string) as {
-                proposal: { workingData?: Record<string, unknown> }
-              }
-              const existingWorkingData = existingProposal.proposal?.workingData || {}
-              console.log('[Upload] Existing working_data keys:', Object.keys(existingWorkingData))
               await proposalsApi.update(proposalId as string, {
-                working_data: {
-                  ...existingWorkingData,
-                  solicitationRawText: data.solicitationRawText,
-                },
+                title: metadata.title,
+                agency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : null,
+                solicitation: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : null,
+                contractType: mapContractType(metadata.contractType).toLowerCase(),
+                dueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : null,
+                periodOfPerformance: `1 Base + ${metadata.periodOfPerformance?.options || 0} Options`,
               })
-              console.log('[Upload] Saved raw text for Section L extraction, length:', data.solicitationRawText.length)
-            } catch (rawTextError) {
-              console.warn('[Upload] Failed to save raw text:', rawTextError)
+            } catch (error) {
+              console.warn('[Upload] Failed to update proposal metadata:', error)
             }
-          } else {
-            console.log('[Upload] No solicitationRawText in response')
           }
-        } catch (error) {
-          console.warn('[Upload] Failed to update proposal:', error)
         }
-      }
 
-      // Map suggested roles to recommended roles format
-      if (suggestedRoles.length > 0) {
-        const mappedRoles = suggestedRoles.map((role, index) => ({
-          id: `rec-${index + 1}`,
-          name: role.title,
-          description: role.rationale,
-          icLevel: 'IC4' as const, // Default to IC4, user can adjust
-          baseSalary: 120000, // Default salary, will be overridden by Account Center
-          quantity: role.quantity,
-          fte: 1,
-          storyPoints: 0,
-          years: { 
-            base: true, 
-            option1: metadata.periodOfPerformance.options >= 1,
-            option2: metadata.periodOfPerformance.options >= 2,
-            option3: metadata.periodOfPerformance.options >= 3,
-            option4: metadata.periodOfPerformance.options >= 4,
-          },
-          confidence: 'medium' as const,
-        }))
-        setRecommendedRoles(mappedRoles)
+        if (setExtractedRequirements && requirements && requirements.length > 0) {
+          setExtractedRequirements(requirements)
+          if (proposalId) {
+            try {
+              await requirementsApi.create(proposalId as string, requirements)
+            } catch (error) {
+              console.warn('[Upload] Failed to save requirements:', error)
+            }
+          }
+        }
+
+        if (suggestedRoles && suggestedRoles.length > 0) {
+          const mappedRoles = suggestedRoles.map((role: { title: string; rationale: string; quantity: number }, index: number) => ({
+            id: `rec-${index + 1}`,
+            name: role.title,
+            description: role.rationale,
+            icLevel: 'IC4' as const,
+            baseSalary: 120000,
+            quantity: role.quantity,
+            fte: 1,
+            storyPoints: 0,
+            years: {
+              base: true,
+              option1: (metadata?.periodOfPerformance?.options || 0) >= 1,
+              option2: (metadata?.periodOfPerformance?.options || 0) >= 2,
+              option3: (metadata?.periodOfPerformance?.options || 0) >= 3,
+              option4: (metadata?.periodOfPerformance?.options || 0) >= 4,
+            },
+            confidence: 'medium' as const,
+          }))
+          setRecommendedRoles(mappedRoles)
+        }
+      } else {
+        console.error('[Upload] Requirements extraction failed:', requirementsResult.reason)
       }
 
       // Complete
       setProgress(100)
       setProgressText('Complete!')
-      
-      await new Promise(resolve => setTimeout(resolve, 500)) // Brief pause to show completion
-      
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       setState('complete')
       setShowDetails(true)
 
     } catch (error) {
-      // Clear progress interval if still running
-      if (progressInterval) {
-        clearInterval(progressInterval)
-      }
       console.error('Upload/extraction error:', error)
       setErrorMessage(error instanceof Error ? error.message : 'Failed to analyze document')
       setState('error')

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { toast } from 'sonner'
-import { useAppContext } from '@/contexts/app-context'
+import { useAppContext, type ExtractedRequirement } from '@/contexts/app-context'
 import { proposalsApi, requirementsApi, complianceApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import {
@@ -85,8 +85,8 @@ interface ExtractionStep {
 }
 
 const initialExtractionSteps: ExtractionStep[] = [
-  { id: 'upload', label: 'Uploading document', status: 'pending' },
-  { id: 'summary', label: 'Generating summary', status: 'pending' },
+  { id: 'upload', label: 'Extracting text from PDF', status: 'pending' },
+  { id: 'summary', label: 'Generating AI summary', status: 'pending' },
   { id: 'requirements', label: 'Extracting requirements', description: 'Section C & H — what needs to be built', status: 'pending' },
   { id: 'compliance', label: 'Building compliance matrix', description: 'All sections — what the proposal must address', status: 'pending' },
 ]
@@ -1104,193 +1104,326 @@ export function Solicitation() {
     await extractRFP(file)
   }
 
-  // Extract RFP and generate summary
+  // Extract RFP text and run all three AI operations in parallel
   const extractRFP = async (file: File) => {
     setSummaryStatus('generating')
     setSummaryError(null)
 
-    // Step 2: Summary - set to active (extraction includes summary generation)
+    // Mark all three AI steps as active simultaneously after text extraction
     updateExtractionStep('summary', 'active')
 
     try {
+      // STEP 1: Extract text from PDF
       const formData = new FormData()
       formData.append('file', file)
 
-      const response = await fetch('/api/extract-rfp', {
+      const textResponse = await fetch('/api/extract-rfp', {
         method: 'POST',
         body: formData,
       })
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `Extraction failed: ${response.status}`)
+      if (!textResponse.ok) {
+        const errorData = await textResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || `Text extraction failed: ${textResponse.status}`)
       }
 
-      const data = await response.json()
+      const textData = await textResponse.json()
 
-      if (!data.success) {
-        throw new Error(data.error || 'Extraction failed')
+      if (!textData.success) {
+        throw new Error(textData.error || 'Text extraction failed')
       }
 
-      // Mark summary complete, start requirements
-      updateExtractionStep('summary', 'complete')
+      const rfpText: string = textData.text
+      const pageCount: number = textData.pageCount || 50
+
+      // Mark text extraction done, start all three AI operations
+      updateExtractionStep('summary', 'active')
       updateExtractionStep('requirements', 'active')
-
-      const { metadata, requirements, suggestedRoles } = data
-
-      // Update solicitation
-      updateSolicitation({
-        solicitationNumber: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : '',
-        title: metadata.title,
-        clientAgency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : '',
-        contractType: mapContractType(metadata.contractType),
-        naicsCode: metadata.naicsCode !== 'N/A' ? metadata.naicsCode : '',
-        proposalDueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : '',
-        periodOfPerformance: {
-          baseYear: true,
-          optionYears: metadata.periodOfPerformance?.options || 0,
-        },
-        setAside: mapSetAside(metadata.setAside) as '' | 'small-business' | '8a' | 'hubzone' | 'sdvosb' | 'wosb' | 'edwosb' | 'full-open',
-        placeOfPerformance: {
-          type: metadata.placeOfPerformance?.toLowerCase()?.includes('remote')
-            ? 'remote' as const
-            : metadata.placeOfPerformance?.toLowerCase()?.includes('hybrid')
-              ? 'hybrid' as const
-              : 'on-site' as const,
-          locations: metadata.placeOfPerformance !== 'N/A' ? [metadata.placeOfPerformance] : [],
-          travelRequired: false,
-          travelPercent: 0,
-        },
-        analyzedFromDocument: file.name,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-
-      // Store requirements
-      let requirementCount = 0
-      if (requirements && requirements.length > 0) {
-        requirementCount = requirements.length
-        setExtractedRequirements(requirements)
-        if (proposalId) {
-          try {
-            await requirementsApi.create(proposalId, requirements)
-          } catch (error) {
-            console.warn('[Solicitation] Failed to save requirements:', error)
-          }
-        }
-      }
-
-      // Store roles
-      if (suggestedRoles && suggestedRoles.length > 0) {
-        const mappedRoles = suggestedRoles.map((role: { title: string; rationale: string; quantity: number }, index: number) => ({
-          id: `rec-${index + 1}`,
-          name: role.title,
-          description: role.rationale,
-          icLevel: 'IC4' as const,
-          baseSalary: 120000,
-          quantity: role.quantity,
-          fte: 1,
-          storyPoints: 0,
-          years: {
-            base: true,
-            option1: (metadata.periodOfPerformance?.options || 0) >= 1,
-            option2: (metadata.periodOfPerformance?.options || 0) >= 2,
-            option3: (metadata.periodOfPerformance?.options || 0) >= 3,
-            option4: (metadata.periodOfPerformance?.options || 0) >= 4,
-          },
-          confidence: 'medium' as const,
-        }))
-        setRecommendedRoles(mappedRoles)
-      }
-
-      // Mark requirements complete, start compliance
-      updateExtractionStep('requirements', 'complete')
       updateExtractionStep('compliance', 'active')
 
-      // STEP 1: Save ALL compliance items immediately (no linking)
-      let complianceCount = 0
-      const complianceMatrix = data.complianceMatrix
-
-      // DEBUG: Log raw extraction output before any processing
-      console.log('[DEBUG] RAW extracted count:', complianceMatrix?.length || 0)
-      console.log('[DEBUG] Sample raw items:', JSON.stringify(complianceMatrix?.slice(0, 3), null, 2))
-      console.log('[DEBUG] data keys:', Object.keys(data))
-      console.log('[DEBUG] complianceMatrix is:', typeof complianceMatrix, Array.isArray(complianceMatrix))
-
-      if (complianceMatrix && complianceMatrix.length > 0 && proposalId) {
+      // STEP 2: Save rfpText to working_data immediately (not debounced)
+      if (proposalId) {
         try {
-          // Strip requirementId — save everything as unlinked first
-          const itemsToSave = complianceMatrix.map((item: Record<string, unknown>) => ({
-            ...item,
-            requirementId: null,
-          }))
-          console.log('[DEBUG] Items to save count:', itemsToSave.length)
-
-          const result = await complianceApi.bulkReplace(proposalId, itemsToSave) as { count?: number; items?: unknown[] }
-          complianceCount = result.count || itemsToSave.length
-          console.log(`[DEBUG] API returned count: ${result.count}, items: ${result.items?.length || 'undefined'}`)
-          console.log(`[Solicitation] Saved ${complianceCount} compliance items to database`)
+          const existingProposal = await proposalsApi.get(proposalId) as {
+            proposal: { workingData?: Record<string, unknown> }
+          }
+          const existingWorkingData = existingProposal.proposal?.workingData || {}
+          await proposalsApi.update(proposalId, {
+            working_data: {
+              ...existingWorkingData,
+              rfpText,
+            },
+          })
+          console.log('[Solicitation] Saved rfpText to working_data, length:', rfpText.length)
         } catch (error) {
-          console.error('[DEBUG] bulkReplace FAILED:', error)
-          console.warn('[Solicitation] Failed to save compliance matrix:', error)
-          complianceCount = complianceMatrix.length // Still show count in toast
+          console.warn('[Solicitation] Failed to save rfpText:', error)
+        }
+      }
+
+      // STEP 3: Run all three AI operations in parallel
+      const [summaryResult, requirementsResult, complianceResult] = await Promise.allSettled([
+        // Generate summary
+        fetch(`/api/proposals/${proposalId}/generate-summary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Summary generation failed')
+          return data
+        }),
+
+        // Extract requirements
+        fetch(`/api/proposals/${proposalId}/extract-requirements`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText, pageCount }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Requirements extraction failed')
+          return data
+        }),
+
+        // Extract compliance matrix
+        fetch(`/api/proposals/${proposalId}/extract-compliance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Compliance extraction failed')
+          return data
+        }),
+      ])
+
+      // STEP 4: Process results independently
+
+      // --- Summary ---
+      if (summaryResult.status === 'fulfilled') {
+        updateExtractionStep('summary', 'complete')
+        const data = summaryResult.value
+
+        const newSummary: AISummary = {
+          whatTheyWant: data.summary?.what_they_want || '',
+          whyItMatters: data.summary?.why_it_matters || '',
+          keyChallenges: data.summary?.key_challenges || [],
+          evaluationEmphasis: typeof data.summary?.evaluation_emphasis === 'string'
+            ? [data.summary.evaluation_emphasis]
+            : data.summary?.evaluation_emphasis || [],
+          fftcRelevance: data.summary?.fftc_relevance || null,
+          keyDates: solicitation.proposalDueDate
+            ? [{
+                label: 'Proposal Due',
+                value: new Date(solicitation.proposalDueDate).toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                }),
+                urgent: getDaysUntilDue(solicitation.proposalDueDate) !== null &&
+                        getDaysUntilDue(solicitation.proposalDueDate)! < 14,
+              }]
+            : [],
+          generatedAt: data.summary?.generated_at || new Date().toISOString(),
+        }
+
+        setSummary(newSummary)
+        setSummaryStatus('complete')
+
+        // Save summary to working_data
+        if (proposalId) {
+          try {
+            const existingProposal = await proposalsApi.get(proposalId) as {
+              proposal: { workingData?: Record<string, unknown> }
+            }
+            const existingWorkingData = existingProposal.proposal?.workingData || {}
+            await proposalsApi.update(proposalId, {
+              working_data: {
+                ...existingWorkingData,
+                solicitationSummary: newSummary,
+              },
+            })
+          } catch (error) {
+            console.warn('[Solicitation] Failed to save summary:', error)
+          }
         }
       } else {
-        console.log('[DEBUG] Skipped compliance save:', {
-          hasMatrix: !!complianceMatrix,
-          length: complianceMatrix?.length || 0,
-          proposalId: !!proposalId,
-        })
+        console.error('[Solicitation] Summary failed:', summaryResult.reason)
+        updateExtractionStep('summary', 'error')
+        setSummaryStatus('error')
+        setSummaryError(summaryResult.reason?.message || 'Summary generation failed')
       }
 
-      // Mark compliance complete
-      updateExtractionStep('compliance', 'complete')
-      setIsExtracting(false)
+      // --- Requirements ---
+      let requirementCount = 0
+      let requirements: ExtractedRequirement[] = []
 
-      // STEP 3: Fire toast AFTER Step 1 completes (uses saved count)
-      toast.success('RFP analyzed', {
-        description: `${requirementCount} requirements · ${complianceCount} compliance items`,
-      })
+      if (requirementsResult.status === 'fulfilled') {
+        updateExtractionStep('requirements', 'complete')
+        const data = requirementsResult.value
+        const { metadata, requirements: reqs, suggestedRoles } = data
 
-      // STEP 2: Link Section C/H compliance items to requirements (non-blocking)
-      // This is a best-effort pass — if it fails, all items are still saved
-      if (complianceCount > 0 && requirements && requirements.length > 0 && proposalId) {
-        (async () => {
+        requirements = reqs || []
+        requirementCount = requirements.length
+
+        // Update solicitation
+        if (metadata) {
+          updateSolicitation({
+            solicitationNumber: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : '',
+            title: metadata.title,
+            clientAgency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : '',
+            contractType: mapContractType(metadata.contractType),
+            naicsCode: metadata.naicsCode !== 'N/A' ? metadata.naicsCode : '',
+            proposalDueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : '',
+            periodOfPerformance: {
+              baseYear: true,
+              optionYears: metadata.periodOfPerformance?.options || 0,
+            },
+            setAside: mapSetAside(metadata.setAside) as '' | 'small-business' | '8a' | 'hubzone' | 'sdvosb' | 'wosb' | 'edwosb' | 'full-open',
+            placeOfPerformance: {
+              type: metadata.placeOfPerformance?.toLowerCase()?.includes('remote')
+                ? 'remote' as const
+                : metadata.placeOfPerformance?.toLowerCase()?.includes('hybrid')
+                  ? 'hybrid' as const
+                  : 'on-site' as const,
+              locations: metadata.placeOfPerformance !== 'N/A' ? [metadata.placeOfPerformance] : [],
+              travelRequired: false,
+              travelPercent: 0,
+            },
+            analyzedFromDocument: file.name,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+
+          // Update proposal metadata in DB
+          if (proposalId) {
+            try {
+              await proposalsApi.update(proposalId, {
+                title: metadata.title,
+                agency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : null,
+                solicitation: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : null,
+                contractType: mapContractType(metadata.contractType).toLowerCase(),
+                dueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : null,
+                periodOfPerformance: `1 Base + ${metadata.periodOfPerformance?.options || 0} Options`,
+              })
+            } catch (error) {
+              console.warn('[Solicitation] Failed to update proposal metadata:', error)
+            }
+          }
+        }
+
+        // Store requirements
+        if (requirements.length > 0) {
+          setExtractedRequirements(requirements)
+          if (proposalId) {
+            try {
+              await requirementsApi.create(proposalId, requirements as unknown as Record<string, unknown>[])
+            } catch (error) {
+              console.warn('[Solicitation] Failed to save requirements:', error)
+            }
+          }
+        }
+
+        // Store roles
+        if (suggestedRoles && suggestedRoles.length > 0) {
+          const mappedRoles = suggestedRoles.map((role: { title: string; rationale: string; quantity: number }, index: number) => ({
+            id: `rec-${index + 1}`,
+            name: role.title,
+            description: role.rationale,
+            icLevel: 'IC4' as const,
+            baseSalary: 120000,
+            quantity: role.quantity,
+            fte: 1,
+            storyPoints: 0,
+            years: {
+              base: true,
+              option1: (metadata?.periodOfPerformance?.options || 0) >= 1,
+              option2: (metadata?.periodOfPerformance?.options || 0) >= 2,
+              option3: (metadata?.periodOfPerformance?.options || 0) >= 3,
+              option4: (metadata?.periodOfPerformance?.options || 0) >= 4,
+            },
+            confidence: 'medium' as const,
+          }))
+          setRecommendedRoles(mappedRoles)
+        }
+      } else {
+        console.error('[Solicitation] Requirements failed:', requirementsResult.reason)
+        updateExtractionStep('requirements', 'error')
+      }
+
+      // --- Compliance ---
+      let complianceCount = 0
+
+      if (complianceResult.status === 'fulfilled') {
+        updateExtractionStep('compliance', 'complete')
+        const complianceMatrix = complianceResult.value.complianceMatrix
+
+        if (complianceMatrix && complianceMatrix.length > 0 && proposalId) {
           try {
-            const savedData = await complianceApi.list(proposalId) as { items?: { id: string; requirement_ref: string | null; source: string }[] }
-            const savedItems = savedData.items || []
+            const itemsToSave = complianceMatrix.map((item: Record<string, unknown>) => ({
+              ...item,
+              requirementId: null,
+            }))
 
-            for (const item of savedItems) {
-              if (item.source === 'requirement' && item.requirement_ref) {
-                const match = requirements.find(
-                  (r: { id: string; reference_number?: string }) =>
-                    r.id === item.requirement_ref || r.reference_number === item.requirement_ref
-                )
-                if (match) {
-                  await complianceApi.update(proposalId, item.id, {
-                    requirement_id: match.id,
-                  })
+            const result = await complianceApi.bulkReplace(proposalId, itemsToSave) as { count?: number; items?: unknown[] }
+            complianceCount = result.count || itemsToSave.length
+            console.log(`[Solicitation] Saved ${complianceCount} compliance items`)
+          } catch (error) {
+            console.warn('[Solicitation] Failed to save compliance matrix:', error)
+            complianceCount = complianceMatrix.length
+          }
+        }
+
+        // Link Section C/H compliance items to requirements (non-blocking)
+        if (complianceCount > 0 && requirements.length > 0 && proposalId) {
+          (async () => {
+            try {
+              const savedData = await complianceApi.list(proposalId) as { items?: { id: string; requirement_ref: string | null; source: string }[] }
+              const savedItems = savedData.items || []
+
+              for (const item of savedItems) {
+                if (item.source === 'requirement' && item.requirement_ref) {
+                  const match = requirements.find(
+                    (r: { id: string; reference_number?: string }) =>
+                      r.id === item.requirement_ref || r.reference_number === item.requirement_ref
+                  )
+                  if (match) {
+                    await complianceApi.update(proposalId, item.id, {
+                      requirement_id: match.id,
+                    })
+                  }
                 }
               }
+              console.log('[Solicitation] Compliance linking pass complete')
+            } catch (error) {
+              console.warn('[Solicitation] Compliance linking failed (non-critical):', error)
             }
-            console.log('[Solicitation] Compliance linking pass complete')
-          } catch (error) {
-            console.warn('[Solicitation] Compliance linking failed (non-critical):', error)
-          }
-        })()
+          })()
+        }
+      } else {
+        console.error('[Solicitation] Compliance failed:', complianceResult.reason)
+        updateExtractionStep('compliance', 'error')
       }
 
-      // Now generate the summary — pass data inline since DB sync is debounced
-      await generateSummary({
-        solicitation: {
-          title: metadata.title,
-          clientAgency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : '',
-          solicitationNumber: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : '',
-          contractType: metadata.contractType,
-          naicsCode: metadata.naicsCode !== 'N/A' ? metadata.naicsCode : '',
-        },
-        requirements,
-      })
+      // Done
+      setIsExtracting(false)
+
+      // Show results toast
+      const failures = [summaryResult, requirementsResult, complianceResult].filter(r => r.status === 'rejected').length
+      if (failures === 0) {
+        toast.success('Analysis complete', {
+          description: `${requirementCount} requirements · ${complianceCount} compliance items`,
+          duration: 5000,
+        })
+      } else if (failures < 3) {
+        toast.warning('Analysis partially complete', {
+          description: `${requirementCount} requirements · ${complianceCount} compliance items · ${failures} step(s) failed`,
+          duration: 5000,
+        })
+      } else {
+        toast.error('Analysis failed', {
+          description: 'All extraction steps failed. Please try again.',
+        })
+      }
 
     } catch (error) {
       console.error('RFP extraction error:', error)
@@ -1303,19 +1436,17 @@ export function Solicitation() {
       ))
       setIsExtracting(false)
 
-      // Show error toast
       toast.error('Extraction failed', {
         description: error instanceof Error ? error.message : 'Could not analyze the document.',
       })
     }
   }
 
-  // Generate AI summary
-  // Accepts optional inline data so callers (e.g. extractRFP) can pass freshly
-  // extracted content that hasn't been synced to the DB yet.
+  // Generate AI summary (standalone — for regeneration from the summary panel)
   const generateSummary = async (inline?: {
-    solicitation: Record<string, unknown>
-    requirements: Array<{ text?: string; title?: string; type?: string; sourceSection?: string }>
+    rfpText?: string
+    solicitation?: Record<string, unknown>
+    requirements?: Array<{ text?: string; title?: string; type?: string; sourceSection?: string }>
   }) => {
     if (!proposalId) return
 
