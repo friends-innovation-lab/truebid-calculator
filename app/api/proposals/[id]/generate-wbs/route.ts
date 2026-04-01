@@ -511,18 +511,18 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       return NextResponse.json({ error: 'AI returned empty WBS' }, { status: 500 })
     }
 
-    // Build ref → ID lookup from requirements
-    // Map ALL possible ref formats so AI's "REQ-001" always finds a match
     const refToId = new Map<string, string>()
     requirements.forEach((r, index) => {
+      // Map by reference_number if it exists
       if (r.referenceNumber) {
         refToId.set(r.referenceNumber, r.id)
       }
       if (r.reference_number) {
         refToId.set(r.reference_number, r.id)
       }
-      // Auto-generated REQ-NNN format in case reference_number is missing
-      const autoRef = `REQ-${String(index + 1).padStart(3, '0')}`
+      // Map by auto-generated REQ-NNN format
+      const autoRef = `REQ-${String(index + 1)
+        .padStart(3, '0')}`
       refToId.set(autoRef, r.id)
       // Always map by ID too
       refToId.set(r.id, r.id)
