@@ -377,10 +377,18 @@ export function ScopeOfWork() {
             optionYears={solicitation.periodOfPerformance.optionYears}
             availableRoles={companyRoles.map(r => r.title)}
             onUpdate={(updates) => {
-              const updated = { ...selectedElement, ...updates }
-              setSelectedElement(updated)
+              const elementId = selectedElement?.id
+              if (!elementId) return
+
+              // Update selectedElement
+              const updatedElement = { ...selectedElement, ...updates }
+              setSelectedElement(updatedElement)
+
+              // Update estimateWbsElements
               setEstimateWbsElements(
-                estimateWbsElements.map(e => (e as unknown as WBSElementData).id === updated.id ? updated as never : e)
+                estimateWbsElements.map(e =>
+                  (e as unknown as WBSElementData).id === elementId ? updatedElement as never : e
+                )
               )
             }}
             onDelete={() => {
