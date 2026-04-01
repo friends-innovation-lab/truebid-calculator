@@ -285,15 +285,17 @@ export function Requirements() {
 
   const highlightedRowRef = useRef<HTMLDivElement>(null)
 
-  // Build reverse lookup: requirement ID → WBS numbers
+  // Build reverse lookup: requirement ID → WBS refs
   const { estimateWbsElements } = useAppContext()
   const requirementToWBSMap = useMemo(() => {
     const map: Record<string, string[]> = {}
-    const elements = estimateWbsElements as unknown as { wbsNumber: string; requirementLinks?: string[] }[]
+    const elements = estimateWbsElements as unknown as { ref: string; requirementLinks?: string[] }[]
     elements?.forEach(element => {
       element.requirementLinks?.forEach(reqId => {
         if (!map[reqId]) map[reqId] = []
-        map[reqId].push(element.wbsNumber)
+        if (!map[reqId].includes(element.ref)) {
+          map[reqId].push(element.ref)
+        }
       })
     })
     return map
