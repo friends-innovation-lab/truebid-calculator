@@ -44,12 +44,14 @@ function getEscalatedRate(baseRate: number, yearIndex: number, escalation: numbe
 
 function getRoleTotalCost(role: Role, billRate: number, escalation: number): number {
   let total = 0
-  const active = getActiveYears(role)
-  const hours = role.billableHours || 1920
+  const hoursByYear = role.hoursByYear || { baseYear: 0, oy1: 0, oy2: 0, oy3: 0, oy4: 0 }
+  const yearHours = [hoursByYear.baseYear, hoursByYear.oy1, hoursByYear.oy2, hoursByYear.oy3, hoursByYear.oy4]
+
   for (let i = 0; i < 5; i++) {
-    if (!active[i]) continue
+    const hours = yearHours[i] || 0
+    if (hours === 0) continue
     const rate = getEscalatedRate(billRate, i, escalation)
-    total += hours * rate * role.fte * role.quantity
+    total += hours * rate
   }
   return total
 }
@@ -427,7 +429,7 @@ function PricingView({
         className="sticky top-0 z-10 grid"
         style={{ gridTemplateColumns: gridCols, background: '#FAFAF9', borderBottom: '0.5px solid #E8E7E2' }}
       >
-        <HeaderCell>Role</HeaderCell>
+        <HeaderCell first>Role</HeaderCell>
         <HeaderCell>Type</HeaderCell>
         <HeaderCell align="right">Bill rate</HeaderCell>
         {yearCols.map(label => <HeaderCell key={label} align="right">{label}</HeaderCell>)}
@@ -448,7 +450,7 @@ function PricingView({
             style={{ gridTemplateColumns: gridCols, borderBottom: '0.5px solid #F4F3EF' }}
             onClick={() => onRowClick(role)}
           >
-            <div style={{ padding: '14px 12px' }}>
+            <div style={{ padding: '14px 12px 14px 20px' }}>
               <div className="flex items-center gap-1.5">
                 <span style={{ fontSize: 12, fontWeight: 600, color: billRate === 0 ? '#BA7517' : '#111110' }}>{role.name}</span>
               </div>
@@ -529,7 +531,7 @@ function PricingView({
         className="grid"
         style={{ gridTemplateColumns: gridCols, background: '#FAFAF9', borderTop: '0.5px solid #D4D3CE' }}
       >
-        <div style={{ padding: '8px 12px', gridColumn: `1 / ${3 + activeYearCount}`, fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
+        <div style={{ padding: '8px 12px 8px 20px', gridColumn: `1 / ${3 + activeYearCount}`, fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
           Prime subtotal
         </div>
         <div style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
@@ -543,7 +545,7 @@ function PricingView({
         className="grid"
         style={{ gridTemplateColumns: gridCols, borderTop: '2px solid #111110' }}
       >
-        <div style={{ padding: '12px', gridColumn: `1 / ${3 + activeYearCount}`, fontSize: 13, fontWeight: 800, color: '#111110' }}>
+        <div style={{ padding: '12px 12px 12px 20px', gridColumn: `1 / ${3 + activeYearCount}`, fontSize: 13, fontWeight: 800, color: '#111110' }}>
           Total contract value
         </div>
         <div style={{ padding: '12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: '#111110' }}>
@@ -1237,10 +1239,10 @@ function FilterTab({ label, count, active, onClick }: { label: string; count: nu
   )
 }
 
-function HeaderCell({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) {
+function HeaderCell({ children, align = 'left', first = false }: { children: React.ReactNode; align?: 'left' | 'right'; first?: boolean }) {
   return (
     <div style={{
-      padding: '8px 12px',
+      padding: first ? '8px 12px 8px 20px' : '8px 12px',
       fontSize: 9,
       fontWeight: 700,
       letterSpacing: '1.5px',
@@ -1256,7 +1258,7 @@ function HeaderCell({ children, align = 'left' }: { children: React.ReactNode; a
 function SectionHeader({ label, dotColor }: { label: string; dotColor: string }) {
   return (
     <div style={{
-      padding: '5px 10px',
+      padding: '5px 10px 5px 20px',
       background: '#F4F3EF',
       display: 'flex',
       alignItems: 'center',

@@ -760,45 +760,55 @@ function DetailSlideout({
                   )}
                   <input
                     type="number"
+                    min={0}
+                    step={10}
                     value={hoursByPeriod.base}
                     onChange={(e) => handleHoursChange('base', parseInt(e.target.value) || 0)}
                     onBlur={triggerSave}
-                    style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                    style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                   />
                   {optionYears >= 1 && (
                     <input
                       type="number"
+                      min={0}
+                      step={10}
                       value={hoursByPeriod.option1}
                       onChange={(e) => handleHoursChange('option1', parseInt(e.target.value) || 0)}
                       onBlur={triggerSave}
-                      style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                     />
                   )}
                   {optionYears >= 2 && (
                     <input
                       type="number"
+                      min={0}
+                      step={10}
                       value={hoursByPeriod.option2}
                       onChange={(e) => handleHoursChange('option2', parseInt(e.target.value) || 0)}
                       onBlur={triggerSave}
-                      style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                     />
                   )}
                   {optionYears >= 3 && (
                     <input
                       type="number"
+                      min={0}
+                      step={10}
                       value={hoursByPeriod.option3}
                       onChange={(e) => handleHoursChange('option3', parseInt(e.target.value) || 0)}
                       onBlur={triggerSave}
-                      style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                     />
                   )}
                   {optionYears >= 4 && (
                     <input
                       type="number"
+                      min={0}
+                      step={10}
                       value={hoursByPeriod.option4}
                       onChange={(e) => handleHoursChange('option4', parseInt(e.target.value) || 0)}
                       onBlur={triggerSave}
-                      style={{ width: 44, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+                      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                     />
                   )}
                 </div>
