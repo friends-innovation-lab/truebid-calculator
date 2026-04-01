@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, SetStateAction } from 'react';
 import { rolesApi, settingsApi, companiesApi } from '@/lib/api';
 
 // ==================== LOCALSTORAGE KEYS ====================
@@ -972,6 +972,33 @@ export interface TeamingPartner {
   updatedAt: string;
 }
 
+// ==================== TEAM MEMBERS ====================
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  type: 'prime' | 'sub' | 'partner';
+  contactName: string | null;
+  workShare: number;
+  uei: string | null;
+  agreementStatus: 'signed' | 'pending' | 'none';
+  agreementType: string | null;
+  notes: string | null;
+}
+
+// ==================== DIRECTORS ====================
+
+export interface Director {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  token: string | null;
+  tokenExpiry: string | null;
+  lastViewed: string | null;
+  createdAt: string;
+}
+
 // ==================== ODCs ====================
 
 export interface ODCItem {
@@ -1188,7 +1215,15 @@ interface AppContextType {
   getOrCreatePartnerByName: (companyName: string) => TeamingPartner;
   getPartnerById: (id: string) => TeamingPartner | undefined;
   getSubcontractorsByPartnerId: (partnerId: string) => Subcontractor[];
-  
+
+  // Team Members (proposal-specific team)
+  teamMembers: TeamMember[];
+  setTeamMembers: (members: SetStateAction<TeamMember[]>) => void;
+
+  // Directors (internal reviewers)
+  directors: Director[];
+  setDirectors: (directors: SetStateAction<Director[]>) => void;
+
   // Rate Justifications (persist across tab switches)
   rateJustifications: Record<string, RoleJustification>;
   setRateJustifications: (justifications: Record<string, RoleJustification>) => void;
@@ -1824,6 +1859,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([])
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [teamingPartners, setTeamingPartners] = useState<TeamingPartner[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [directors, setDirectors] = useState<Director[]>([]);
   const [odcs, setODCs] = useState<ODCItem[]>([]);
   const [perDiem, setPerDiem] = useState<PerDiemCalculation[]>([]);
   const [gsaContractInfo, setGSAContractInfo] = useState<GSAContractInfo | null>(null);
@@ -2553,7 +2590,15 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     getOrCreatePartnerByName,
     getPartnerById,
     getSubcontractorsByPartnerId,
-    
+
+    // Team Members
+    teamMembers,
+    setTeamMembers,
+
+    // Directors
+    directors,
+    setDirectors,
+
     // Rate Justifications
     rateJustifications,
     setRateJustifications,

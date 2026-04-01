@@ -2,37 +2,12 @@
 
 import React, { useState } from 'react'
 import { useParams } from 'next/navigation'
-import { useAppContext } from '@/contexts/app-context'
+import { useAppContext, type TeamMember, type Director } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { X, Plus, Upload, Copy, Send } from 'lucide-react'
 import { toast } from 'sonner'
-
-// ==================== TYPES ====================
-
-interface TeamMember {
-  id: string
-  name: string
-  type: 'prime' | 'sub' | 'partner'
-  contactName: string | null
-  workShare: number
-  uei: string | null
-  agreementStatus: 'signed' | 'pending' | 'none'
-  agreementType: string | null
-  notes: string | null
-}
-
-interface Director {
-  id: string
-  name: string
-  role: string
-  email: string
-  token: string | null
-  tokenExpiry: string | null
-  lastViewed: string | null
-  createdAt: string
-}
 
 interface TeamStats {
   primeCount: number
@@ -132,26 +107,17 @@ function getDaysAgo(dateStr: string): number {
 export function Team() {
   const params = useParams()
   const proposalId = params?.id as string
-  const { selectedRoles, proposalSetup } = useAppContext()
+  const {
+    teamMembers,
+    setTeamMembers,
+    directors,
+    setDirectors,
+    selectedRoles,
+    proposalSetup,
+  } = useAppContext()
 
-  // Team members state (will be persisted to context/API later)
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
-    {
-      id: 'prime-1',
-      name: 'FFTC (Prime)',
-      type: 'prime',
-      contactName: null,
-      workShare: 0,
-      uei: null,
-      agreementStatus: 'none',
-      agreementType: null,
-      notes: null,
-    }
-  ])
+  // Local UI state
   const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
-
-  // Directors state
-  const [directors, setDirectors] = useState<Director[]>([])
   const [showAddDirector, setShowAddDirector] = useState(false)
   const [newDirector, setNewDirector] = useState({ name: '', role: '', email: '' })
   const [sendingLink, setSendingLink] = useState<string | null>(null)
@@ -184,7 +150,7 @@ export function Team() {
   // Team member handlers
   const handleAddMember = () => {
     const newMember: TeamMember = {
-      id: `member-${crypto.randomUUID()}`,
+      id: crypto.randomUUID(),
       name: '',
       type: 'sub',
       contactName: null,
@@ -196,18 +162,21 @@ export function Team() {
     }
     setTeamMembers([...teamMembers, newMember])
     setSelectedMember(newMember)
+    toast.success('Saved', { duration: 2000 })
   }
 
   const handleUpdateMember = (id: string, updates: Partial<TeamMember>) => {
-    setTeamMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m))
+    setTeamMembers(teamMembers.map(m => m.id === id ? { ...m, ...updates } : m))
     if (selectedMember?.id === id) {
       setSelectedMember(prev => prev ? { ...prev, ...updates } : null)
     }
+    toast.success('Saved', { duration: 2000 })
   }
 
   const handleDeleteMember = (id: string) => {
     setTeamMembers(prev => prev.filter(m => m.id !== id))
     setSelectedMember(null)
+    toast.success('Deleted', { duration: 2000 })
   }
 
   // Director handlers
@@ -224,9 +193,10 @@ export function Team() {
       lastViewed: null,
       createdAt: new Date().toISOString(),
     }
-    setDirectors([...directors, director])
+    setDirectors(prev => [...prev, director])
     setNewDirector({ name: '', role: '', email: '' })
     setShowAddDirector(false)
+    toast.success('Saved', { duration: 2000 })
   }
 
   const handleSendLink = async (directorId: string) => {
@@ -267,6 +237,7 @@ export function Team() {
 
   const handleDeleteDirector = (id: string) => {
     setDirectors(prev => prev.filter(d => d.id !== id))
+    toast.success('Deleted', { duration: 2000 })
   }
 
   return (

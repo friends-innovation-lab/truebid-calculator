@@ -44,6 +44,8 @@ interface WorkingData {
   roles?: unknown[]
   subcontractors?: unknown[]
   teamingPartners?: unknown[]
+  teamMembers?: unknown[]
+  directors?: unknown[]
   estimateWbsElements?: unknown[]
   rateJustifications?: Record<string, unknown>
   odcs?: unknown[]
@@ -70,6 +72,8 @@ const MANAGED_FIELDS = [
   'roles',
   'subcontractors',
   'teamingPartners',
+  'teamMembers',
+  'directors',
   'estimateWbsElements',
   'rateJustifications',
   'odcs',
@@ -84,7 +88,7 @@ const MANAGED_FIELDS = [
 type ContextSetters = Pick<
   ReturnType<typeof useAppContext>,
   'setSolicitation' | 'updateSolicitation' | 'setSelectedRoles' | 'setSubcontractors' |
-  'setTeamingPartners' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType' | 'setProposalSetup'
+  'setTeamingPartners' | 'setTeamMembers' | 'setDirectors' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType' | 'setProposalSetup'
 >
 
 function hydrateContext(
@@ -106,6 +110,8 @@ function hydrateContext(
   if (data.proposalSetup) setters.setProposalSetup(data.proposalSetup as Parameters<ContextSetters['setProposalSetup']>[0])
   if (data.subcontractors) setters.setSubcontractors(data.subcontractors as Parameters<ContextSetters['setSubcontractors']>[0])
   if (data.teamingPartners) setters.setTeamingPartners(data.teamingPartners as Parameters<ContextSetters['setTeamingPartners']>[0])
+  if (data.teamMembers) setters.setTeamMembers(data.teamMembers as Parameters<ContextSetters['setTeamMembers']>[0])
+  if (data.directors) setters.setDirectors(data.directors as Parameters<ContextSetters['setDirectors']>[0])
   if (data.estimateWbsElements) setters.setEstimateWbsElements(data.estimateWbsElements as Parameters<ContextSetters['setEstimateWbsElements']>[0])
   if (data.rateJustifications) setters.setRateJustifications(data.rateJustifications as Parameters<ContextSetters['setRateJustifications']>[0])
   if (data.odcs) setters.setODCs(data.odcs as Parameters<ContextSetters['setODCs']>[0])
@@ -139,6 +145,8 @@ export function useProposalSync(proposalId: string) {
     selectedRoles,
     subcontractors,
     teamingPartners,
+    teamMembers,
+    directors,
     estimateWbsElements,
     rateJustifications,
     odcs,
@@ -151,6 +159,8 @@ export function useProposalSync(proposalId: string) {
     setSelectedRoles,
     setSubcontractors,
     setTeamingPartners,
+    setTeamMembers,
+    setDirectors,
     setEstimateWbsElements,
     setRateJustifications,
     setODCs,
@@ -170,7 +180,7 @@ export function useProposalSync(proposalId: string) {
 
   const setters = {
     setSolicitation, updateSolicitation, setSelectedRoles, setSubcontractors,
-    setTeamingPartners, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType, setProposalSetup,
+    setTeamingPartners, setTeamMembers, setDirectors, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType, setProposalSetup,
   }
 
   // Clear all working data state (call when proposal changes)
@@ -179,6 +189,8 @@ export function useProposalSync(proposalId: string) {
     setSelectedRoles([])
     setSubcontractors([])
     setTeamingPartners([])
+    setTeamMembers([])
+    setDirectors([])
     setEstimateWbsElements([])
     setRateJustifications({})
     setODCs([])
@@ -307,6 +319,8 @@ export function useProposalSync(proposalId: string) {
       roles: selectedRoles,
       subcontractors,
       teamingPartners,
+      teamMembers,
+      directors,
       estimateWbsElements,
       rateJustifications,
       odcs,
@@ -323,6 +337,8 @@ export function useProposalSync(proposalId: string) {
       selectedRoles,
       subcontractors,
       teamingPartners,
+      teamMembers,
+      directors,
       estimateWbsElements,
       rateJustifications,
       odcs,
@@ -375,6 +391,8 @@ export function useProposalSync(proposalId: string) {
     selectedRoles,
     subcontractors,
     teamingPartners,
+    teamMembers,
+    directors,
     estimateWbsElements,
     rateJustifications,
     odcs,
