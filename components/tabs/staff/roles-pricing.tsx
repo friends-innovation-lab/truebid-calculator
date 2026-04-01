@@ -138,9 +138,10 @@ export function RolesPricing() {
 
   // Filter roles
   const filteredRoles = useMemo(() => {
-    // For now all roles are prime — sub filtering will work when type field is added
-    return selectedRoles
-  }, [selectedRoles])
+    if (roleFilter === 'all') return selectedRoles
+    if (roleFilter === 'sub') return selectedRoles.filter(r => r.type === 'sub')
+    return selectedRoles.filter(r => (r.type ?? 'prime') === 'prime')
+  }, [selectedRoles, roleFilter])
 
   // Number of active option years from solicitation
   const activeYearCount = useMemo(() => {
@@ -270,8 +271,8 @@ export function RolesPricing() {
         {/* INNER TABS */}
         <div className="flex gap-0" style={{ marginBottom: -1 }}>
           <FilterTab label="All roles" count={selectedRoles.length} active={roleFilter === 'all'} onClick={() => setRoleFilter('all')} />
-          <FilterTab label="Prime only" count={selectedRoles.length} active={roleFilter === 'prime'} onClick={() => setRoleFilter('prime')} />
-          <FilterTab label="Subs only" count={0} active={roleFilter === 'sub'} onClick={() => setRoleFilter('sub')} />
+          <FilterTab label="Prime only" count={selectedRoles.filter(r => (r.type ?? 'prime') === 'prime').length} active={roleFilter === 'prime'} onClick={() => setRoleFilter('prime')} />
+          <FilterTab label="Subs only" count={selectedRoles.filter(r => r.type === 'sub').length} active={roleFilter === 'sub'} onClick={() => setRoleFilter('sub')} />
         </div>
       </div>
 
