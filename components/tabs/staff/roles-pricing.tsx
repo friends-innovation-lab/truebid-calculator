@@ -821,13 +821,18 @@ function RoleDetailPanel({
   })() : null
 
   // Sync calculated rate back to role so table row stays in sync
-  // Skip on first render so we don't overwrite stored bill rate on panel open
   useEffect(() => {
+    if (!breakdown) return
+
+    // On first render, only sync if rate differs significantly (labor category lookup found new data)
     if (isFirstRender.current) {
       isFirstRender.current = false
-      return
+      const currentRate = extRole.loadedRate || 0
+      const rateDiff = Math.abs(breakdown.billRate - currentRate)
+      // Only sync on first render if rate differs by more than $1 (indicates stale data)
+      if (rateDiff < 1) return
     }
-    if (!breakdown) return
+
     onUpdate({
       loadedRate: breakdown.billRate,
       currentSalary: breakdown.salary,
@@ -835,7 +840,7 @@ function RoleDetailPanel({
       selectedStep,
       billRateBase: breakdown.billRate
     })
-  }, [selectedLevel, selectedStep]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedLevel, selectedStep, breakdown?.billRate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmt = (n: number) => '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
