@@ -234,7 +234,7 @@ Generate exactly ${requirements.length} WBS elements, one for each requirement. 
     // Call Claude with proper system message
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 16384,
+      max_tokens: 32768,
       system: systemPrompt,
       messages: [
         { 
@@ -266,9 +266,9 @@ Generate exactly ${requirements.length} WBS elements, one for each requirement. 
       )
     }
 
-    // Parse the response - handle potential markdown code blocks
+    // Parse the response - extract JSON object from response
     let jsonText = responseText.trim()
-    
+
     // Remove markdown code blocks if present
     if (jsonText.startsWith('```json')) {
       jsonText = jsonText.slice(7)
@@ -279,6 +279,13 @@ Generate exactly ${requirements.length} WBS elements, one for each requirement. 
       jsonText = jsonText.slice(0, -3)
     }
     jsonText = jsonText.trim()
+
+    // If still not starting with {, extract the JSON object by finding first { and last }
+    const firstBrace = jsonText.indexOf('{')
+    const lastBrace = jsonText.lastIndexOf('}')
+    if (firstBrace !== -1 && lastBrace > firstBrace) {
+      jsonText = jsonText.slice(firstBrace, lastBrace + 1)
+    }
 
     let parsed: { wbsElements: GeneratedWBSElement[] }
     try {
