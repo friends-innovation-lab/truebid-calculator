@@ -1280,8 +1280,17 @@ export function Solicitation() {
         })()
       }
 
-      // Now generate the summary
-      await generateSummary()
+      // Now generate the summary — pass data inline since DB sync is debounced
+      await generateSummary({
+        solicitation: {
+          title: metadata.title,
+          clientAgency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : '',
+          solicitationNumber: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : '',
+          contractType: metadata.contractType,
+          naicsCode: metadata.naicsCode !== 'N/A' ? metadata.naicsCode : '',
+        },
+        requirements,
+      })
 
     } catch (error) {
       console.error('RFP extraction error:', error)
@@ -1302,7 +1311,12 @@ export function Solicitation() {
   }
 
   // Generate AI summary
-  const generateSummary = async () => {
+  // Accepts optional inline data so callers (e.g. extractRFP) can pass freshly
+  // extracted content that hasn't been synced to the DB yet.
+  const generateSummary = async (inline?: {
+    solicitation: Record<string, unknown>
+    requirements: Array<{ text?: string; title?: string; type?: string; sourceSection?: string }>
+  }) => {
     if (!proposalId) return
 
     setSummaryStatus('generating')
@@ -1311,6 +1325,10 @@ export function Solicitation() {
     try {
       const response = await fetch(`/api/proposals/${proposalId}/generate-summary`, {
         method: 'POST',
+        ...(inline ? {
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(inline),
+        } : {}),
       })
 
       const data = await response.json()

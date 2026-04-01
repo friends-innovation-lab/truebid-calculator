@@ -74,13 +74,25 @@ export async function POST(
       )
     }
 
+    // Accept inline data from request body (avoids race with debounced DB sync)
+    let bodyData: { solicitation?: Record<string, unknown>; requirements?: Array<{ text?: string; title?: string; type?: string; sourceSection?: string }> } = {}
+    try {
+      const contentType = request.headers.get('content-type') || ''
+      if (contentType.includes('application/json')) {
+        bodyData = await request.json()
+      }
+    } catch {
+      // No body or invalid JSON — fall back to DB
+    }
+
     // Get the working data which contains the solicitation info and extracted requirements
     const workingData = proposal.working_data || {}
-    const solicitation = workingData.solicitation || {}
-    const requirements = workingData.extractedRequirements || []
+    const solicitation = bodyData.solicitation || workingData.solicitation || {}
+    const requirements = bodyData.requirements || workingData.extractedRequirements || []
     const strategy = proposal.strategy || {}
 
     console.log('[generate-summary] Working data keys:', Object.keys(workingData))
+    console.log('[generate-summary] Using inline data:', !!bodyData.solicitation)
     console.log('[generate-summary] Solicitation title:', solicitation.title)
     console.log('[generate-summary] Requirements count:', requirements.length)
 
