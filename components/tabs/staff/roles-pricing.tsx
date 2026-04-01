@@ -765,6 +765,7 @@ function RoleDetailPanel({
   const [subRate, setSubRate] = useState(role.subRate ?? 0)
   const [subMarkup, setSubMarkup] = useState(role.subMarkup ?? 10)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isFirstRender = useRef(true)
 
   // Sync local state when role prop changes (e.g., after hydration or switching roles)
   useEffect(() => {
@@ -807,7 +808,12 @@ function RoleDetailPanel({
   })() : null
 
   // Sync calculated rate back to role so table row stays in sync
+  // Skip on first render so we don't overwrite stored bill rate on panel open
   useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false
+      return
+    }
     if (!breakdown) return
     onUpdate({
       loadedRate: breakdown.billRate,
