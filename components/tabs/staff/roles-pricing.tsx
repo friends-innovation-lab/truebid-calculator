@@ -778,7 +778,7 @@ function RoleDetailPanel({
   const [subRate, setSubRate] = useState(role.subRate ?? 0)
   const [subMarkup, setSubMarkup] = useState(role.subMarkup ?? 10)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const isFirstRender = useRef(true)
+  const hasSyncedOnMount = useRef(false)
 
   // Sync local state when role prop changes (e.g., after hydration or switching roles)
   useEffect(() => {
@@ -821,18 +821,21 @@ function RoleDetailPanel({
   })() : null
 
   // Sync calculated rate back to role so table row stays in sync
+  // When we have a labor category match, sync immediately (labor cat is source of truth)
+  // When no labor category, only sync on user-initiated changes (level/step)
   useEffect(() => {
     if (!breakdown) return
 
-    // On first render, only sync if rate differs significantly (labor category lookup found new data)
-    if (isFirstRender.current) {
-      isFirstRender.current = false
-      const currentRate = extRole.loadedRate || 0
-      const rateDiff = Math.abs(breakdown.billRate - currentRate)
-      // Only sync on first render if rate differs by more than $1 (indicates stale data)
-      if (rateDiff < 1) return
+    // If we have a labor category, always sync (it's the source of truth for salaries)
+    // If no labor category, skip initial sync but allow subsequent changes
+    if (!hasLaborCat) {
+      if (!hasSyncedOnMount.current) {
+        hasSyncedOnMount.current = true
+        return // Skip initial sync when no labor category
+      }
     }
 
+    hasSyncedOnMount.current = true
     onUpdate({
       loadedRate: breakdown.billRate,
       currentSalary: breakdown.salary,
@@ -840,7 +843,7 @@ function RoleDetailPanel({
       selectedStep,
       billRateBase: breakdown.billRate
     })
-  }, [selectedLevel, selectedStep, breakdown?.billRate]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedLevel, selectedStep, hasLaborCat, breakdown?.billRate]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const fmt = (n: number) => '$' + n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
