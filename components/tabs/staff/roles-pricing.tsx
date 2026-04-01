@@ -417,10 +417,11 @@ function PricingView({
   wbsRoleData: Map<string, number>
 }) {
   const yearCols = YEAR_LABELS.slice(0, activeYearCount)
-  const gridCols = `200px 72px 90px ${yearCols.map(() => '70px').join(' ')} 100px 36px`
+  // Spread columns: flexible role, wider year columns, trash at end
+  const gridCols = `1fr 80px 100px ${yearCols.map(() => '90px').join(' ')} 120px 40px`
 
   return (
-    <div style={{ minWidth: 700 }}>
+    <div style={{ minWidth: 800 }}>
       {/* Header */}
       <div
         className="sticky top-0 z-10 grid"
@@ -504,7 +505,7 @@ function PricingView({
             <div style={{ padding: '14px 12px', textAlign: 'right', fontSize: 12, fontWeight: 700, color: '#111110' }}>
               {formatCurrency(totalCost, 0)}
             </div>
-            <div style={{ padding: '14px 4px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ padding: '14px 8px 14px 0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
               <button
                 onClick={(e) => {
                   e.stopPropagation()
@@ -512,11 +513,11 @@ function PricingView({
                     onRemoveRole(role.id)
                   }
                 }}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 4, color: '#C4C3BE' }}
-                className="hover:bg-red-50 hover:text-red-500"
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 4, color: '#D4D3CE', opacity: 0.6 }}
+                className="hover:bg-red-50 hover:text-red-500 hover:opacity-100"
                 title="Remove role"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
               </button>
             </div>
           </div>
