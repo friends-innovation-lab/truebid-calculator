@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { X, History, Save, RotateCcw, Trash2, Users, Grid3X3 } from 'lucide-react'
+import { X, History, Save, RotateCcw, Trash2, Grid3X3 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -18,6 +18,7 @@ import { ProposalLayout, SectionId, SECTION_DEFAULT_VIEWS } from '@/components/l
 // Tab components
 import { ScopeOfWork } from '@/components/tabs/staff/scope-of-work'
 import { RolesPricing } from '@/components/tabs/staff/roles-pricing'
+import { Team } from '@/components/tabs/staff/team'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { ExportTab } from '@/components/tabs/export-tab'
 import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
@@ -212,15 +213,7 @@ export function SectionNavigation() {
           <RolesPricing />
         )}
         {activeView === 'team' && activeSection === 'staff' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <EmptyState
-                icon={Users}
-                title="Team management coming soon"
-                description="This page will combine Subs & Partners and Director Review into a single team management view."
-              />
-            </div>
-          </div>
+          <Team />
         )}
         {activeView === 'labor-loading' && activeSection === 'staff' && (
           <div className="flex-1 overflow-y-auto p-6">
