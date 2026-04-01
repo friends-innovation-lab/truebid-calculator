@@ -499,12 +499,14 @@ function PricingView({
                   {isEditing ? (
                     <input
                       type="number"
+                      min={0}
+                      step={10}
                       value={cellValue}
                       onChange={(e) => onCellChange(e.target.value)}
                       onBlur={onCellSave}
                       onKeyDown={(e) => e.key === 'Enter' && onCellSave()}
                       autoFocus
-                      style={{ width: 54, textAlign: 'right', fontSize: 12, border: 'none', borderBottom: '1.5px solid #F5C200', outline: 'none', background: 'transparent' }}
+                      style={{ width: 60, textAlign: 'right', fontSize: 12, border: 'none', borderBottom: '1.5px solid #F5C200', outline: 'none', background: 'transparent' }}
                     />
                   ) : (
                     hours > 0 ? hours.toLocaleString() : '—'
