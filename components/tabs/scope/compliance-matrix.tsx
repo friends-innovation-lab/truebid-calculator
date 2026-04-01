@@ -25,7 +25,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ListChecks, Plus, RefreshCw, Search, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
+import { ListChecks, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react'
 
 // ==================== TYPES ====================
 
@@ -100,9 +100,7 @@ export function ComplianceMatrix() {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [instructionsSkipReason, setInstructionsSkipReason] = useState<string | null>(null)
 
-  // Filters
-  const [filterSource, setFilterSource] = useState<'all' | 'requirement' | 'instruction'>('all')
-  const [searchQuery, setSearchQuery] = useState('')
+  // Filters removed — shared toolbar in requirements.tsx handles search/filter
 
   // Load data on mount
   useEffect(() => {
@@ -199,19 +197,7 @@ export function ComplianceMatrix() {
     }
   }
 
-  // Count items by source
-  const requirementCount = items.filter(i => i.source === 'requirement' || !i.source).length
-  const instructionCount = items.filter(i => i.source === 'instruction').length
-
-  // Filter items
-  const filteredItems = items.filter(item => {
-    if (filterSource !== 'all') {
-      const itemSource = item.source || 'requirement'
-      if (filterSource !== itemSource) return false
-    }
-    if (searchQuery && !item.requirement_text.toLowerCase().includes(searchQuery.toLowerCase())) return false
-    return true
-  })
+  // Items rendered directly — filtering handled by parent toolbar
 
   // Render states
   if (isLoading) {
@@ -296,60 +282,6 @@ export function ComplianceMatrix() {
         </div>
       )}
 
-      {/* Toolbar: Source filter chips + search */}
-      <div
-        className="flex flex-wrap items-center gap-2"
-        style={{ background: '#FAFAF9', borderBottom: '0.5px solid #F4F3EF', padding: '10px 16px' }}
-      >
-        {[
-          { id: 'all' as const, label: 'All', count: items.length },
-          { id: 'requirement' as const, label: 'Shall', count: requirementCount },
-          { id: 'instruction' as const, label: 'Instructions', count: instructionCount },
-        ].map(chip => {
-          const isActive = filterSource === chip.id
-          return (
-            <button
-              key={chip.id}
-              onClick={() => setFilterSource(chip.id)}
-              style={{
-                fontSize: 10,
-                fontWeight: 600,
-                padding: '4px 10px',
-                borderRadius: 99,
-                border: '0.5px solid',
-                borderColor: isActive ? '#111110' : '#D4D3CE',
-                background: isActive ? '#111110' : 'transparent',
-                color: isActive ? '#fff' : '#5F5E5A',
-                cursor: 'pointer',
-              }}
-            >
-              {chip.label} · {chip.count}
-            </button>
-          )
-        })}
-
-        <div className="relative flex-1 min-w-[140px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5" style={{ color: '#C4C3BE' }} />
-          <Input
-            placeholder="Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-8 h-7 text-xs"
-          />
-        </div>
-
-        <div className="flex gap-2 ml-auto">
-          <Button variant="ghost" size="sm" onClick={() => setShowRegenerateConfirm(true)} className="h-7 text-xs">
-            <RefreshCw className="w-3.5 h-3.5 mr-1" />
-            Regenerate
-          </Button>
-          <Button size="sm" onClick={() => setShowAddDialog(true)} className="h-7 text-xs">
-            <Plus className="w-3.5 h-3.5 mr-1" />
-            Add item
-          </Button>
-        </div>
-      </div>
-
       {/* Compliance Table */}
       <div className="overflow-x-auto flex-1">
         <table className="w-full" style={{ fontSize: 13 }}>
@@ -364,7 +296,7 @@ export function ComplianceMatrix() {
             </tr>
           </thead>
             <tbody className="divide-y divide-gray-100">
-              {filteredItems.map(item => (
+              {items.map(item => (
                 <ComplianceRow
                   key={item.id}
                   item={item}
