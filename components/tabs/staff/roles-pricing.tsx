@@ -459,20 +459,28 @@ function PricingView({
                 {wbsRoleData.has(role.name) && <span style={{ color: '#6B6A65' }}> · {wbsRoleData.get(role.name)?.toLocaleString()} hrs from WBS</span>}
               </div>
             </div>
-            <div style={{ padding: '14px 8px', display: 'flex', alignItems: 'center' }}>
+            <div style={{ padding: '14px 8px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 2 }}>
               {(() => {
                 const isPrime = (role.type || 'prime') === 'prime'
                 return (
-                  <span style={{
-                    background: isPrime ? '#111110' : '#F4F3EF',
-                    color: isPrime ? '#fff' : '#5F5E5A',
-                    fontSize: 9,
-                    fontWeight: 700,
-                    padding: '2px 6px',
-                    borderRadius: 3
-                  }}>
-                    {isPrime ? 'Prime' : 'Sub'}
-                  </span>
+                  <>
+                    <span style={{
+                      background: isPrime ? '#111110' : '#F4F3EF',
+                      color: isPrime ? '#fff' : '#5F5E5A',
+                      fontSize: 9,
+                      fontWeight: 700,
+                      padding: '2px 6px',
+                      borderRadius: 3,
+                      width: 'fit-content'
+                    }}>
+                      {isPrime ? 'Prime' : 'Sub'}
+                    </span>
+                    {!isPrime && role.subcontractorName && (
+                      <span style={{ fontSize: 9, color: '#6B6A65', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 70 }} title={role.subcontractorName}>
+                        {role.subcontractorName}
+                      </span>
+                    )}
+                  </>
                 )
               })()}
             </div>
