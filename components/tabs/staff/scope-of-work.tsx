@@ -17,6 +17,7 @@ import {
   Sparkles,
   Loader2,
 } from 'lucide-react'
+import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
 
 // ==================== TYPES ====================
 
@@ -116,7 +117,10 @@ export function ScopeOfWork() {
     setEstimateWbsElements,
     extractedRequirements,
     solicitation,
+    selectedRoles,
     setSelectedRoles,
+    companyRoles,
+    proposalSetup,
   } = useAppContext()
 
   const wbsElements = estimateWbsElements as unknown as WBSElementData[]
@@ -137,6 +141,51 @@ export function ScopeOfWork() {
       })
       .catch(() => {})
   }, [proposalId])
+
+  // Sync roles from WBS to selectedRoles when WBS changes
+  // This ensures Roles & Pricing stays in sync with WBS edits
+  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  useEffect(() => {
+    if (wbsElements.length === 0) return
+
+    // Debounce the sync to avoid excessive updates
+    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
+    syncTimeoutRef.current = setTimeout(() => {
+      // Transform companyRoles for syncRolesFromWBS
+      const laborCategories = companyRoles.map(r => ({
+        title: r.title,
+        laborCategory: r.laborCategory,
+        socCode: r.blsOccCode,
+        salary_levels: r.levels?.map(l => ({
+          level: l.level,
+          level_title: l.levelName,
+          steps: l.steps.map(s => s.salary),
+        })),
+      }))
+
+      const setup = proposalSetup ? {
+        optionYears: proposalSetup.optionYears,
+        billableHoursPerYear: proposalSetup.billableHoursPerYear,
+        profitMargin: proposalSetup.escalationRate,
+      } : undefined
+
+      const syncedRoles = syncRolesFromWBS(
+        wbsElements as Parameters<typeof syncRolesFromWBS>[0],
+        selectedRoles as unknown as Parameters<typeof syncRolesFromWBS>[1],
+        setup,
+        laborCategories
+      )
+
+      // Only update if roles actually changed
+      if (JSON.stringify(syncedRoles.map(r => r.name).sort()) !== JSON.stringify(selectedRoles.map(r => r.name).sort())) {
+        setSelectedRoles(syncedRoles)
+      }
+    }, 500)
+
+    return () => {
+      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
+    }
+  }, [wbsElements, companyRoles, proposalSetup]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Stats
   const stats = useMemo(() => {
@@ -326,6 +375,7 @@ export function ScopeOfWork() {
             allElements={wbsElements}
             requirements={extractedRequirements as { id: string; referenceNumber?: string; reference_number?: string; title: string }[]}
             optionYears={solicitation.periodOfPerformance.optionYears}
+            availableRoles={companyRoles.map(r => r.title)}
             onUpdate={(updates) => {
               const updated = { ...selectedElement, ...updates }
               setSelectedElement(updated)
@@ -503,12 +553,13 @@ const ESTIMATION_TYPES = [
 ]
 
 function DetailSlideout({
-  element, allElements, requirements, optionYears, onUpdate, onDelete, onClose,
+  element, allElements, requirements, optionYears, availableRoles, onUpdate, onDelete, onClose,
 }: {
   element: WBSElementData
   allElements: WBSElementData[]
   requirements: { id: string; referenceNumber?: string; reference_number?: string; title: string }[]
   optionYears: number
+  availableRoles: string[]
   onUpdate: (updates: Partial<WBSElementData>) => void
   onDelete: () => void
   onClose: () => void
@@ -621,13 +672,44 @@ function DetailSlideout({
                 onUpdate({ laborEstimates: updatedLaborEstimates })
               }
 
+              const handleRoleChange = (newRole: string) => {
+                const updatedLaborEstimates = (element.laborEstimates || []).map(le => {
+                  if (le.id === task.id) {
+                    return { ...le, roleName: newRole }
+                  }
+                  return le
+                })
+                onUpdate({ laborEstimates: updatedLaborEstimates })
+              }
+
+              // Check if current role is in availableRoles or is custom
+              const isCustomRole = task.role && !availableRoles.includes(task.role)
+
               return (
                 <div key={task.id} className="flex items-center gap-2">
                   <span className="flex-1 text-sm" style={{ color: '#5F5E5A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{task.name}</span>
                   <span style={{ fontSize: 9, fontWeight: 700, background: loe.bg, color: loe.text, padding: '2px 6px', borderRadius: 3, flexShrink: 0 }} title={(task as WBSTask & { loeType?: string }).loeType || 'development'}>
                     {loe.label}
                   </span>
-                  {task.role && <span style={{ fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '1px 6px', borderRadius: 3, whiteSpace: 'nowrap', flexShrink: 0 }}>{task.role}</span>}
+                  <select
+                    value={isCustomRole ? '__custom__' : (task.role || '')}
+                    onChange={(e) => {
+                      if (e.target.value === '__custom__') {
+                        const customRole = prompt('Enter custom role name:')
+                        if (customRole) handleRoleChange(customRole)
+                      } else {
+                        handleRoleChange(e.target.value)
+                      }
+                      triggerSave()
+                    }}
+                    style={{ width: 120, height: 24, fontSize: 10, fontWeight: 500, background: '#F4F3EF', color: '#5F5E5A', padding: '0 4px', borderRadius: 3, border: '0.5px solid #E8E7E2', flexShrink: 0 }}
+                  >
+                    <option value="">Select role...</option>
+                    {availableRoles.map(role => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                    <option value="__custom__">{isCustomRole ? `Other: ${task.role}` : 'Other...'}</option>
+                  </select>
                   <input
                     type="number"
                     value={hoursByPeriod.base}
