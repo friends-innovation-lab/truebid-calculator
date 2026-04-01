@@ -11,9 +11,9 @@
     "salary_levels": [
       { "level": "IC1", "level_title": "Associate", "steps": [87000, 89610] },
       { "level": "IC2", "level_title": "Intermediate", "steps": [102000, 105060, 108212] },
-      { "level": "IC3", "level_title": "Mid-Level", "steps": [120000, 123600] },
-      { "level": "IC4", "level_title": "Senior", "steps": [140000, 144200] },
-      { "level": "IC5", "level_title": "Staff", "steps": [158000, 162740, 167622, 172651, 177830] }
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [120000, 123600, 127308] },
+      { "level": "IC4", "level_title": "Senior", "steps": [142000, 146260, 150648] },
+      { "level": "IC5", "level_title": "Staff", "steps": [170000, 175100, 180353, 185764, 191337] }
     ]
   },
   {
@@ -27,10 +27,10 @@
     "certifications": [],
     "salary_levels": [
       { "level": "IC1", "level_title": "Associate", "steps": [92000, 94760] },
-      { "level": "IC2", "level_title": "Intermediate", "steps": [107000, 110210, 113516] },
-      { "level": "IC3", "level_title": "Mid-Level", "steps": [126000, 129780] },
-      { "level": "IC4", "level_title": "Senior", "steps": [145000, 149350] },
-      { "level": "IC5", "level_title": "Staff", "steps": [163000, 167890, 172927, 178115, 183458] }
+      { "level": "IC2", "level_title": "Intermediate", "steps": [108000, 111240, 114577] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [128000, 131840, 135795] },
+      { "level": "IC4", "level_title": "Senior", "steps": [143000, 147290, 151709] },
+      { "level": "IC5", "level_title": "Staff", "steps": [160000, 164800, 169744, 174836, 180081] }
     ]
   },
   {
@@ -45,9 +45,9 @@
     "salary_levels": [
       { "level": "IC1", "level_title": "Associate", "steps": [87000, 89610] },
       { "level": "IC2", "level_title": "Intermediate", "steps": [102000, 105060, 108212] },
-      { "level": "IC3", "level_title": "Mid-Level", "steps": [122000, 125660] },
-      { "level": "IC4", "level_title": "Senior", "steps": [142000, 146260] },
-      { "level": "IC5", "level_title": "Staff", "steps": [160000, 164800, 169744, 174836, 180081] }
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [120000, 123600, 127308] },
+      { "level": "IC4", "level_title": "Senior", "steps": [142000, 146260, 150648] },
+      { "level": "IC5", "level_title": "Staff", "steps": [170000, 175100, 180353, 185764, 191337] }
     ]
   },
   {
@@ -60,11 +60,11 @@
     "experience_substitution": "4 years of experience",
     "certifications": ["ISTQB Certified Tester"],
     "salary_levels": [
-      { "level": "IC1", "level_title": "Associate", "steps": [72000, 74160] },
-      { "level": "IC2", "level_title": "Intermediate", "steps": [87000, 89610, 92298] },
-      { "level": "IC3", "level_title": "Mid-Level", "steps": [103000, 106090] },
-      { "level": "IC4", "level_title": "Senior", "steps": [120000, 123600] },
-      { "level": "IC5", "level_title": "Staff", "steps": [143000, 147290, 151709, 156260, 159822] }
+      { "level": "IC1", "level_title": "Associate", "steps": [75000, 77250] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [88000, 90640, 93359] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [103000, 106090, 109273] },
+      { "level": "IC4", "level_title": "Senior", "steps": [120000, 123600, 127308] },
+      { "level": "IC5", "level_title": "Staff", "steps": [142000, 146260, 150648, 155167, 159822] }
     ]
   },
   {
@@ -77,11 +77,11 @@
     "experience_substitution": "6 years of experience",
     "certifications": ["Certified Scrum Product Owner (CSPO)", "SAFe Product Owner/Product Manager"],
     "salary_levels": [
-      { "level": "IC1", "level_title": "Associate", "steps": [100000, 103000] },
-      { "level": "IC2", "level_title": "Intermediate", "steps": [112000, 115360, 118821] },
-      { "level": "IC3", "level_title": "Mid-Level", "steps": [128000, 131840] },
-      { "level": "IC4", "level_title": "Senior", "steps": [140000, 144200] },
-      { "level": "IC5", "level_title": "Staff", "steps": [158000, 162740, 167622, 172651, 177830] }
+      { "level": "IC1", "level_title": "Associate", "steps": [90000, 92700] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [106000, 109180, 112455] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [125000, 128750, 132613] },
+      { "level": "IC4", "level_title": "Senior", "steps": [140000, 144200, 148526] },
+      { "level": "IC5", "level_title": "Staff", "steps": [158000, 162740, 167622, 172651, 177831] }
     ]
   },
   {
@@ -95,10 +95,10 @@
     "certifications": [],
     "salary_levels": [
       { "level": "IC1", "level_title": "Associate", "steps": [85000, 87550] },
-      { "level": "IC2", "level_title": "Intermediate", "steps": [99000, 101970, 105029] },
-      { "level": "IC3", "level_title": "Mid-Level", "steps": [116000, 119480] },
-      { "level": "IC4", "level_title": "Senior", "steps": [133000, 136990] },
-      { "level": "IC5", "level_title": "Staff", "steps": [150000, 154500, 159135, 163909, 168826] }
+      { "level": "IC2", "level_title": "Intermediate", "steps": [100000, 103000, 106090] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [118000, 121540, 125186] },
+      { "level": "IC4", "level_title": "Senior", "steps": [132000, 135960, 140039] },
+      { "level": "IC5", "level_title": "Staff", "steps": [148000, 152440, 157013, 161723, 166575] }
     ]
   },
   {
@@ -111,11 +111,11 @@
     "experience_substitution": "4 years of experience",
     "certifications": [],
     "salary_levels": [
-      { "level": "IC1", "level_title": "Associate", "steps": [84000, 86520] },
+      { "level": "IC1", "level_title": "Associate", "steps": [85000, 87550] },
       { "level": "IC2", "level_title": "Intermediate", "steps": [100000, 103000, 106090] },
-      { "level": "IC3", "level_title": "Mid-Level", "steps": [118000, 121540] },
-      { "level": "IC4", "level_title": "Senior", "steps": [136000, 140080] },
-      { "level": "IC5", "level_title": "Staff", "steps": [154000, 158620, 163379, 168280, 173328] }
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [118000, 121540, 125186] },
+      { "level": "IC4", "level_title": "Senior", "steps": [132000, 135960, 140039] },
+      { "level": "IC5", "level_title": "Staff", "steps": [148000, 152440, 157013, 161723, 166575] }
     ]
   },
   {
@@ -129,10 +129,57 @@
     "certifications": [],
     "salary_levels": [
       { "level": "IC1", "level_title": "Associate", "steps": [69000, 71070] },
-      { "level": "IC2", "level_title": "Intermediate", "steps": [82000, 84460, 86994] },
-      { "level": "IC3", "level_title": "Mid-Level", "steps": [97000, 99910] },
-      { "level": "IC4", "level_title": "Senior", "steps": [114000, 117420] },
-      { "level": "IC5", "level_title": "Staff", "steps": [130000, 133900, 137917, 142054, 146316] }
+      { "level": "IC2", "level_title": "Intermediate", "steps": [81000, 83430, 85933] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [95000, 97850, 100786] },
+      { "level": "IC4", "level_title": "Senior", "steps": [110000, 113300, 116699] },
+      { "level": "IC5", "level_title": "Staff", "steps": [130000, 133900, 137917, 142055, 146317] }
+    ]
+  },
+  {
+    "title": "Delivery Manager",
+    "labor_category": "Delivery Manager",
+    "description": "Manages delivery processes, sprint ceremonies, client relationships, reporting, and risk management. Ensures team health, removes blockers, and drives consistent delivery velocity.",
+    "soc_code": "15-1299",
+    "bls_occupation_title": "Computer Occupations, All Other",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "6 years of experience",
+    "certifications": ["Certified ScrumMaster (CSM)", "SAFe Agilist"],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [90000, 92700] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [106000, 109180, 112455] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [125000, 128750, 132613] },
+      { "level": "IC4", "level_title": "Senior", "steps": [140000, 144200, 148526] },
+      { "level": "IC5", "level_title": "Staff", "steps": [158000, 162740, 167622, 172651, 177831] }
+    ]
+  },
+  {
+    "title": "Technical Lead",
+    "labor_category": "Software Developer",
+    "description": "Provides technical architecture direction, code review, and engineering mentorship. Owns technical decisions, ensures code quality, and bridges engineering with product and design.",
+    "soc_code": "15-1252",
+    "bls_occupation_title": "Software Developers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "8 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [145000, 149350] },
+      { "level": "IC4", "level_title": "Senior", "steps": [165000, 169950, 175049] },
+      { "level": "IC5", "level_title": "Staff", "steps": [185000, 190550, 196267, 202155, 208219] }
+    ]
+  },
+  {
+    "title": "Design Lead",
+    "labor_category": "UX/UI Designer",
+    "description": "Provides design direction, design system consistency, and mentorship. Owns design decisions, ensures accessibility and usability standards, and bridges design with product and engineering.",
+    "soc_code": "15-1255",
+    "bls_occupation_title": "Web and Digital Interface Designers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "8 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [138000, 142140] },
+      { "level": "IC4", "level_title": "Senior", "steps": [155000, 159650, 164440] },
+      { "level": "IC5", "level_title": "Staff", "steps": [175000, 180250, 185658, 191227, 196964] }
     ]
   }
 ]

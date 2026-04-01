@@ -18,16 +18,16 @@ const INDIRECT_RATES = {
 // Default salaries by role name when no labor categories available
 const DEFAULT_SALARIES: Record<string, number> = {
   'Back-end Developer': 120000,
-  'Front-end Developer': 115000,
-  'DevOps Engineer': 130000,
-  'QA Engineer': 105000,
+  'Front-end Developer': 128000,
+  'DevOps Engineer': 120000,
+  'QA Engineer': 103000,
   'Product Manager': 125000,
-  'Product Designer': 115000,
-  'UX Researcher': 110000,
+  'Product Designer': 118000,
+  'UX Researcher': 118000,
   'Content/UX Writer': 95000,
-  'Delivery Manager': 135000,
+  'Delivery Manager': 125000,
   'Technical Lead': 145000,
-  'Design Lead': 130000,
+  'Design Lead': 138000,
 }
 
 export function calculateBillRate(salary: number, profit: number = INDIRECT_RATES.defaultProfit): number {
