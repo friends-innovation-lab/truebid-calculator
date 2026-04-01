@@ -560,6 +560,40 @@ const ESTIMATION_TYPES = [
   { value: 'analogy', label: 'Analogy — based on a comparable project' },
 ]
 
+// Hour input with local state to fix spinner arrows
+function HourInput({
+  value,
+  onChange,
+  onBlur,
+}: {
+  value: number
+  onChange: (value: number) => void
+  onBlur?: () => void
+}) {
+  const [localValue, setLocalValue] = useState(value)
+
+  // Sync local state when prop changes (e.g., from parent update)
+  useEffect(() => {
+    setLocalValue(value)
+  }, [value])
+
+  return (
+    <input
+      type="number"
+      min={0}
+      step={10}
+      value={localValue}
+      onChange={(e) => {
+        const newValue = parseInt(e.target.value) || 0
+        setLocalValue(newValue)
+        onChange(newValue)
+      }}
+      onBlur={onBlur}
+      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
+    />
+  )
+}
+
 function DetailSlideout({
   element, allElements, requirements, optionYears, availableRoles, onUpdate, onDelete, onClose,
 }: {
@@ -758,57 +792,37 @@ function DetailSlideout({
                       <option value="__custom__">{isCustomRole ? `Other: ${task.role}` : 'Other...'}</option>
                     </select>
                   )}
-                  <input
-                    type="number"
-                    min={0}
-                    step={10}
+                  <HourInput
                     value={hoursByPeriod.base}
-                    onChange={(e) => handleHoursChange('base', parseInt(e.target.value) || 0)}
+                    onChange={(v) => handleHoursChange('base', v)}
                     onBlur={triggerSave}
-                    style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                   />
                   {optionYears >= 1 && (
-                    <input
-                      type="number"
-                      min={0}
-                      step={10}
+                    <HourInput
                       value={hoursByPeriod.option1}
-                      onChange={(e) => handleHoursChange('option1', parseInt(e.target.value) || 0)}
+                      onChange={(v) => handleHoursChange('option1', v)}
                       onBlur={triggerSave}
-                      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                     />
                   )}
                   {optionYears >= 2 && (
-                    <input
-                      type="number"
-                      min={0}
-                      step={10}
+                    <HourInput
                       value={hoursByPeriod.option2}
-                      onChange={(e) => handleHoursChange('option2', parseInt(e.target.value) || 0)}
+                      onChange={(v) => handleHoursChange('option2', v)}
                       onBlur={triggerSave}
-                      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                     />
                   )}
                   {optionYears >= 3 && (
-                    <input
-                      type="number"
-                      min={0}
-                      step={10}
+                    <HourInput
                       value={hoursByPeriod.option3}
-                      onChange={(e) => handleHoursChange('option3', parseInt(e.target.value) || 0)}
+                      onChange={(v) => handleHoursChange('option3', v)}
                       onBlur={triggerSave}
-                      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                     />
                   )}
                   {optionYears >= 4 && (
-                    <input
-                      type="number"
-                      min={0}
-                      step={10}
+                    <HourInput
                       value={hoursByPeriod.option4}
-                      onChange={(e) => handleHoursChange('option4', parseInt(e.target.value) || 0)}
+                      onChange={(v) => handleHoursChange('option4', v)}
                       onBlur={triggerSave}
-                      style={{ width: 56, height: 28, fontSize: 11, textAlign: 'center', border: '0.5px solid #E8E7E2', borderRadius: 4, fontFamily: 'JetBrains Mono, monospace' }}
                     />
                   )}
                 </div>
