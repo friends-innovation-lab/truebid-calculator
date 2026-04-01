@@ -210,6 +210,9 @@ export interface EstimateWBSElement {
   // Metadata
   createdAt?: string;
   updatedAt?: string;
+
+  // Requirement links
+  requirementLinks?: string[];
 }
 
 // ==================== QUALITY CALCULATION UTILITY ====================
