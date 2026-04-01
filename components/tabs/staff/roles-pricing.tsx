@@ -1011,6 +1011,56 @@ function RoleDetailPanel({
                         <BreakdownRow label="Bill rate" value={`${fmt(subRate * (1 + subMarkup / 100))}/hr`} highlight />
                       </div>
                     </div>
+
+                    {/* Revenue from this sub */}
+                    {(() => {
+                      const billRate = subRate * (1 + subMarkup / 100)
+                      const markupPerHour = subRate * subMarkup / 100
+                      const baseYearHours = role.hoursByYear?.baseYear || 0
+                      const subCost = subRate * baseYearHours
+                      const billAmount = billRate * baseYearHours
+                      const margin = billAmount - subCost
+                      return (
+                        <div style={{ background: '#FAFAF9', border: '0.5px solid #E8E7E2', borderRadius: 7, padding: '12px 14px', marginTop: 8 }}>
+                          <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#6B6A65', marginBottom: 10 }}>Revenue from this sub</div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between" style={{ padding: '1px 0' }}>
+                              <span style={{ fontSize: 11, color: '#5F5E5A' }}>Sub cost rate:</span>
+                              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#111110' }}>{fmt(subRate)}/hr</span>
+                            </div>
+                            <div className="flex justify-between" style={{ padding: '1px 0' }}>
+                              <span style={{ fontSize: 11, color: '#5F5E5A' }}>Your markup {subMarkup.toFixed(0)}%:</span>
+                              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#111110' }}>+{fmt(markupPerHour)}/hr</span>
+                            </div>
+                            <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
+                            <div className="flex justify-between" style={{ padding: '1px 0' }}>
+                              <span style={{ fontSize: 11, color: '#5F5E5A' }}>Bill rate:</span>
+                              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#111110' }}>{fmt(billRate)}/hr</span>
+                            </div>
+
+                            <div style={{ height: 8 }} />
+
+                            <div className="flex justify-between" style={{ padding: '1px 0' }}>
+                              <span style={{ fontSize: 11, color: '#5F5E5A' }}>Annual hours:</span>
+                              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#111110' }}>{baseYearHours.toLocaleString()} hrs</span>
+                            </div>
+                            <div className="flex justify-between" style={{ padding: '1px 0' }}>
+                              <span style={{ fontSize: 11, color: '#5F5E5A' }}>You pay sub:</span>
+                              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#111110' }}>{fmt(subCost)}</span>
+                            </div>
+                            <div className="flex justify-between" style={{ padding: '1px 0' }}>
+                              <span style={{ fontSize: 11, color: '#5F5E5A' }}>You bill govt:</span>
+                              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#111110' }}>{fmt(billAmount)}</span>
+                            </div>
+                            <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
+                            <div className="flex justify-between" style={{ padding: '4px 6px', background: '#F5F4F0', borderRadius: 4 }}>
+                              <span style={{ fontSize: 11, color: '#5F5E5A' }}>Your margin:</span>
+                              <span style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: '#639922', fontWeight: 700 }}>{fmt(margin)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </>
                 )}
               </div>
