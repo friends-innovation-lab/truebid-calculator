@@ -2244,13 +2244,13 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
   };
 
   const removeRole = (id: string) => {
-    setSelectedRoles(selectedRoles.filter(r => r.id !== id));
+    setSelectedRoles(prev => prev.filter(r => r.id !== id));
     // Also remove any justification for this role
     removeRateJustification(id);
   };
 
   const updateRole = (id: string, updates: Partial<Role>) => {
-    setSelectedRoles(selectedRoles.map(r => r.id === id ? { ...r, ...updates } : r));
+    setSelectedRoles(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
   };
 
   // ==================== SUBCONTRACTOR MANAGEMENT ====================
