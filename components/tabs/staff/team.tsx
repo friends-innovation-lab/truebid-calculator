@@ -1,9 +1,25 @@
 'use client'
 
-import React from 'react'
+import React, { useState } from 'react'
 import { useAppContext } from '@/contexts/app-context'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
+import { X, Plus, Upload } from 'lucide-react'
 
 // ==================== TYPES ====================
+
+interface TeamMember {
+  id: string
+  name: string
+  type: 'prime' | 'sub' | 'partner'
+  contactName: string | null
+  workShare: number
+  uei: string | null
+  agreementStatus: 'signed' | 'pending' | 'none'
+  agreementType: string | null
+  notes: string | null
+}
 
 interface TeamStats {
   primeCount: number
@@ -87,6 +103,22 @@ function getSetAsideCompliance(setAside: string): ComplianceRule | null {
 export function Team() {
   const { selectedRoles, proposalSetup } = useAppContext()
 
+  // Team members state (will be persisted to context/API later)
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([
+    {
+      id: 'prime-1',
+      name: 'FFTC (Prime)',
+      type: 'prime',
+      contactName: null,
+      workShare: 0,
+      uei: null,
+      agreementStatus: 'none',
+      agreementType: null,
+      notes: null,
+    }
+  ])
+  const [selectedMember, setSelectedMember] = useState<TeamMember | null>(null)
+
   // Calculate prime work share from roles
   const totalHours = selectedRoles.reduce(
     (sum, r) => sum + (r.hoursByYear?.baseYear || 0), 0
@@ -102,15 +134,44 @@ export function Team() {
 
   // Calculate stats
   const stats: TeamStats = {
-    primeCount: selectedRoles.filter(r => (r.type || 'prime') === 'prime').length,
-    subCount: selectedRoles.filter(r => r.type === 'sub').length,
-    partnerCount: 0, // Will be populated from teaming partners
+    primeCount: teamMembers.filter(m => m.type === 'prime').length,
+    subCount: teamMembers.filter(m => m.type === 'sub').length,
+    partnerCount: teamMembers.filter(m => m.type === 'partner').length,
     directorCount: 0, // Will be populated from directors
     primeWorkShare: primeShare,
   }
 
   // Get compliance rule for current set-aside
   const compliance = getSetAsideCompliance(proposalSetup?.setAside || '')
+
+  // Handlers
+  const handleAddMember = () => {
+    const newMember: TeamMember = {
+      id: `member-${crypto.randomUUID()}`,
+      name: '',
+      type: 'sub',
+      contactName: null,
+      workShare: 0,
+      uei: null,
+      agreementStatus: 'none',
+      agreementType: null,
+      notes: null,
+    }
+    setTeamMembers([...teamMembers, newMember])
+    setSelectedMember(newMember)
+  }
+
+  const handleUpdateMember = (id: string, updates: Partial<TeamMember>) => {
+    setTeamMembers(prev => prev.map(m => m.id === id ? { ...m, ...updates } : m))
+    if (selectedMember?.id === id) {
+      setSelectedMember(prev => prev ? { ...prev, ...updates } : null)
+    }
+  }
+
+  const handleDeleteMember = (id: string) => {
+    setTeamMembers(prev => prev.filter(m => m.id !== id))
+    setSelectedMember(null)
+  }
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: '#FFFFFF' }}>
@@ -157,19 +218,61 @@ export function Team() {
 
       {/* CONTENT AREA */}
       <div className="flex-1 overflow-y-auto">
-        {/* TEAM MEMBERS section - placeholder for Prompt 3 */}
-        <section style={{ padding: '24px' }}>
-          <div style={{
-            fontSize: 9,
-            fontWeight: 700,
-            textTransform: 'uppercase',
-            letterSpacing: '1.5px',
-            color: '#6B6A65',
-            marginBottom: 12,
-          }}>
-            Team Members
+        {/* TEAM MEMBERS section */}
+        <section>
+          {/* Section header */}
+          <div className="flex items-center justify-between" style={{ padding: '16px 20px 10px' }}>
+            <div className="flex items-center gap-2">
+              <span style={{
+                fontSize: 10,
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '1.5px',
+                color: '#6B6A65',
+              }}>
+                Team members
+              </span>
+              <span style={{
+                fontSize: 10,
+                fontWeight: 600,
+                color: '#6B6A65',
+                background: '#F4F3EF',
+                padding: '2px 6px',
+                borderRadius: 10,
+              }}>
+                {teamMembers.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="ghost" size="sm" className="text-xs h-7">
+                <Upload className="w-3.5 h-3.5 mr-1" />
+                Import from Rolodex
+              </Button>
+              <Button size="sm" className="text-xs h-7" style={{ backgroundColor: '#111110' }} onClick={handleAddMember}>
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                Add member
+              </Button>
+            </div>
           </div>
-          {/* Content will be added in Prompt 3 */}
+
+          {/* Card grid */}
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, 1fr)',
+              gap: 8,
+              padding: '0 20px 16px',
+            }}
+          >
+            {teamMembers.map(member => (
+              <MemberCard
+                key={member.id}
+                member={member}
+                onClick={() => setSelectedMember(member)}
+              />
+            ))}
+            <AddMemberCard onClick={handleAddMember} />
+          </div>
         </section>
 
         {/* DIRECTOR REVIEW section - placeholder for Prompt 4 */}
@@ -187,6 +290,434 @@ export function Team() {
           {/* Content will be added in Prompt 4 */}
         </section>
       </div>
+
+      {/* MEMBER DETAIL SLIDEOUT */}
+      {selectedMember && (
+        <MemberDetailSlideout
+          member={selectedMember}
+          onUpdate={(updates) => handleUpdateMember(selectedMember.id, updates)}
+          onDelete={() => handleDeleteMember(selectedMember.id)}
+          onClose={() => setSelectedMember(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ==================== MEMBER CARD ====================
+
+function MemberCard({ member, onClick }: { member: TeamMember; onClick: () => void }) {
+  // Get initials from org name
+  const initials = member.name
+    .split(' ')
+    .slice(0, 2)
+    .map(w => w[0] || '')
+    .join('')
+    .toUpperCase() || '??'
+
+  // Type-based colors
+  const typeColors = {
+    prime: { bg: '#111110', text: '#FFFFFF', avatarBg: '#111110', avatarText: '#F5C200' },
+    sub: { bg: '#F4F3EF', text: '#5F5E5A', avatarBg: '#F4F3EF', avatarText: '#5F5E5A' },
+    partner: { bg: '#E1F5EE', text: '#085041', avatarBg: '#E1F5EE', avatarText: '#085041', border: '0.5px solid #5DCAA5' },
+  }
+  const colors = typeColors[member.type]
+
+  // Agreement status colors
+  const statusColors = {
+    signed: { bg: '#EAF3DE', text: '#27500A' },
+    pending: { bg: '#FAEEDA', text: '#412402' },
+    none: { bg: '#F4F3EF', text: '#5F5E5A' },
+  }
+  const statusStyle = statusColors[member.agreementStatus]
+
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: '#FFFFFF',
+        border: '0.5px solid #E8E7E2',
+        borderRadius: 8,
+        padding: '14px 14px 12px',
+        cursor: 'pointer',
+        position: 'relative',
+      }}
+      className="hover:border-[#D4D3CE] transition-colors"
+    >
+      {/* Type badge */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 10,
+          right: 10,
+          fontSize: 9,
+          fontWeight: 700,
+          padding: '2px 6px',
+          borderRadius: 3,
+          background: colors.bg,
+          color: colors.text,
+          border: member.type === 'partner' ? '0.5px solid #5DCAA5' : 'none',
+          textTransform: 'capitalize',
+        }}
+      >
+        {member.type}
+      </div>
+
+      {/* Avatar */}
+      <div
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 6,
+          background: colors.avatarBg,
+          color: colors.avatarText,
+          fontSize: 13,
+          fontWeight: 700,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginBottom: 10,
+        }}
+      >
+        {initials}
+      </div>
+
+      {/* Org name */}
+      <div style={{ fontSize: 13, fontWeight: 600, color: '#111110', marginBottom: 2 }}>
+        {member.name || 'Unnamed'}
+      </div>
+
+      {/* Type label */}
+      <div style={{ fontSize: 11, color: '#6B6A65', marginBottom: 10 }}>
+        {member.type === 'prime' ? 'Prime contractor' : member.type === 'sub' ? 'Subcontractor' : 'Teaming partner'}
+      </div>
+
+      {/* Divider */}
+      <div style={{ height: 0.5, background: '#F4F3EF', marginBottom: 8 }} />
+
+      {/* Metadata rows */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <MetadataRow label="Work share" value={`${member.workShare}%`} />
+        <MetadataRow label="Contact" value={member.contactName || '—'} />
+        {member.type === 'prime' && member.uei && (
+          <MetadataRow label="UEI" value={member.uei} mono />
+        )}
+        <div className="flex items-center justify-between">
+          <span style={{ fontSize: 10, color: '#9B9A95' }}>Agreement</span>
+          <span
+            style={{
+              fontSize: 9,
+              fontWeight: 600,
+              padding: '2px 6px',
+              borderRadius: 3,
+              background: statusStyle.bg,
+              color: statusStyle.text,
+              textTransform: 'capitalize',
+            }}
+          >
+            {member.agreementStatus}
+          </span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function MetadataRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span style={{ fontSize: 10, color: '#9B9A95' }}>{label}</span>
+      <span style={{
+        fontSize: 10,
+        color: '#5F5E5A',
+        fontFamily: mono ? 'JetBrains Mono, monospace' : 'inherit',
+      }}>
+        {value}
+      </span>
+    </div>
+  )
+}
+
+// ==================== ADD MEMBER CARD ====================
+
+function AddMemberCard({ onClick }: { onClick: () => void }) {
+  return (
+    <div
+      onClick={onClick}
+      style={{
+        background: '#FAFAF9',
+        border: '1px dashed #D4D3CE',
+        borderRadius: 8,
+        minHeight: 140,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        cursor: 'pointer',
+        gap: 6,
+      }}
+      className="hover:border-[#C4C3BE] transition-colors"
+    >
+      <div
+        style={{
+          width: 28,
+          height: 28,
+          borderRadius: '50%',
+          background: '#F0EDE6',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Plus className="w-3.5 h-3.5" style={{ color: '#9B9A95' }} />
+      </div>
+      <span style={{ fontSize: 12, color: '#C4C3BE' }}>Add member</span>
+    </div>
+  )
+}
+
+// ==================== MEMBER DETAIL SLIDEOUT ====================
+
+function MemberDetailSlideout({
+  member,
+  onUpdate,
+  onDelete,
+  onClose,
+}: {
+  member: TeamMember
+  onUpdate: (updates: Partial<TeamMember>) => void
+  onDelete: () => void
+  onClose: () => void
+}) {
+  return (
+    <>
+      <div className="fixed inset-0 bg-black/20 z-40" onClick={onClose} />
+      <div
+        className="fixed inset-y-0 right-0 w-[480px] bg-white z-50 flex flex-col"
+        style={{ borderLeft: '0.5px solid #E8E7E2' }}
+      >
+        {/* Header */}
+        <div
+          className="flex items-center justify-between p-4 shrink-0"
+          style={{ borderBottom: '0.5px solid #E8E7E2' }}
+        >
+          <h2 style={{ fontSize: 14, fontWeight: 700, color: '#111110' }}>
+            {member.name || 'New Team Member'}
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              width: 28,
+              height: 28,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" style={{ color: '#6B6A65' }} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* Organization name */}
+          <div className="space-y-1.5">
+            <FieldLabel>Organization name</FieldLabel>
+            <Input
+              value={member.name}
+              onChange={(e) => onUpdate({ name: e.target.value })}
+              onBlur={(e) => onUpdate({ name: e.target.value })}
+              placeholder="e.g. Skybrid Solutions"
+              className="text-sm"
+            />
+          </div>
+
+          {/* Type */}
+          <div className="space-y-1.5">
+            <FieldLabel>Type</FieldLabel>
+            <div style={{ display: 'flex', border: '0.5px solid #E8E7E2', borderRadius: 6, padding: 2, gap: 1 }}>
+              {(['prime', 'sub', 'partner'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => onUpdate({ type: t })}
+                  style={{
+                    flex: 1,
+                    padding: '6px 0',
+                    fontSize: 12,
+                    fontWeight: member.type === t ? 600 : 400,
+                    background: member.type === t ? '#111110' : 'transparent',
+                    color: member.type === t ? '#FFFFFF' : '#6B6A65',
+                    border: 'none',
+                    borderRadius: 4,
+                    cursor: 'pointer',
+                    textTransform: 'capitalize',
+                  }}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Contact name */}
+          <div className="space-y-1.5">
+            <FieldLabel>Contact name</FieldLabel>
+            <Input
+              value={member.contactName || ''}
+              onChange={(e) => onUpdate({ contactName: e.target.value || null })}
+              onBlur={(e) => onUpdate({ contactName: e.target.value || null })}
+              placeholder="Primary point of contact"
+              className="text-sm"
+            />
+          </div>
+
+          {/* Work share */}
+          <div className="space-y-1.5">
+            <FieldLabel>Work share</FieldLabel>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={member.workShare}
+                onChange={(e) => onUpdate({ workShare: parseInt(e.target.value) || 0 })}
+                onBlur={(e) => onUpdate({ workShare: parseInt(e.target.value) || 0 })}
+                className="text-sm w-24"
+              />
+              <span style={{ fontSize: 11, color: '#5F5E5A' }}>%</span>
+            </div>
+          </div>
+
+          {/* UEI (prime only) */}
+          {member.type === 'prime' && (
+            <div className="space-y-1.5">
+              <FieldLabel>UEI (Unique Entity ID)</FieldLabel>
+              <Input
+                value={member.uei || ''}
+                onChange={(e) => onUpdate({ uei: e.target.value || null })}
+                onBlur={(e) => onUpdate({ uei: e.target.value || null })}
+                placeholder="12-character UEI"
+                className="text-sm font-mono"
+                style={{ fontFamily: 'JetBrains Mono, monospace' }}
+              />
+            </div>
+          )}
+
+          <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
+
+          {/* Agreement type */}
+          <div className="space-y-1.5">
+            <FieldLabel>Agreement type</FieldLabel>
+            <select
+              value={member.agreementType || ''}
+              onChange={(e) => onUpdate({ agreementType: e.target.value || null })}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: 14,
+                border: '0.5px solid #E8E7E2',
+                borderRadius: 6,
+                background: '#FFFFFF',
+                color: '#111110',
+              }}
+            >
+              <option value="">Select type...</option>
+              <option value="Teaming Agreement">Teaming Agreement</option>
+              <option value="MOU">MOU</option>
+              <option value="Subcontract">Subcontract</option>
+              <option value="Letter of Intent">Letter of Intent</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          {/* Agreement status */}
+          <div className="space-y-1.5">
+            <FieldLabel>Agreement status</FieldLabel>
+            <select
+              value={member.agreementStatus}
+              onChange={(e) => onUpdate({ agreementStatus: e.target.value as TeamMember['agreementStatus'] })}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: 14,
+                border: '0.5px solid #E8E7E2',
+                borderRadius: 6,
+                background: '#FFFFFF',
+                color: '#111110',
+              }}
+            >
+              <option value="none">None</option>
+              <option value="pending">Pending</option>
+              <option value="signed">Signed</option>
+            </select>
+          </div>
+
+          <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
+
+          {/* Notes */}
+          <div className="space-y-1.5">
+            <FieldLabel>Notes</FieldLabel>
+            <Textarea
+              value={member.notes || ''}
+              onChange={(e) => onUpdate({ notes: e.target.value || null })}
+              onBlur={(e) => onUpdate({ notes: e.target.value || null })}
+              placeholder="Internal notes about this team member..."
+              className="text-sm min-h-[80px]"
+            />
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div
+          className="shrink-0 p-4 flex items-center justify-between"
+          style={{ borderTop: '0.5px solid #E8E7E2' }}
+        >
+          <button
+            onClick={onDelete}
+            style={{
+              fontSize: 11,
+              color: '#A32D2D',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            Delete member
+          </button>
+          <button
+            onClick={onClose}
+            style={{
+              fontSize: 11,
+              color: '#5F5E5A',
+              background: 'none',
+              border: '0.5px solid #E8E7E2',
+              borderRadius: 5,
+              padding: '4px 10px',
+              cursor: 'pointer',
+            }}
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </>
+  )
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      fontSize: 10,
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      color: '#6B6A65',
+      letterSpacing: '1px',
+    }}>
+      {children}
     </div>
   )
 }
@@ -194,7 +725,7 @@ export function Team() {
 // ==================== COMPLIANCE BANNER ====================
 
 function ComplianceBanner({ compliance, primeShare }: { compliance: ComplianceRule | null; primeShare: number }) {
-  // Don't render banner for Full & Open or if no set-aside configured
+  // Don&apos;t render banner for Full & Open or if no set-aside configured
   if (!compliance) return null
 
   // Determine state
