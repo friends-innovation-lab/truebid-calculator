@@ -85,26 +85,41 @@ async function seedRolesV2() {
   const errors: string[] = []
 
   for (const role of roles) {
-    if (existingTitles.has(role.title)) {
-      console.log(`   ⏭️  Skipping: ${role.title} (already exists)`)
-      skipped++
-      continue
+    const roleData = {
+      company_id: companyId,
+      title: role.title,
+      labor_category: role.labor_category,
+      description: role.description,
+      soc_code: role.soc_code,
+      soc_title: role.bls_occupation_title,
+      education: role.education,
+      functional_responsibilities: role.experience_substitution,
+      certifications: role.certifications,
+      salary_levels: role.salary_levels,
     }
 
-    const { error } = await supabase
-      .from('company_roles')
-      .insert({
-        company_id: companyId,
-        title: role.title,
-        labor_category: role.labor_category,
-        description: role.description,
-        soc_code: role.soc_code,
-        soc_title: role.bls_occupation_title,
-        education: role.education,
-        functional_responsibilities: role.experience_substitution,
-        certifications: role.certifications,
-        salary_levels: role.salary_levels,
-      })
+    let error: { message: string } | null = null
+
+    if (existingTitles.has(role.title)) {
+      // Update existing role with new salary data
+      const result = await supabase
+        .from('company_roles')
+        .update(roleData)
+        .eq('company_id', companyId)
+        .eq('title', role.title)
+      error = result.error
+      if (!error) {
+        console.log(`   🔄 Updated: ${role.title}`)
+        skipped++ // reuse counter for updates
+        continue
+      }
+    } else {
+      // Insert new role
+      const result = await supabase
+        .from('company_roles')
+        .insert(roleData)
+      error = result.error
+    }
 
     if (error) {
       errors.push(`${role.title}: ${error.message}`)
@@ -118,7 +133,7 @@ async function seedRolesV2() {
   // 5. Report results
   console.log('\n📊 Results:')
   console.log(`   ✅ Inserted: ${inserted}`)
-  console.log(`   ⏭️  Skipped: ${skipped}`)
+  console.log(`   🔄 Updated: ${skipped}`)
   if (errors.length > 0) {
     console.log(`   ❌ Errors: ${errors.length}`)
   }

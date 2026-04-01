@@ -149,6 +149,18 @@ export function RolesPricing() {
     return 1 + (pop?.optionYears || 2)
   }, [solicitation.periodOfPerformance])
 
+  // Transform companyRoles (levels format) to laborCategories (salary_levels format) for RoleDetailPanel
+  const laborCategories = useMemo(() => {
+    return companyRoles.map(role => ({
+      title: role.title,
+      salary_levels: role.levels?.map(lvl => ({
+        level: lvl.level,
+        level_title: lvl.levelName,
+        steps: lvl.steps.map(s => s.salary),
+      })) || [],
+    }))
+  }, [companyRoles])
+
   // Handle inline cell edit
   const handleCellClick = (roleId: string, yearIndex: number) => {
     const role = selectedRoles.find(r => r.id === roleId)
@@ -374,7 +386,7 @@ export function RolesPricing() {
           onUpdate={(updates) => { updateRole(detailRole.id, updates); setDetailRole({ ...detailRole, ...updates }) }}
           onDelete={() => { removeRole(detailRole.id); setDetailRole(null) }}
           onClose={() => setDetailRole(null)}
-          laborCategories={companyRoles as unknown as { title: string; salary_levels?: { level: string; level_title?: string; steps: number[] }[] }[]}
+          laborCategories={laborCategories}
         />
       )}
     </div>
