@@ -210,7 +210,7 @@ export async function POST(
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const message = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-20250514',
       max_tokens: 8192,
       temperature: 0,
       system: COMPLIANCE_MATRIX_SYSTEM_PROMPT,
@@ -228,16 +228,22 @@ export async function POST(
       return NextResponse.json({ error: 'No response from AI model' }, { status: 500 })
     }
 
-    // Parse JSON array
+    // Parse JSON array — handle markdown fences, preamble, etc.
     const jsonStart = responseText.indexOf('[')
     const jsonEnd = responseText.lastIndexOf(']')
 
     if (jsonStart === -1 || jsonEnd === -1) {
-      console.error('[extract-compliance] No JSON array found:', responseText.substring(0, 500))
+      console.error('[extract-compliance] No JSON array found. Response preview:', responseText.substring(0, 1000))
       return NextResponse.json({ error: 'Failed to parse compliance response' }, { status: 500 })
     }
 
-    const rawMatrix = JSON.parse(responseText.slice(jsonStart, jsonEnd + 1))
+    let rawMatrix
+    try {
+      rawMatrix = JSON.parse(responseText.slice(jsonStart, jsonEnd + 1))
+    } catch (parseError) {
+      console.error('[extract-compliance] JSON parse failed. Response preview:', responseText.substring(0, 1000))
+      return NextResponse.json({ error: 'Failed to parse compliance JSON' }, { status: 500 })
+    }
 
     const complianceMatrix = rawMatrix.map((item: { ref: string; rfpSection: string; type: string; text: string; source: string }) => ({
       ref: item.ref || '',
