@@ -1,8 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { useAppContext, type OutlineSection, type OutlineSubsection, type OutlineVolume, type OutlineSectionStatus } from '@/contexts/app-context'
+import { useParams } from 'next/navigation'
+import { useAppContext, type OutlineSection, type OutlineSubsection, type OutlineVolume, type OutlineSectionStatus, type ProposalOutline } from '@/contexts/app-context'
 import { FileDown, Sparkles, ChevronDown, ChevronRight, FileText, Plus } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { toast } from 'sonner'
 
 // ==================== STATUS COLORS ====================
 
@@ -16,8 +19,12 @@ const STATUS_COLORS: Record<OutlineSectionStatus, string> = {
 // ==================== MAIN COMPONENT ====================
 
 export function ProposalOutlinePage() {
-  const { outline } = useAppContext()
+  const params = useParams()
+  const proposalId = params?.id as string
+  const { outline, setOutline } = useAppContext()
   const [expandedVolumes, setExpandedVolumes] = useState<Set<string>>(new Set(outline?.volumes.map(v => v.id) || []))
+  const [isGenerating, setIsGenerating] = useState(false)
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
 
   // Calculate stats from outline
   const allSections: OutlineSection[] = []
@@ -43,6 +50,41 @@ export function ProposalOutlinePage() {
   }
 
   const collapseAll = () => setExpandedVolumes(new Set())
+
+  const handleGenerate = () => {
+    if (outline?.volumes && outline.volumes.length > 0) {
+      setShowRegenerateConfirm(true)
+      return
+    }
+    doGenerate()
+  }
+
+  const doGenerate = async () => {
+    setShowRegenerateConfirm(false)
+    setIsGenerating(true)
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/generate-outline`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposalId }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error || 'Generation failed')
+        return
+      }
+      const { outline: generated } = await res.json() as { outline: ProposalOutline }
+      setOutline(generated)
+      // Expand all new volumes
+      setExpandedVolumes(new Set(generated.volumes.map(v => v.id)))
+      const totalSecs = generated.volumes.reduce((sum, v) => sum + v.sections.length, 0)
+      toast.success(`Outline generated — ${generated.volumes.length} volumes, ${totalSecs} sections`)
+    } catch {
+      toast.error('Generation failed — try again')
+    } finally {
+      setIsGenerating(false)
+    }
+  }
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: '#FFFFFF' }}>
@@ -104,6 +146,8 @@ export function ProposalOutlinePage() {
               Export outline
             </button>
             <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -115,11 +159,12 @@ export function ProposalOutlinePage() {
                 background: '#F5C200',
                 border: 'none',
                 borderRadius: 6,
-                cursor: 'pointer',
+                cursor: isGenerating ? 'not-allowed' : 'pointer',
+                opacity: isGenerating ? 0.6 : 1,
               }}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              Generate from Section L
+              {isGenerating ? 'Generating...' : 'Generate from Section L'}
             </button>
           </div>
         </div>
@@ -181,7 +226,26 @@ export function ProposalOutlinePage() {
       </div>
 
       {/* CONTENT AREA */}
-      {volumeCount === 0 ? (
+      {isGenerating ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <div
+            style={{
+              width: 24,
+              height: 24,
+              border: '2px solid rgba(245,194,0,0.2)',
+              borderTopColor: '#F5C200',
+              borderRadius: '50%',
+            }}
+            className="animate-spin"
+          />
+          <div style={{ fontSize: 14, fontWeight: 600, color: '#111110' }}>
+            Generating outline from Section L...
+          </div>
+          <div style={{ fontSize: 12, color: '#9B9A95' }}>
+            Reading compliance requirements and building your proposal structure
+          </div>
+        </div>
+      ) : volumeCount === 0 ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-3">
           <FileText className="w-7 h-7" style={{ color: '#C4C3BE' }} />
           <div style={{ fontSize: 14, fontWeight: 700, color: '#111110' }}>No outline yet</div>
@@ -190,6 +254,8 @@ export function ProposalOutlinePage() {
           </div>
           <div className="flex gap-2" style={{ marginTop: 8 }}>
             <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -201,11 +267,12 @@ export function ProposalOutlinePage() {
                 background: '#F5C200',
                 border: 'none',
                 borderRadius: 6,
-                cursor: 'pointer',
+                cursor: isGenerating ? 'not-allowed' : 'pointer',
+                opacity: isGenerating ? 0.6 : 1,
               }}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              Generate from Section L
+              {isGenerating ? 'Generating...' : 'Generate from Section L'}
             </button>
             <button
               style={{
@@ -235,6 +302,16 @@ export function ProposalOutlinePage() {
           ))}
         </div>
       )}
+
+      <ConfirmDialog
+        open={showRegenerateConfirm}
+        title="Regenerate outline?"
+        body="This will replace your existing outline. Section content already written will not be affected."
+        confirmLabel="Yes, regenerate"
+        destructive
+        onConfirm={doGenerate}
+        onCancel={() => setShowRegenerateConfirm(false)}
+      />
     </div>
   )
 }
