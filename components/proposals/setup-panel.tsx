@@ -37,6 +37,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
   const [setAside, setSetAside] = useState(proposalSetup?.setAside || solicitation?.setAside || '8(a) Sole Source')
   const [billableHours, setBillableHours] = useState(proposalSetup?.billableHoursPerYear || solicitation?.pricingSettings?.billableHours || 1920)
   const [escalation, setEscalation] = useState(proposalSetup?.escalationRate ? proposalSetup.escalationRate * 100 : solicitation?.pricingSettings?.laborEscalation || 3)
+  const [wordsPerPage, setWordsPerPage] = useState(proposalSetup?.wordsPerPage || 500)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
   const saveTimeout = useRef<NodeJS.Timeout | null>(null)
 
@@ -54,12 +55,13 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
     if (!open) hasInitialized.current = false
   }, [open, solicitation])
 
-  const save = (overrides: { ct?: string; oy?: number; sa?: string; bh?: number; esc?: number }) => {
+  const save = (overrides: { ct?: string; oy?: number; sa?: string; bh?: number; esc?: number; wpp?: number }) => {
     const ct = (overrides.ct ?? contractType) as 'tm' | 'ffp' | 'cpff'
     const oy = overrides.oy ?? optionYears
     const sa = overrides.sa ?? setAside
     const bh = overrides.bh ?? billableHours
     const esc = overrides.esc ?? escalation
+    const wpp = overrides.wpp ?? wordsPerPage
 
     setSaveStatus('saving')
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
@@ -89,6 +91,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
           billableHoursPerYear: bh,
           escalationRate: esc / 100,
           proposalDueDate: proposalSetup?.proposalDueDate,
+          wordsPerPage: wpp,
         }
         setProposalSetup(updatedSetup)
 
@@ -208,6 +211,26 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
               />
               <span style={{ fontSize: 13, color: '#5F5E5A' }}>% per year</span>
             </div>
+          </div>
+
+          <div style={{ borderTop: '0.5px solid #E8E7E2', margin: '20px 0' }} />
+
+          {/* Words Per Page */}
+          <div>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#111110', display: 'block', marginBottom: 6 }}>Words per page</label>
+            <Input
+              type="number"
+              min={250}
+              max={750}
+              step={50}
+              value={wordsPerPage}
+              onChange={(e) => setWordsPerPage(parseInt(e.target.value) || 500)}
+              onBlur={() => save({})  /* uses current state values */}
+              className="text-sm w-24"
+            />
+            <p style={{ fontSize: 11, color: '#6B6A65', marginTop: 4, lineHeight: 1.5 }}>
+              Used to estimate page count in the Write editor. Standard government proposals at 11pt Times New Roman with 1-inch margins run approximately 500 words per page.
+            </p>
           </div>
         </div>
 

@@ -33,7 +33,7 @@ interface WriteContentProps {
 export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentProps) {
   const params = useParams()
   const proposalId = params?.id as string
-  const { sectionContent, setSectionContent, solicitation, outline, setOutline, extractedRequirements, estimateWbsElements } = useAppContext()
+  const { sectionContent, setSectionContent, solicitation, outline, setOutline, extractedRequirements, estimateWbsElements, proposalSetup } = useAppContext()
 
   // Load win themes from proposal strategy (not in AppContext)
   const [winThemes, setWinThemes] = useState<string[]>([])
@@ -360,6 +360,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
           relatedWbs={relatedWbs}
           winThemes={winThemes}
           wordCount={wordCount}
+          wordsPerPage={proposalSetup?.wordsPerPage || 500}
           onBack={onBack}
         />
 
@@ -484,6 +485,7 @@ function ContextPanel({
   relatedWbs,
   winThemes,
   wordCount,
+  wordsPerPage,
   onBack,
 }: {
   sectionId: string
@@ -493,6 +495,7 @@ function ContextPanel({
   relatedWbs: { id: string; ref?: string; wbsNumber?: string; title: string }[]
   winThemes: string[]
   wordCount: number
+  wordsPerPage: number
   onBack: () => void
 }) {
   const complianceRefs = outlineSection?.complianceRefs || []
@@ -501,9 +504,10 @@ function ContextPanel({
   const status = outlineSection?.status || 'not_started'
   const statusConfig = STATUS_BADGE[status]
 
-  const currentPages = wordCount / 250
+  const currentPages = wordCount / wordsPerPage
   const pagePct = pageTarget ? (currentPages / pageTarget) * 100 : 0
   const barColor = pagePct > 100 ? '#A32D2D' : pagePct >= 80 ? '#BA7517' : '#639922'
+  const overLimitWords = pageTarget && pagePct > 100 ? Math.round((currentPages - pageTarget) * wordsPerPage) : 0
 
   return (
     <div
@@ -676,9 +680,14 @@ function ContextPanel({
               <div style={{ width: `${Math.min(pagePct, 100)}%`, height: '100%', background: barColor, borderRadius: 2 }} />
             </div>
             <span style={{ fontSize: 10, color: barColor, fontWeight: 600, flexShrink: 0 }}>
-              {currentPages.toFixed(1)} / {pageTarget}
+              {currentPages.toFixed(1)} / {pageTarget} pages
             </span>
           </div>
+          {overLimitWords > 0 && (
+            <div style={{ fontSize: 11, color: '#A32D2D', marginTop: 4 }}>
+              Over page limit by {overLimitWords} words
+            </div>
+          )}
         </div>
       )}
     </div>

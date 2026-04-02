@@ -323,6 +323,7 @@ export interface ProposalSetup {
   billableHoursPerYear: number;
   escalationRate: number;
   proposalDueDate?: string;
+  wordsPerPage?: number;
 }
 
 // ==================== PRICING SETTINGS TYPE ====================

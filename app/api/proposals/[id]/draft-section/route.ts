@@ -147,6 +147,8 @@ export async function POST(
   const solicitationNumber = (solicitation.solicitationNumber as string) || ''
   const pageTarget = sectionData?.pageTarget || 1
   const subsections = sectionData?.subsections || []
+  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 500
+  const targetWordCount = pageTarget * wordsPerPage
 
   const systemPrompt = `You are an expert government proposal writer using the Shipley method.
 
@@ -181,7 +183,10 @@ ${winThemes.filter(t => t?.trim()).length > 0 ? `WIN THEMES TO WEAVE IN NATURALL
 
 ${relatedWbs.length > 0 ? `RELATED WORK PACKAGES FROM WBS (reference naturally where relevant):\n${relatedWbs.map(w => `${w.ref || ''}: ${w.title}`).join('\n')}` : ''}
 
-PAGE TARGET: ${pageTarget} pages (approx ${Math.round(pageTarget * 250)} words)
+PAGE TARGET: ${pageTarget} pages
+TARGET WORD COUNT: approximately ${targetWordCount} words
+
+Write a complete draft that fills this target. Do not write a minimum viable response. A ${pageTarget}-page section requires approximately ${targetWordCount} words of substantive content.
 
 ${subsections.length > 0 ? `SUBSECTIONS TO STRUCTURE (use as H2 headers in your draft):\n${subsections.map(s => `${s.number} ${s.title}`).join('\n')}` : 'No subsections — write as flowing prose.'}
 
