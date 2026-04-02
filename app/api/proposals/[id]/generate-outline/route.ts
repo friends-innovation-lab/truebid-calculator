@@ -42,6 +42,7 @@ export async function POST(
     .single()
 
   if (fetchError || !proposal) {
+    console.error('[generate-outline] Proposal fetch failed:', proposalId, fetchError?.message)
     return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
   }
 
