@@ -1,19 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-
-const SYSTEM_PROMPT = `You are an expert government proposal writer using the Shipley method. Write compelling, specific, evaluator-focused proposal content.
-
-Rules:
-- Write in active voice
-- Lead with customer benefit
-- Weave in win themes naturally
-- Be specific — cite numbers, timeframes, and past results
-- Never use generic filler phrases like "we understand" or "we are committed"
-- Write at a professional but accessible reading level
-- Use "FFTC" not "we" for the company name
-- Format with clear paragraphs using HTML: <p>, <strong>, <ul>, <li>, <h2>
-- Do not include a top-level heading — start directly with content`
+import { getWritingGuidePrompt } from '@/lib/writing-guide'
 
 export async function POST(
   request: Request,
@@ -54,7 +42,7 @@ export async function POST(
   const strategy = (proposal.strategy || {}) as Record<string, unknown>
   const proposalSetup = (workingData.proposalSetup || {}) as Record<string, unknown>
   const solicitation = (workingData.solicitation || {}) as Record<string, unknown>
-  interface OutlineSec { id: string; complianceRefs?: string[]; requirementRefs?: string[]; pageTarget?: number }
+  interface OutlineSec { id: string; complianceRefs?: string[]; requirementRefs?: string[]; pageTarget?: number; subsections?: { number: string; title: string }[] }
   const outline = (workingData.outline || {}) as { volumes?: { sections?: OutlineSec[] }[] }
 
   // Find the section in the outline
@@ -79,7 +67,7 @@ export async function POST(
 
   // Get related compliance items from DB
   const complianceRefs = sectionData?.complianceRefs || []
-  let relatedCompliance: { requirement_text: string }[] = []
+  let relatedCompliance: { requirement_text: string; requirement_ref?: string }[] = []
   if (complianceRefs.length > 0) {
     const { data: items } = await supabase
       .from('compliance_items')
@@ -91,31 +79,63 @@ export async function POST(
   }
 
   // Get related WBS elements
-  const wbsElements = (workingData.estimateWbsElements || []) as { title: string; requirementLinks?: string[] }[]
+  const wbsElements = (workingData.estimateWbsElements || []) as { ref?: string; title: string; requirementLinks?: string[] }[]
   const relatedWbs = wbsElements.filter(el =>
     el.requirementLinks?.some(link => reqRefs.includes(link))
   )
 
-  const pageTarget = sectionData?.pageTarget
-  const pageInstruction = pageTarget ? `approximately ${pageTarget} pages (${Math.round(pageTarget * 250)} words)` : 'a complete section'
+  // Get writing guide from company settings
+  const writingGuidePrompt = await getWritingGuidePrompt()
+  const voiceRules = writingGuidePrompt || `Default voice rules:
+- Active voice only
+- Lead with customer benefit
+- No filler phrases like "leverages" or "best-in-class" or "cutting-edge"
+- Be specific — cite numbers and outcomes
+- Professional but accessible tone`
 
-  const userPrompt = `Write the "${sectionTitle}" section for this government proposal.
+  const setAside = (proposalSetup.setAside as string) || ''
+  const solicitationNumber = (solicitation.solicitationNumber as string) || ''
+  const pageTarget = sectionData?.pageTarget || 1
+  const subsections = sectionData?.subsections || []
 
-CONTRACT TYPE: ${contractType}
+  const systemPrompt = `You are an expert government proposal writer using the Shipley method.
+
+${voiceRules}
+
+Additional rules:
+- Write in active voice
+- Every claim needs a proof point
+- Weave win themes naturally — never list them
+- Never use: "leverage", "robust", "best-in-class", "cutting-edge", "synergy", "holistic", "seamlessly"
+- Cite specific agencies, timeframes, and measurable outcomes
+- Write as if addressing the evaluator directly — they are busy, skeptical, and comparing you to 10 other offerors
+- Use "FFTC" not "we" for the company name
+- Format with clear paragraphs using HTML: <p>, <strong>, <ul>, <li>, <h2>
+- Do not include a top-level heading — start directly with content`
+
+  const userPrompt = `Write the "${sectionTitle}" section for this proposal.
+
 AGENCY: ${agency}
+CONTRACT TYPE: ${contractType}
+SET-ASIDE: ${setAside || 'Not specified'}
+SOLICITATION NUMBER: ${solicitationNumber || 'Not specified'}
 
-WHAT THEY WANT:
+WHAT THE AGENCY WANTS:
 ${whatTheyWant}
 
-${relatedReqs.length > 0 ? `REQUIREMENTS THIS SECTION ADDRESSES:\n${relatedReqs.map(r => r.text || r.description || r.title).join('\n')}` : ''}
+${relatedCompliance.length > 0 ? `WHAT THIS SECTION MUST ADDRESS (from compliance matrix):\n${relatedCompliance.map(c => `[${(c as { requirement_ref?: string }).requirement_ref || ''}] ${c.requirement_text}`).join('\n')}` : 'See requirements below.'}
 
-${relatedCompliance.length > 0 ? `COMPLIANCE REQUIREMENTS:\n${relatedCompliance.map(c => c.requirement_text).join('\n')}` : ''}
+${relatedReqs.length > 0 ? `SPECIFIC REQUIREMENTS TO ADDRESS:\n${relatedReqs.map(r => `[${r.reference_number || r.id}] ${r.text || r.description || r.title}`).join('\n')}` : 'No specific requirements linked.'}
 
-${winThemes.length > 0 ? `WIN THEMES TO WEAVE IN:\n${winThemes.filter(t => t.trim()).join('\n')}` : ''}
+${winThemes.filter(t => t?.trim()).length > 0 ? `WIN THEMES TO WEAVE IN NATURALLY (do not list them — integrate into the narrative):\n${winThemes.filter(t => t?.trim()).join('\n')}` : 'No win themes configured.'}
 
-${relatedWbs.length > 0 ? `RELATED WORK (from WBS):\n${relatedWbs.map(w => w.title).join('\n')}` : ''}
+${relatedWbs.length > 0 ? `RELATED WORK PACKAGES FROM WBS (reference naturally where relevant):\n${relatedWbs.map(w => `${w.ref || ''}: ${w.title}`).join('\n')}` : ''}
 
-Write ${pageInstruction}. Format with clear HTML paragraphs (<p>, <strong>, <ul>, <li>, <h2>). Do not include a top-level heading — start directly with content.`
+PAGE TARGET: ${pageTarget} pages (approx ${Math.round(pageTarget * 250)} words)
+
+${subsections.length > 0 ? `SUBSECTIONS TO STRUCTURE (use as H2 headers in your draft):\n${subsections.map(s => `${s.number} ${s.title}`).join('\n')}` : 'No subsections — write as flowing prose.'}
+
+Write the complete section now. Do not include the section title as a heading — start with content. Use H2 headers only for subsections.`
 
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -123,7 +143,7 @@ Write ${pageInstruction}. Format with clear HTML paragraphs (<p>, <strong>, <ul>
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: [{ role: 'user', content: userPrompt }],
     })
 
