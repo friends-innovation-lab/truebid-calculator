@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { X, History, Save, RotateCcw, Trash2, Grid3X3 } from 'lucide-react'
+import { X, History, Save, RotateCcw, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,11 +19,11 @@ import { ProposalLayout, SectionId, SECTION_DEFAULT_VIEWS } from '@/components/l
 import { ScopeOfWork } from '@/components/tabs/staff/scope-of-work'
 import { RolesPricing } from '@/components/tabs/staff/roles-pricing'
 import { Team } from '@/components/tabs/staff/team'
+import { LaborLoading } from '@/components/tabs/staff/labor-loading'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { ExportTab } from '@/components/tabs/export-tab'
 import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
 import { ShareLink } from '@/components/tabs/deliver/share-link'
-import { EmptyState } from '@/components/ui/empty-state'
 import { Strategy } from '@/components/tabs/scope/strategy'
 import { Solicitation } from '@/components/tabs/scope/solicitation'
 import { Requirements } from '@/components/tabs/scope/requirements'
@@ -216,15 +216,7 @@ export function SectionNavigation() {
           <Team />
         )}
         {activeView === 'labor-loading' && activeSection === 'staff' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <EmptyState
-                icon={Grid3X3}
-                title="Labor loading coming soon"
-                description="FTE loading by role across contract periods. Available after staffing is complete."
-              />
-            </div>
-          </div>
+          <LaborLoading />
         )}
 
         {/* WRITE views - scrollable with padding */}
