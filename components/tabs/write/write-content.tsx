@@ -33,7 +33,7 @@ interface WriteContentProps {
 export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentProps) {
   const params = useParams()
   const proposalId = params?.id as string
-  const { sectionContent, setSectionContent, solicitation, outline, extractedRequirements, estimateWbsElements } = useAppContext()
+  const { sectionContent, setSectionContent, solicitation, outline, setOutline, extractedRequirements, estimateWbsElements } = useAppContext()
 
   // Load win themes from proposal strategy (not in AppContext)
   const [winThemes, setWinThemes] = useState<string[]>([])
@@ -104,17 +104,33 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = setTimeout(() => {
         const now = new Date().toISOString()
-        setSectionContent({
-          ...sectionContent,
+        const newStatus = html.replace(/<[^>]*>/g, '').trim() ? 'in_progress' as const : 'not_started' as const
+        setSectionContent(prev => ({
+          ...prev,
           [sectionId]: {
             sectionId,
             content: html,
             lastSaved: now,
             wordCount: words,
-            status: html.replace(/<[^>]*>/g, '').trim() ? 'in_progress' : 'not_started',
+            status: prev[sectionId]?.status === 'draft' ? 'draft' : newStatus,
           },
-        })
+        }))
         setLastSaved(now)
+        // Update outline section status
+        setOutline(prev => {
+          if (!prev) return prev
+          return {
+            ...prev,
+            volumes: prev.volumes.map(vol => ({
+              ...vol,
+              sections: vol.sections.map(sec =>
+                sec.id === sectionId && sec.status === 'not_started'
+                  ? { ...sec, status: 'in_progress' as const }
+                  : sec
+              ),
+            })),
+          }
+        })
       }, 1000)
     },
     editorProps: {
@@ -215,8 +231,8 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       // Final save
       const words = editor.getText().split(/\s+/).filter(Boolean).length
       const now = new Date().toISOString()
-      setSectionContent({
-        ...sectionContent,
+      setSectionContent(prev => ({
+        ...prev,
         [sectionId]: {
           sectionId,
           content: editor.getHTML(),
@@ -224,6 +240,19 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
           wordCount: words,
           status: 'draft',
         },
+      }))
+      // Update outline status to draft
+      setOutline(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          volumes: prev.volumes.map(vol => ({
+            ...vol,
+            sections: vol.sections.map(sec =>
+              sec.id === sectionId ? { ...sec, status: 'draft' as const } : sec
+            ),
+          })),
+        }
       })
       setLastSaved(now)
       setWordCount(words)
@@ -234,7 +263,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     } finally {
       setIsStreaming(false)
     }
-  }, [editor, isStreaming, proposalId, sectionId, sectionTitle, sectionContent, setSectionContent, runCoaching])
+  }, [editor, isStreaming, proposalId, sectionId, sectionTitle, setSectionContent, setOutline, runCoaching])
 
   // Truncate title for breadcrumb
   const displayTitle = sectionTitle.length > 40

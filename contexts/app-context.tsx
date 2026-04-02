@@ -1274,11 +1274,11 @@ interface AppContextType {
 
   // Outline
   outline: ProposalOutline | null;
-  setOutline: (outline: ProposalOutline | null) => void;
+  setOutline: (outline: SetStateAction<ProposalOutline | null>) => void;
 
   // Section Content
   sectionContent: Record<string, SectionContent>;
-  setSectionContent: (content: Record<string, SectionContent>) => void;
+  setSectionContent: (content: SetStateAction<Record<string, SectionContent>>) => void;
 
   // Rate Justifications (persist across tab switches)
   rateJustifications: Record<string, RoleJustification>;
