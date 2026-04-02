@@ -48,7 +48,7 @@ export async function POST(
   // Fetch proposal data
   const { data: proposal, error: fetchError } = await supabase
     .from('proposals')
-    .select('working_data, contract_type, strategy')
+    .select('working_data, contract_type, strategy, company_id')
     .eq('id', proposalId)
     .single()
 
@@ -100,25 +100,20 @@ export async function POST(
     el.requirementLinks?.some(link => reqRefs.includes(link))
   )
 
-  // Get company settings (writing guide, content library)
-  const { data: company, error: companyError } = await supabase
-    .from('companies')
-    .select('id')
-    .eq('owner_id', user.id)
-    .single()
-
-  console.log('[draft-section] Company lookup:', company?.id || 'NOT FOUND', companyError?.message || '')
+  // Get company settings (writing guide, content library) using proposal's company_id
+  const companyId = proposal.company_id as string | null
+  console.log('[draft-section] Using company_id from proposal:', companyId || 'NOT SET')
 
   interface WinThemeEntry {
     theme: string
     discriminatorStatement?: string
   }
   let contentLibrary: { pastPerformance?: PastPerformanceEntry[]; standardApproaches?: StandardApproachEntry[]; winThemes?: WinThemeEntry[] } = {}
-  if (company) {
+  if (companyId) {
     const { data: settings, error: settingsError } = await supabase
       .from('company_settings')
       .select('content_library, writing_guide')
-      .eq('company_id', company.id)
+      .eq('company_id', companyId)
       .single()
     console.log('[draft-section] Settings loaded:', {
       hasContentLibrary: !!settings?.content_library,
@@ -141,6 +136,7 @@ export async function POST(
   const relevantPP = pastPerformance
     .filter(pp => pp.status === 'active' || pp.status === 'complete')
     .slice(0, 5) // Top 5 only
+  console.log('[draft-section] Past performance:', pastPerformance.length, 'total,', relevantPP.length, 'relevant')
 
   // Get standard approaches relevant to this section
   const standardApproaches = contentLibrary.standardApproaches || []
