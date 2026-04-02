@@ -31,7 +31,22 @@ interface WriteContentProps {
 }
 
 export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentProps) {
+  const params = useParams()
+  const proposalId = params?.id as string
   const { sectionContent, setSectionContent, solicitation, outline, extractedRequirements, estimateWbsElements } = useAppContext()
+
+  // Load win themes from proposal strategy (not in AppContext)
+  const [winThemes, setWinThemes] = useState<string[]>([])
+  useEffect(() => {
+    if (!proposalId) return
+    fetch(`/api/proposals/${proposalId}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        const themes = data?.proposal?.strategy?.winThemes as string[] | undefined
+        if (themes) setWinThemes(themes.filter((t: string) => t?.trim()))
+      })
+      .catch(() => {})
+  }, [proposalId])
 
   // Find section data from outline
   let outlineSection: OutlineSection | null = null
@@ -57,9 +72,6 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       reqRefs.includes(link)
     )
   )
-
-  const params = useParams()
-  const proposalId = params?.id as string
 
   // State
   const existing = sectionContent[sectionId]
@@ -312,6 +324,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
           outlineSection={outlineSection}
           relatedReqs={relatedReqs}
           relatedWbs={relatedWbs}
+          winThemes={winThemes}
           wordCount={wordCount}
           onBack={onBack}
         />
@@ -435,6 +448,7 @@ function ContextPanel({
   outlineSection,
   relatedReqs,
   relatedWbs,
+  winThemes,
   wordCount,
   onBack,
 }: {
@@ -443,6 +457,7 @@ function ContextPanel({
   outlineSection: OutlineSection | null
   relatedReqs: { id: string; title: string; text: string; reference_number?: string }[]
   relatedWbs: { id: string; ref?: string; wbsNumber?: string; title: string }[]
+  winThemes: string[]
   wordCount: number
   onBack: () => void
 }) {
@@ -558,9 +573,31 @@ function ContextPanel({
         {/* Win themes */}
         <div style={{ marginBottom: 16 }}>
           <SectionLabel>Win themes to weave in</SectionLabel>
-          <div style={{ fontSize: 11, color: '#9B9A95', lineHeight: 1.5 }}>
-            Add win themes in Scope &rarr; Strategy to see them here.
-          </div>
+          {winThemes.length > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              {winThemes.map((theme, i) => (
+                <div
+                  key={i}
+                  style={{
+                    fontSize: 11,
+                    color: '#5F5E5A',
+                    lineHeight: 1.5,
+                    padding: '8px 10px',
+                    background: '#fff',
+                    border: '0.5px solid #E8E7E2',
+                    borderLeft: '2px solid #F5C200',
+                    borderRadius: 6,
+                  }}
+                >
+                  {theme}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: '#C4C3BE', lineHeight: 1.5, fontStyle: 'italic' }}>
+              Add win themes in Scope &rarr; Strategy to see them here.
+            </div>
+          )}
         </div>
 
         {/* Related WBS */}
