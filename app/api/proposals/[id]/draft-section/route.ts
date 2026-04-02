@@ -101,11 +101,13 @@ export async function POST(
   )
 
   // Get company settings (writing guide, content library)
-  const { data: company } = await supabase
+  const { data: company, error: companyError } = await supabase
     .from('companies')
     .select('id')
     .eq('owner_id', user.id)
     .single()
+
+  console.log('[draft-section] Company lookup:', company?.id || 'NOT FOUND', companyError?.message || '')
 
   interface WinThemeEntry {
     theme: string
@@ -113,11 +115,17 @@ export async function POST(
   }
   let contentLibrary: { pastPerformance?: PastPerformanceEntry[]; standardApproaches?: StandardApproachEntry[]; winThemes?: WinThemeEntry[] } = {}
   if (company) {
-    const { data: settings } = await supabase
+    const { data: settings, error: settingsError } = await supabase
       .from('company_settings')
-      .select('content_library')
+      .select('content_library, writing_guide')
       .eq('company_id', company.id)
       .single()
+    console.log('[draft-section] Settings loaded:', {
+      hasContentLibrary: !!settings?.content_library,
+      hasWritingGuide: !!settings?.writing_guide,
+      pastPerformanceCount: (settings?.content_library as Record<string, unknown>)?.pastPerformance ? ((settings?.content_library as Record<string, unknown>).pastPerformance as unknown[]).length : 0,
+      error: settingsError?.message
+    })
     contentLibrary = (settings?.content_library || {}) as typeof contentLibrary
   }
 
