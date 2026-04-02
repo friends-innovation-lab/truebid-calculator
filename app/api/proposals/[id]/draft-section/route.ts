@@ -68,9 +68,6 @@ export async function POST(
   const allSections = (outline.volumes || []).flatMap(v => v.sections || [])
   const sectionData = allSections.find(s => s.id === sectionId) || null
 
-  // Get win themes
-  const winThemes = (strategy.winThemes as string[]) || []
-
   // Get solicitation summary
   const whatTheyWant = (solicitation.whatTheyWant as string) || (solicitation.what_they_want as string) || 'Federal IT services contract'
   const agency = (solicitation.clientAgency as string) || ''
@@ -110,7 +107,11 @@ export async function POST(
     .eq('owner_id', user.id)
     .single()
 
-  let contentLibrary: { pastPerformance?: PastPerformanceEntry[]; standardApproaches?: StandardApproachEntry[] } = {}
+  interface WinThemeEntry {
+    theme: string
+    discriminatorStatement?: string
+  }
+  let contentLibrary: { pastPerformance?: PastPerformanceEntry[]; standardApproaches?: StandardApproachEntry[]; winThemes?: WinThemeEntry[] } = {}
   if (company) {
     const { data: settings } = await supabase
       .from('company_settings')
@@ -119,6 +120,13 @@ export async function POST(
       .single()
     contentLibrary = (settings?.content_library || {}) as typeof contentLibrary
   }
+
+  // GLOBAL win themes — from content library
+  const globalWinThemes = contentLibrary.winThemes || []
+
+  // PROPOSAL-SPECIFIC win themes — from strategy
+  const proposalWinThemes = (strategy.winThemes as string[]) || []
+  const hasProposalThemes = proposalWinThemes.filter(t => t?.trim()).length > 0
 
   // Get past performance entries
   const pastPerformance = contentLibrary.pastPerformance || []
@@ -135,13 +143,8 @@ export async function POST(
   )
 
   // Get writing guide from company settings
-  const writingGuidePrompt = await getWritingGuidePrompt()
-  const voiceRules = writingGuidePrompt || `Default voice rules:
-- Active voice only
-- Lead with customer benefit
-- No filler phrases like "leverages" or "best-in-class" or "cutting-edge"
-- Be specific — cite numbers and outcomes
-- Professional but accessible tone`
+  const writingGuide = await getWritingGuidePrompt()
+  console.log('[draft-section] Writing guide loaded:', writingGuide ? writingGuide.slice(0, 100) : 'NULL — not loading')
 
   const setAside = (proposalSetup.setAside as string) || ''
   const solicitationNumber = (solicitation.solicitationNumber as string) || ''
@@ -150,71 +153,84 @@ export async function POST(
   const wordsPerPage = (proposalSetup.wordsPerPage as number) || 500
   const targetWordCount = pageTarget * wordsPerPage
 
-  const systemPrompt = `You are an expert government proposal writer using the Shipley method.
+  const systemPrompt = `You are writing a government proposal section for Friends From The City (FFTC).
 
-${voiceRules}
+FFTC VOICE — FOLLOW THIS EXACTLY:
+${writingGuide || `
+Write with the confidence of a practitioner, not the caution of a contractor. Be specific. Cite the agency, the outcome, the number. Trust the evaluator to draw conclusions without being told what to think.
 
-Additional rules:
-- Write in active voice
-- Every claim needs a proof point
-- Weave win themes naturally — never list them
-- Never use: "leverage", "robust", "best-in-class", "cutting-edge", "synergy", "holistic", "seamlessly"
-- Cite specific agencies, timeframes, and measurable outcomes
-- Write as if addressing the evaluator directly — they are busy, skeptical, and comparing you to 10 other offerors
-- Use "FFTC" not "we" for the company name
-- Format with clear paragraphs using HTML: <p>, <strong>, <ul>, <li>, <h2>
-- Do not include a top-level heading — start directly with content`
+Every paragraph must fully develop one idea. Introduce the idea, explain the reasoning or methodology, ground it in specific evidence or a real outcome from FFTC's work, and connect it to what the evaluator cares about. No paragraph should be fewer than four sentences unless it opens or closes a section.
+
+Write sentences the way FFTC writes its case studies: declarative, grounded, direct. Short sentences are acceptable when they carry weight. Long sentences are acceptable when they connect ideas. Choppy fragments are never acceptable.
+`}
+
+WORDS YOU MUST NEVER USE:
+leverage, leveraging, leverages, robust, best-in-class, cutting-edge, synergy, synergistic, holistic, seamlessly, world-class, innovative, innovation (unless quoting an RFP), deep dive, deep expertise, deeply, transformative, empower, impactful, utilize, spearhead, game-changing, state-of-the-art, best practices (unless citing a specific standard)
+
+If you find yourself writing any of these words, stop and rewrite the sentence with a specific claim instead.
+
+BULLETS AND NUMBERED LISTS:
+Bullets are permitted only when presenting three or more parallel items that would be genuinely awkward in continuous prose — for example, a list of deliverables, technical specifications, or team roles. A bulleted list must never be used to avoid writing a paragraph. Numbered lists are for sequential processes only. If a section has more bullets than paragraphs it has failed. Default to prose. Use structure only when it is clearer than prose.
+
+PAGE TARGET:
+Write a complete draft that fills the target word count. Do not write a minimum viable response. Every section target represents the evaluator's expectation of how much substance this topic deserves.
+
+PAST PERFORMANCE:
+Only cite projects listed in the user prompt. Never invent contract numbers, agencies, or outcomes. When referencing past performance, always include the agency name and at least one specific, verifiable outcome — not just the project name.
+
+FORMAT:
+Use HTML tags: <p>, <strong>, <ul>, <li>, <h2>. Do not include the section title as a heading — start directly with content. Use H2 headings only for subsections.`
 
   const userPrompt = `Write the "${sectionTitle}" section for this proposal.
 
-AGENCY: ${agency}
-CONTRACT TYPE: ${contractType}
-SET-ASIDE: ${setAside || 'Not specified'}
-SOLICITATION NUMBER: ${solicitationNumber || 'Not specified'}
+CONTRACT DETAILS:
+Agency: ${agency}
+Contract type: ${contractType}
+Set-aside: ${setAside || 'Not specified'}
+Solicitation: ${solicitationNumber || 'Not specified'}
 
-WHAT THE AGENCY WANTS:
+WHAT THIS AGENCY WANTS:
 ${whatTheyWant}
 
-${relatedCompliance.length > 0 ? `WHAT THIS SECTION MUST ADDRESS (from compliance matrix):\n${relatedCompliance.map(c => `[${(c as { requirement_ref?: string }).requirement_ref || ''}] ${c.requirement_text}`).join('\n')}` : 'See requirements below.'}
+${hasProposalThemes ? `WIN THEMES — REQUIRED FOR THIS PROPOSAL. You must weave each of these into the draft. Do not list them. Integrate them as arguments woven through the prose. These take priority over all other framing:
 
-${relatedReqs.length > 0 ? `SPECIFIC REQUIREMENTS TO ADDRESS:\n${relatedReqs.map(r => `[${r.reference_number || r.id}] ${r.text || r.description || r.title}`).join('\n')}` : 'No specific requirements linked.'}
+${proposalWinThemes.filter(t => t?.trim()).map((t, i) => `${i + 1}. ${t}`).join('\n')}
+` : ''}
+${globalWinThemes.length > 0 ? `FFTC BACKGROUND WIN THEMES — Draw from these where relevant. They represent FFTC's enduring differentiators. Use only those that apply naturally to this section:
 
-${winThemes.filter(t => t?.trim()).length > 0 ? `WIN THEMES TO WEAVE IN NATURALLY (do not list them — integrate into the narrative):\n${winThemes.filter(t => t?.trim()).join('\n')}` : 'No win themes configured.'}
+${globalWinThemes.map(t => typeof t === 'string' ? t : `${t.theme}: ${t.discriminatorStatement || ''}`).join('\n')}
+` : ''}
+COMPLIANCE REQUIREMENTS THIS SECTION MUST ADDRESS:
+${relatedCompliance.length > 0 ? relatedCompliance.map(c => `[${(c as { requirement_ref?: string }).requirement_ref || ''}] ${c.requirement_text}`).join('\n') : 'See requirements below'}
 
-${relatedWbs.length > 0 ? `RELATED WORK PACKAGES FROM WBS (reference naturally where relevant):\n${relatedWbs.map(w => `${w.ref || ''}: ${w.title}`).join('\n')}` : ''}
+SPECIFIC REQUIREMENTS TO ADDRESS:
+${relatedReqs.length > 0 ? relatedReqs.map(r => `[${r.reference_number || r.id}] ${r.text || r.description || r.title}`).join('\n') : 'Not available — write to the section title and context'}
 
-PAGE TARGET: ${pageTarget} pages
-TARGET WORD COUNT: approximately ${targetWordCount} words
+${relevantApproaches.length > 0 ? `STANDARD APPROACHES FROM FFTC — Use these as foundation. Adapt the specific language to this proposal and agency. Do not copy verbatim:
 
-Write a complete draft that fills this target. Do not write a minimum viable response. A ${pageTarget}-page section requires approximately ${targetWordCount} words of substantive content.
+${relevantApproaches.map(sa => `[${(sa.category || 'general').toUpperCase()}] ${sa.title}\n${sa.body}`).join('\n---\n')}
+` : ''}
+${relevantPP.length > 0 ? `FFTC PAST PERFORMANCE — Cite these specifically. Never invent others:
 
-${subsections.length > 0 ? `SUBSECTIONS TO STRUCTURE (use as H2 headers in your draft):\n${subsections.map(s => `${s.number} ${s.title}`).join('\n')}` : 'No subsections — write as flowing prose.'}
-
-${relevantPP.length > 0 ? `FFTC PAST PERFORMANCE — CITE THESE SPECIFICALLY, DO NOT INVENT OTHERS:
-
-${relevantPP.map(pp => `
-PROJECT: ${pp.title}
+${relevantPP.map(pp => `PROJECT: ${pp.title}
 AGENCY: ${pp.agency}
 CONTRACT: ${pp.contractNumber}
 PERIOD: ${pp.periodOfPerformance}
-VALUE: ${pp.contractValue}
 SCOPE: ${pp.scope}
 OUTCOMES:
-  ${pp.outcomes.join('\n  ')}
-`).join('\n---\n')}
+  ${pp.outcomes.join('\n  ')}`).join('\n---\n')}
+` : ''}
+${relatedWbs.length > 0 ? `RELATED WORK PACKAGES:
+${relatedWbs.map(w => `${w.ref || ''}: ${w.title}`).join('\n')}
+` : ''}
+PAGE TARGET: ${pageTarget} pages
+TARGET WORD COUNT: approximately ${targetWordCount} words
 
-Only cite projects listed above. Never invent contract numbers, agencies, or outcomes. When referencing past performance, include the agency name and a specific outcome — not just the project title.` : ''}
+${subsections.length > 0 ? `SUBSECTION STRUCTURE — Use these as H2 headings and write substantive content under each one. Do not skip any subsection:
+${subsections.map(s => `${s.number} ${s.title}`).join('\n')}
+` : 'No subsections — write as flowing prose.'}
 
-${relevantApproaches.length > 0 ? `FFTC STANDARD APPROACHES — USE AS FOUNDATION, ADAPT TO THIS PROPOSAL:
-
-${relevantApproaches.map(sa => `
-[${(sa.category || 'general').toUpperCase()}]
-${sa.title}
-
-${sa.body}
-`).join('\n---\n')}` : ''}
-
-Write the complete section now. Do not include the section title as a heading — start with content. Use H2 headers only for subsections.`
+Write the complete section now. Do not include the section title as a heading. Start with the first paragraph of content. Use H2 headings only for subsections. Fill the target word count.`
 
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
