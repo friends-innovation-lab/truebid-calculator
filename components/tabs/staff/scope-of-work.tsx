@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { EmptyState } from '@/components/ui/empty-state'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import {
   Layers,
   ChevronRight,
@@ -129,6 +130,7 @@ export function ScopeOfWork() {
   const [selectedElement, setSelectedElement] = useState<WBSElementData | null>(null)
   const [directorSession, setDirectorSession] = useState<CollabSession | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
 
   // Load director session if exists
   useEffect(() => {
@@ -234,9 +236,15 @@ export function ScopeOfWork() {
 
     // Confirm if elements already exist
     if (wbsElements.length > 0) {
-      if (!confirm(`This will replace your ${wbsElements.length} existing work packages and clear all hour assignments. This cannot be undone. Continue?`)) return
+      setShowRegenerateConfirm(true)
+      return
     }
 
+    doGenerate()
+  }
+
+  const doGenerate = async () => {
+    setShowRegenerateConfirm(false)
     setIsGenerating(true)
     try {
       const response = await fetch(`/api/proposals/${proposalId}/generate-wbs`, {
@@ -399,6 +407,16 @@ export function ScopeOfWork() {
           />
         )}
       </div>
+
+      <ConfirmDialog
+        open={showRegenerateConfirm}
+        title="Regenerate work packages?"
+        body={`This will replace your ${wbsElements.length} existing work packages and clear all hour assignments. This cannot be undone.`}
+        confirmLabel="Yes, regenerate"
+        destructive
+        onConfirm={doGenerate}
+        onCancel={() => setShowRegenerateConfirm(false)}
+      />
     </div>
   )
 }

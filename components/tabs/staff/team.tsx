@@ -6,7 +6,7 @@ import { useAppContext, type TeamMember, type Director } from '@/contexts/app-co
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { X, Plus, Upload, Copy, Send } from 'lucide-react'
+import { X, Plus, Upload, Copy, Send, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface TeamStats {
@@ -83,7 +83,12 @@ function getSetAsideCompliance(setAside: string): ComplianceRule | null {
       threshold: 50
     }
   }
-  return rules[setAside] || null
+  return rules[setAside] || {
+    clause: 'FAR 52.219-14',
+    label: 'Small Business Set-Aside',
+    rule: 'Prime must perform ≥50% of personnel cost',
+    threshold: 50
+  }
 }
 
 // ==================== DATE HELPERS ====================
@@ -123,13 +128,16 @@ export function Team() {
   const [sendingLink, setSendingLink] = useState<string | null>(null)
 
   // Calculate prime work share from roles
+  // Use hoursByYear.baseYear if available, fall back to billableHours
+  const getRoleHours = (r: typeof selectedRoles[number]) =>
+    r.hoursByYear?.baseYear || r.billableHours || 0
   const totalHours = selectedRoles.reduce(
-    (sum, r) => sum + (r.hoursByYear?.baseYear || 0), 0
+    (sum, r) => sum + getRoleHours(r), 0
   )
   const primeHours = selectedRoles
     .filter(r => (r.type || 'prime') === 'prime')
     .reduce(
-      (sum, r) => sum + (r.hoursByYear?.baseYear || 0), 0
+      (sum, r) => sum + getRoleHours(r), 0
     )
   const primeShare = totalHours > 0
     ? Math.round((primeHours / totalHours) * 100)
@@ -179,7 +187,18 @@ export function Team() {
   const handleDeleteMember = (id: string) => {
     setTeamMembers(prev => prev.filter(m => m.id !== id))
     setSelectedMember(null)
-    toast.success('Deleted', { duration: 2000 })
+    toast.success('Removed', { duration: 2000 })
+  }
+
+  const handleDuplicateMember = (member: TeamMember) => {
+    const duplicate: TeamMember = {
+      ...member,
+      id: crypto.randomUUID(),
+      name: `${member.name} (copy)`,
+      agreementStatus: 'none',
+    }
+    setTeamMembers(prev => [...prev, duplicate])
+    toast.success('Duplicated', { duration: 2000 })
   }
 
   // Director handlers
@@ -240,7 +259,21 @@ export function Team() {
 
   const handleDeleteDirector = (id: string) => {
     setDirectors(prev => prev.filter(d => d.id !== id))
-    toast.success('Deleted', { duration: 2000 })
+    toast.success('Removed', { duration: 2000 })
+  }
+
+  const handleDuplicateDirector = (director: Director) => {
+    const duplicate: Director = {
+      ...director,
+      id: `director-${crypto.randomUUID()}`,
+      name: `${director.name} (copy)`,
+      token: null,
+      tokenExpiry: null,
+      lastViewed: null,
+      createdAt: new Date().toISOString(),
+    }
+    setDirectors(prev => [...prev, duplicate])
+    toast.success('Duplicated', { duration: 2000 })
   }
 
   return (
@@ -339,6 +372,8 @@ export function Team() {
                 key={member.id}
                 member={member}
                 onClick={() => setSelectedMember(member)}
+                onDelete={() => handleDeleteMember(member.id)}
+                onDuplicate={() => handleDuplicateMember(member)}
               />
             ))}
             <AddMemberCard onClick={handleAddMember} />
@@ -401,6 +436,7 @@ export function Team() {
                 onSendLink={() => handleSendLink(director.id)}
                 onCopyLink={() => handleCopyLink(director)}
                 onDelete={() => handleDeleteDirector(director.id)}
+                onDuplicate={() => handleDuplicateDirector(director)}
                 isSending={sendingLink === director.id}
               />
             ))}
@@ -512,12 +548,14 @@ function DirectorCard({
   onSendLink,
   onCopyLink,
   onDelete,
+  onDuplicate,
   isSending,
 }: {
   director: Director
   onSendLink: () => void
   onCopyLink: () => void
   onDelete: () => void
+  onDuplicate: () => void
   isSending: boolean
 }) {
   // Get initials from name
@@ -687,6 +725,20 @@ function DirectorCard({
           </Button>
         )}
         <button
+          onClick={onDuplicate}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 4,
+            color: '#C4C3BE',
+          }}
+          className="hover:text-gray-600"
+          title="Duplicate director"
+        >
+          <Copy className="w-3.5 h-3.5" />
+        </button>
+        <button
           onClick={onDelete}
           style={{
             background: 'none',
@@ -707,7 +759,7 @@ function DirectorCard({
 
 // ==================== MEMBER CARD ====================
 
-function MemberCard({ member, onClick }: { member: TeamMember; onClick: () => void }) {
+function MemberCard({ member, onClick, onDelete, onDuplicate }: { member: TeamMember; onClick: () => void; onDelete: () => void; onDuplicate: () => void }) {
   // Get initials from org name
   const initials = member.name
     .split(' ')
@@ -743,25 +795,42 @@ function MemberCard({ member, onClick }: { member: TeamMember; onClick: () => vo
         cursor: 'pointer',
         position: 'relative',
       }}
-      className="hover:border-[#D4D3CE] transition-colors"
+      className="group hover:border-[#D4D3CE] transition-colors"
     >
-      {/* Type badge */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 10,
-          right: 10,
-          fontSize: 9,
-          fontWeight: 700,
-          padding: '2px 6px',
-          borderRadius: 3,
-          background: colors.bg,
-          color: colors.text,
-          border: member.type === 'partner' ? '0.5px solid #5DCAA5' : 'none',
-          textTransform: 'capitalize',
-        }}
-      >
-        {member.type}
+      {/* Top right: type badge + actions */}
+      <div style={{ position: 'absolute', top: 10, right: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDuplicate() }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, borderRadius: 3, color: '#C4C3BE' }}
+            className="hover:bg-gray-100 hover:text-gray-600"
+            title="Duplicate"
+          >
+            <Copy className="w-3 h-3" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 3, borderRadius: 3, color: '#C4C3BE' }}
+            className="hover:bg-red-50 hover:text-red-500"
+            title="Delete"
+          >
+            <Trash2 className="w-3 h-3" />
+          </button>
+        </div>
+        <div
+          style={{
+            fontSize: 9,
+            fontWeight: 700,
+            padding: '2px 6px',
+            borderRadius: 3,
+            background: colors.bg,
+            color: colors.text,
+            border: member.type === 'partner' ? '0.5px solid #5DCAA5' : 'none',
+            textTransform: 'capitalize',
+          }}
+        >
+          {member.type}
+        </div>
       </div>
 
       {/* Avatar */}
@@ -1197,9 +1266,14 @@ function ComplianceBanner({ compliance, primeShare }: { compliance: ComplianceRu
             Approaching minimum — review subcontractor work allocation
           </div>
         )}
-        {isDanger && (
+        {isDanger && primeShare > 0 && (
           <div style={{ fontSize: 11, color: '#A32D2D', marginTop: 2 }}>
             Below required minimum — this proposal may not be compliant
+          </div>
+        )}
+        {primeShare === 0 && (
+          <div style={{ fontSize: 11, color: '#A32D2D', marginTop: 2 }}>
+            No roles added yet — add roles in Roles &amp; Pricing to calculate prime work share
           </div>
         )}
       </div>

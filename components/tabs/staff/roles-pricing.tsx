@@ -19,6 +19,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 
 // ==================== TYPES ====================
 
@@ -418,6 +419,7 @@ function PricingView({
   stats: { totalValue: number; yearCosts: number[]; totalHours: number }
   wbsRoleData: Map<string, number>
 }) {
+  const [removeConfirm, setRemoveConfirm] = useState<{ id: string; name: string } | null>(null)
   const yearCols = YEAR_LABELS.slice(0, activeYearCount)
   // Spread columns: flexible role, wider year columns, trash at end
   const gridCols = `1fr 80px 100px ${yearCols.map(() => '90px').join(' ')} 120px 40px`
@@ -521,9 +523,7 @@ function PricingView({
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  if (confirm(`Remove "${role.name}" from this proposal?`)) {
-                    onRemoveRole(role.id)
-                  }
+                  setRemoveConfirm({ id: role.id, name: role.name })
                 }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, borderRadius: 4, color: '#D4D3CE', opacity: 0.6 }}
                 className="hover:bg-red-50 hover:text-red-500 hover:opacity-100"
@@ -563,6 +563,19 @@ function PricingView({
         </div>
         <div />
       </div>
+
+      <ConfirmDialog
+        open={!!removeConfirm}
+        title="Remove role?"
+        body={`Remove "${removeConfirm?.name}" from this proposal? Hours in Roles & Pricing will update.`}
+        confirmLabel="Remove"
+        destructive
+        onConfirm={() => {
+          if (removeConfirm) onRemoveRole(removeConfirm.id)
+          setRemoveConfirm(null)
+        }}
+        onCancel={() => setRemoveConfirm(null)}
+      />
     </div>
   )
 }

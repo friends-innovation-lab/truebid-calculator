@@ -2,6 +2,7 @@
 
 // Estimate tab - WBS, Requirements, Labor, Charge Codes
 import React, { useState, useMemo, useEffect } from 'react'
+import { toast } from 'sonner'
 import { useParams } from 'next/navigation'
 import { wbsApi, requirementsApi } from '@/lib/api'
 import {
@@ -2549,7 +2550,7 @@ export function EstimateTab() {
     // Limit to 10 requirements per batch for optimal AI performance
     const MAX_REQUIREMENTS = 5
     if (selectedRequirements.size > MAX_REQUIREMENTS) {
-      alert(`Please select ${MAX_REQUIREMENTS} or fewer requirements at a time for best results. You have ${selectedRequirements.size} selected.\n\nTip: Generate in batches for higher quality WBS elements.`)
+      toast.warning(`Please select ${MAX_REQUIREMENTS} or fewer requirements at a time for best results. You have ${selectedRequirements.size} selected. Generate in batches for higher quality WBS elements.`)
       return
     }
     

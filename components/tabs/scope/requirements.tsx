@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams } from 'next/navigation'
 import { toast } from 'sonner'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { ClipboardList, Search, Download, Plus, ChevronDown, RefreshCw } from 'lucide-react'
 import { useAppContext } from '@/contexts/app-context'
 import { requirementsApi, complianceApi, sectionsApi, proposalsApi } from '@/lib/api'
@@ -277,6 +278,7 @@ export function Requirements() {
   const [selectedRef, setSelectedRef] = useState<string | null>(null)
   // editingSection removed — ComplianceMatrix component manages its own state
   const [isGenerating, setIsGenerating] = useState(false)
+  const [showGenerateConfirm, setShowGenerateConfirm] = useState(false)
   const [hasPdf, setHasPdf] = useState(false)
   const [isReExtracting, setIsReExtracting] = useState(false)
   const [showReExtractConfirm, setShowReExtractConfirm] = useState(false)
@@ -405,12 +407,14 @@ export function Requirements() {
   // Generate compliance matrix
   const handleGenerate = async () => {
     if (requirements.length > 0) {
-      const confirmed = window.confirm(
-        'This will replace the existing matrix. Any manual edits will be lost.'
-      )
-      if (!confirmed) return
+      setShowGenerateConfirm(true)
+      return
     }
+    doGenerate()
+  }
 
+  const doGenerate = async () => {
+    setShowGenerateConfirm(false)
     setIsGenerating(true)
     try {
       await complianceApi.generate(proposalId)
@@ -817,6 +821,16 @@ export function Requirements() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={showGenerateConfirm}
+        title="Regenerate compliance matrix?"
+        body="This will replace the existing matrix. Any manual edits will be lost."
+        confirmLabel="Yes, regenerate"
+        destructive
+        onConfirm={doGenerate}
+        onCancel={() => setShowGenerateConfirm(false)}
+      />
     </div>
   )
 }

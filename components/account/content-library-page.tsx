@@ -682,10 +682,18 @@ function PastPerformanceFields({
   updateContent: (field: string, value: unknown) => void
 }) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [promptValue, setPromptValue] = useState('')
 
   const handleAIDraft = async () => {
-    const description = window.prompt('Briefly describe what this contract involved:')
+    setShowPrompt(true)
+  }
+
+  const handlePromptSubmit = async () => {
+    const description = promptValue.trim()
     if (!description) return
+    setShowPrompt(false)
+    setPromptValue('')
 
     setIsGenerating(true)
     try {
@@ -807,6 +815,22 @@ function PastPerformanceFields({
         />
       </div>
 
+      {showPrompt && (
+        <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <Label className="text-sm text-blue-800">Briefly describe what this contract involved:</Label>
+          <Textarea
+            value={promptValue}
+            onChange={(e) => setPromptValue(e.target.value)}
+            placeholder="e.g. Modernized the agency's case management system, migrated from legacy Oracle DB..."
+            rows={3}
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => { setShowPrompt(false); setPromptValue('') }}>Cancel</Button>
+            <Button size="sm" onClick={handlePromptSubmit} disabled={!promptValue.trim()}>Generate</Button>
+          </div>
+        </div>
+      )}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="scope_description">Scope Description *</Label>
@@ -864,10 +888,18 @@ function KeyPersonnelFields({
   updateContent: (field: string, value: unknown) => void
 }) {
   const [isGenerating, setIsGenerating] = useState(false)
+  const [showPrompt, setShowPrompt] = useState(false)
+  const [promptValue, setPromptValue] = useState('')
 
   const handleAIDraft = async () => {
-    const description = window.prompt('Enter bullet points about this person (experience, skills, achievements):')
+    setShowPrompt(true)
+  }
+
+  const handlePromptSubmit = async () => {
+    const description = promptValue.trim()
     if (!description) return
+    setShowPrompt(false)
+    setPromptValue('')
 
     setIsGenerating(true)
     try {
@@ -944,6 +976,22 @@ function KeyPersonnelFields({
         </div>
       </div>
 
+      {showPrompt && (
+        <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <Label className="text-sm text-blue-800">Enter bullet points about this person (experience, skills, achievements):</Label>
+          <Textarea
+            value={promptValue}
+            onChange={(e) => setPromptValue(e.target.value)}
+            placeholder="e.g. 10 years in federal IT, led 3 ATO processes, AWS certified..."
+            rows={3}
+            autoFocus
+          />
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" size="sm" onClick={() => { setShowPrompt(false); setPromptValue('') }}>Cancel</Button>
+            <Button size="sm" onClick={handlePromptSubmit} disabled={!promptValue.trim()}>Generate</Button>
+          </div>
+        </div>
+      )}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="bio">Bio *</Label>

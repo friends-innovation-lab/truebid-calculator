@@ -38,6 +38,7 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip'
 import { useAppContext } from '@/contexts/app-context'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { UploadTab } from '@/components/tabs/upload-tab'
 import { EstimateTab } from '@/components/tabs/estimate-tab'
 import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
@@ -101,6 +102,7 @@ export function TabsNavigation() {
   const [isVersionsSlideoutOpen, setIsVersionsSlideoutOpen] = useState(false)
   const [newVersionName, setNewVersionName] = useState('')
   const [newVersionNotes, setNewVersionNotes] = useState('')
+  const [versionConfirm, setVersionConfirm] = useState<{ type: 'restore' | 'delete'; id: string } | null>(null)
   
   const { 
     solicitation, 
@@ -252,17 +254,12 @@ export function TabsNavigation() {
   }, [newVersionName, newVersionNotes, saveProjectVersion])
 
   const handleRestoreVersion = useCallback((versionId: string) => {
-    if (confirm('Are you sure you want to restore this version? Current unsaved changes will be lost.')) {
-      restoreProjectVersion(versionId)
-      setIsVersionsSlideoutOpen(false)
-    }
-  }, [restoreProjectVersion])
+    setVersionConfirm({ type: 'restore', id: versionId })
+  }, [])
 
   const handleDeleteVersion = useCallback((versionId: string) => {
-    if (confirm('Are you sure you want to delete this version? This cannot be undone.')) {
-      deleteProjectVersion(versionId)
-    }
-  }, [deleteProjectVersion])
+    setVersionConfirm({ type: 'delete', id: versionId })
+  }, [])
 
   const formatVersionDate = (dateString: string): string => {
     const date = new Date(dateString)
@@ -745,6 +742,26 @@ export function TabsNavigation() {
       )}
 
       {/* Versions History Slideout */}
+      <ConfirmDialog
+        open={!!versionConfirm}
+        title={versionConfirm?.type === 'restore' ? 'Restore version?' : 'Delete version?'}
+        body={versionConfirm?.type === 'restore'
+          ? 'Are you sure you want to restore this version? Current unsaved changes will be lost.'
+          : 'Are you sure you want to delete this version? This cannot be undone.'}
+        confirmLabel={versionConfirm?.type === 'restore' ? 'Restore' : 'Delete'}
+        destructive
+        onConfirm={() => {
+          if (versionConfirm?.type === 'restore') {
+            restoreProjectVersion(versionConfirm.id)
+            setIsVersionsSlideoutOpen(false)
+          } else if (versionConfirm?.type === 'delete') {
+            deleteProjectVersion(versionConfirm.id)
+          }
+          setVersionConfirm(null)
+        }}
+        onCancel={() => setVersionConfirm(null)}
+      />
+
       {isVersionsSlideoutOpen && (
         <VersionsSlideout
           versions={projectVersions}
