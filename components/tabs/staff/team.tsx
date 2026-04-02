@@ -170,6 +170,9 @@ export function Team() {
     if (selectedMember?.id === id) {
       setSelectedMember(prev => prev ? { ...prev, ...updates } : null)
     }
+  }
+
+  const handleSaveMember = () => {
     toast.success('Saved', { duration: 2000 })
   }
 
@@ -493,6 +496,7 @@ export function Team() {
         <MemberDetailSlideout
           member={selectedMember}
           onUpdate={(updates) => handleUpdateMember(selectedMember.id, updates)}
+          onSave={handleSaveMember}
           onDelete={() => handleDeleteMember(selectedMember.id)}
           onClose={() => setSelectedMember(null)}
         />
@@ -878,11 +882,13 @@ function AddMemberCard({ onClick }: { onClick: () => void }) {
 function MemberDetailSlideout({
   member,
   onUpdate,
+  onSave,
   onDelete,
   onClose,
 }: {
   member: TeamMember
   onUpdate: (updates: Partial<TeamMember>) => void
+  onSave: () => void
   onDelete: () => void
   onClose: () => void
 }) {
@@ -927,7 +933,7 @@ function MemberDetailSlideout({
             <Input
               value={member.name}
               onChange={(e) => onUpdate({ name: e.target.value })}
-              onBlur={(e) => onUpdate({ name: e.target.value })}
+              onBlur={() => onSave()}
               placeholder="e.g. Skybrid Solutions"
               className="text-sm"
             />
@@ -966,7 +972,7 @@ function MemberDetailSlideout({
             <Input
               value={member.contactName || ''}
               onChange={(e) => onUpdate({ contactName: e.target.value || null })}
-              onBlur={(e) => onUpdate({ contactName: e.target.value || null })}
+              onBlur={() => onSave()}
               placeholder="Primary point of contact"
               className="text-sm"
             />
@@ -982,7 +988,7 @@ function MemberDetailSlideout({
                 max={100}
                 value={member.workShare}
                 onChange={(e) => onUpdate({ workShare: parseInt(e.target.value) || 0 })}
-                onBlur={(e) => onUpdate({ workShare: parseInt(e.target.value) || 0 })}
+                onBlur={() => onSave()}
                 className="text-sm w-24"
               />
               <span style={{ fontSize: 11, color: '#5F5E5A' }}>%</span>
@@ -996,7 +1002,7 @@ function MemberDetailSlideout({
               <Input
                 value={member.uei || ''}
                 onChange={(e) => onUpdate({ uei: e.target.value || null })}
-                onBlur={(e) => onUpdate({ uei: e.target.value || null })}
+                onBlur={() => onSave()}
                 placeholder="12-character UEI"
                 className="text-sm font-mono"
                 style={{ fontFamily: 'JetBrains Mono, monospace' }}
@@ -1011,7 +1017,7 @@ function MemberDetailSlideout({
             <FieldLabel>Agreement type</FieldLabel>
             <select
               value={member.agreementType || ''}
-              onChange={(e) => onUpdate({ agreementType: e.target.value || null })}
+              onChange={(e) => { onUpdate({ agreementType: e.target.value || null }); onSave() }}
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -1036,7 +1042,7 @@ function MemberDetailSlideout({
             <FieldLabel>Agreement status</FieldLabel>
             <select
               value={member.agreementStatus}
-              onChange={(e) => onUpdate({ agreementStatus: e.target.value as TeamMember['agreementStatus'] })}
+              onChange={(e) => { onUpdate({ agreementStatus: e.target.value as TeamMember['agreementStatus'] }); onSave() }}
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -1061,7 +1067,7 @@ function MemberDetailSlideout({
             <Textarea
               value={member.notes || ''}
               onChange={(e) => onUpdate({ notes: e.target.value || null })}
-              onBlur={(e) => onUpdate({ notes: e.target.value || null })}
+              onBlur={() => onSave()}
               placeholder="Internal notes about this team member..."
               className="text-sm min-h-[80px]"
             />
