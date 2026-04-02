@@ -27,7 +27,7 @@ import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { Strategy } from '@/components/tabs/scope/strategy'
 import { Solicitation } from '@/components/tabs/scope/solicitation'
 import { Requirements } from '@/components/tabs/scope/requirements'
-import { Outline } from '@/components/tabs/write/outline'
+import { ProposalOutlinePage } from '@/components/tabs/write/proposal-outline'
 import { TechnicalVolume } from '@/components/tabs/write/technical-volume'
 
 // ==================== TYPES ====================
@@ -221,11 +221,7 @@ export function SectionNavigation() {
 
         {/* WRITE views - scrollable with padding */}
         {activeView === 'outline' && activeSection === 'write' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <Outline />
-            </div>
-          </div>
+          <ProposalOutlinePage />
         )}
         {activeView === 'technical-editor' && activeSection === 'write' && (
           <div className="flex-1 overflow-y-auto p-6">

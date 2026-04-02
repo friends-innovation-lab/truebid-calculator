@@ -999,6 +999,44 @@ export interface Director {
   createdAt: string;
 }
 
+// ==================== OUTLINE ====================
+
+export type OutlineSectionStatus = 'not_started' | 'in_progress' | 'draft' | 'review'
+
+export interface OutlineSubsection {
+  id: string
+  number: string
+  title: string
+  pageTarget: number | null
+  status: OutlineSectionStatus
+}
+
+export interface OutlineSection {
+  id: string
+  number: string
+  title: string
+  description: string | null
+  pageTarget: number | null
+  status: OutlineSectionStatus
+  assignee: string | null
+  complianceRefs: string[]
+  requirementRefs: string[]
+  subsections: OutlineSubsection[]
+}
+
+export interface OutlineVolume {
+  id: string
+  title: string
+  description: string | null
+  maxPages: number | null
+  complianceRef: string | null
+  sections: OutlineSection[]
+}
+
+export interface ProposalOutline {
+  volumes: OutlineVolume[]
+}
+
 // ==================== ODCs ====================
 
 export interface ODCItem {
@@ -1223,6 +1261,10 @@ interface AppContextType {
   // Directors (internal reviewers)
   directors: Director[];
   setDirectors: (directors: SetStateAction<Director[]>) => void;
+
+  // Outline
+  outline: ProposalOutline | null;
+  setOutline: (outline: ProposalOutline | null) => void;
 
   // Rate Justifications (persist across tab switches)
   rateJustifications: Record<string, RoleJustification>;
@@ -1861,6 +1903,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [teamingPartners, setTeamingPartners] = useState<TeamingPartner[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [directors, setDirectors] = useState<Director[]>([]);
+  const [outline, setOutline] = useState<ProposalOutline | null>(null);
   const [odcs, setODCs] = useState<ODCItem[]>([]);
   const [perDiem, setPerDiem] = useState<PerDiemCalculation[]>([]);
   const [gsaContractInfo, setGSAContractInfo] = useState<GSAContractInfo | null>(null);
@@ -2598,6 +2641,10 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     // Directors
     directors,
     setDirectors,
+
+    // Outline
+    outline,
+    setOutline,
 
     // Rate Justifications
     rateJustifications,
