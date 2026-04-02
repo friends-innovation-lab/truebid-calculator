@@ -386,7 +386,7 @@ function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutli
         <div key={section.id}>
           <SectionRow section={section} proposalId={proposalId} outline={outline!} setOutline={setOutline} />
           {section.subsections.map(sub => (
-            <SubsectionRow key={sub.id} subsection={sub} />
+            <SubsectionRow key={sub.id} subsection={sub} parentSection={section} proposalId={proposalId} />
           ))}
         </div>
       ))}
@@ -539,7 +539,8 @@ function SectionRow({ section, proposalId, outline, setOutline }: { section: Out
 
 // ==================== SUBSECTION ROW ====================
 
-function SubsectionRow({ subsection }: { subsection: OutlineSubsection }) {
+function SubsectionRow({ subsection, parentSection, proposalId }: { subsection: OutlineSubsection; parentSection: OutlineSection; proposalId: string }) {
+  const router = useRouter()
   return (
     <div
       className="flex items-center gap-3"
@@ -550,6 +551,9 @@ function SubsectionRow({ subsection }: { subsection: OutlineSubsection }) {
       }}
       onMouseEnter={(e) => { e.currentTarget.style.background = '#FAFAF8' }}
       onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
+      onClick={() => {
+        router.push(`/${proposalId}?tab=write&view=technical-editor&sectionId=${parentSection.id}&sectionTitle=${encodeURIComponent(parentSection.title)}&anchor=${subsection.id}`)
+      }}
     >
       {/* Status dot */}
       <div style={{
