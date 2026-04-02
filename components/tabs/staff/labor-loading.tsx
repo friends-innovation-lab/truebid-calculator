@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useAppContext } from '@/contexts/app-context'
-import { LayoutGrid, Calendar } from 'lucide-react'
+import { LayoutGrid, Calendar, Users } from 'lucide-react'
+import type { Role } from '@/contexts/app-context'
 
 // ==================== MAIN COMPONENT ====================
 
@@ -231,17 +232,251 @@ export function LaborLoading() {
         </div>
       </div>
 
-      {/* CONTENT AREA — placeholder for Prompts 3-4 */}
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="text-center py-16">
-          <p style={{ fontSize: 13, color: '#6B6A65' }}>
-            {rolesWithHours.length === 0
-              ? 'No roles with hours assigned yet. Generate a WBS and roles first.'
-              : `${rolesWithHours.length} roles loaded. Content coming in next prompts.`
-            }
-          </p>
+      {/* CAPACITY TABLE */}
+      {rolesWithHours.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-3">
+          <Users className="w-7 h-7" style={{ color: '#C4C3BE' }} />
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#111110' }}>No roles to analyze</div>
+          <div style={{ fontSize: 12, color: '#6B6A65' }}>Add roles in Roles &amp; Pricing to see capacity loading.</div>
+          <button
+            onClick={() => {
+              const el = document.querySelector('[data-view-id="roles-pricing"]') as HTMLElement
+              if (el) el.click()
+            }}
+            style={{
+              marginTop: 8,
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 600,
+              color: '#fff',
+              background: '#111110',
+              border: 'none',
+              borderRadius: 6,
+              cursor: 'pointer',
+            }}
+          >
+            Go to Roles &amp; Pricing &rarr;
+          </button>
+        </div>
+      ) : (
+        <CapacityTable
+          roles={rolesWithHours}
+          billableHrs={billableHrs}
+          selectedYear={selectedYear}
+        />
+      )}
+    </div>
+  )
+}
+
+// ==================== CAPACITY TABLE ====================
+
+const YEAR_KEY_MAP: Record<YearFilter, keyof NonNullable<Role['hoursByYear']> | 'all'> = {
+  base: 'baseYear',
+  oy1: 'oy1',
+  oy2: 'oy2',
+  oy3: 'oy3',
+  oy4: 'oy4',
+  all: 'all',
+}
+
+function getRoleHours(role: Role, yearFilter: YearFilter, billableHrs: number): number {
+  const h = role.hoursByYear
+  if (!h) return 0
+  if (yearFilter === 'all') {
+    return h.baseYear + (h.oy1 || 0) + (h.oy2 || 0) + (h.oy3 || 0) + (h.oy4 || 0)
+  }
+  const key = YEAR_KEY_MAP[yearFilter]
+  if (key === 'all') return 0
+  return h[key] || 0
+}
+
+function getFteColor(fte: number): string {
+  if (fte > 1.0) return '#A32D2D'
+  if (fte >= 0.8) return '#BA7517'
+  return '#639922'
+}
+
+function getBarColor(fte: number): string {
+  if (fte > 1.0) return '#A32D2D'
+  if (fte >= 0.8) return '#F5C200'
+  return '#639922'
+}
+
+function getStatusBadge(fte: number): { label: string; bg: string; text: string } {
+  if (fte > 1.0) return { label: 'Over 1.0 FTE', bg: '#FCEBEB', text: '#501313' }
+  if (fte === 1.0) return { label: 'Full time', bg: '#EAF3DE', text: '#27500A' }
+  if (fte >= 0.8) return { label: 'Near full', bg: '#FAEEDA', text: '#412402' }
+  if (fte >= 0.5) return { label: 'On track', bg: '#EAF3DE', text: '#27500A' }
+  return { label: 'Part-time', bg: '#F4F3EF', text: '#5F5E5A' }
+}
+
+function CapacityTable({ roles, billableHrs, selectedYear }: { roles: Role[]; billableHrs: number; selectedYear: YearFilter }) {
+  // Split by type and sort by FTE descending
+  const sortByFte = (a: Role, b: Role) => {
+    const fteA = getRoleHours(a, selectedYear, billableHrs) / billableHrs
+    const fteB = getRoleHours(b, selectedYear, billableHrs) / billableHrs
+    return fteB - fteA
+  }
+
+  const primeRoles = roles.filter(r => (r.type || 'prime') === 'prime').sort(sortByFte)
+  const subRoles = roles.filter(r => r.type === 'sub').sort(sortByFte)
+
+  const gridCols = '220px 100px 80px 160px 100px 1fr'
+
+  return (
+    <div className="flex-1 overflow-y-auto">
+      {/* Header */}
+      <div
+        className="grid sticky top-0 z-10"
+        style={{ gridTemplateColumns: gridCols, background: '#FAFAF9', borderBottom: '0.5px solid #E8E7E2' }}
+      >
+        <HeaderCell first>Role</HeaderCell>
+        <HeaderCell right>Hours/yr</HeaderCell>
+        <HeaderCell right>Capacity</HeaderCell>
+        <HeaderCell center>FTE loading</HeaderCell>
+        <HeaderCell center>Status</HeaderCell>
+        <HeaderCell right>Available hrs</HeaderCell>
+      </div>
+
+      {/* Prime section */}
+      {primeRoles.length > 0 && (
+        <>
+          <SectionHeader label="Prime labor" color="#111110" gridCols={gridCols} />
+          {primeRoles.map(role => (
+            <RoleRow key={role.id} role={role} billableHrs={billableHrs} selectedYear={selectedYear} gridCols={gridCols} />
+          ))}
+        </>
+      )}
+
+      {/* Sub section */}
+      {subRoles.length > 0 && (
+        <>
+          <SectionHeader label="Subcontractor labor" color="#6B6A65" gridCols={gridCols} />
+          {subRoles.map(role => (
+            <RoleRow key={role.id} role={role} billableHrs={billableHrs} selectedYear={selectedYear} gridCols={gridCols} />
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+
+function RoleRow({ role, billableHrs, selectedYear, gridCols }: { role: Role; billableHrs: number; selectedYear: YearFilter; gridCols: string }) {
+  const hrs = getRoleHours(role, selectedYear, billableHrs)
+  const capacity = selectedYear === 'all' ? billableHrs * 5 : billableHrs
+  const fte = capacity > 0 ? hrs / capacity : 0
+  const available = capacity - hrs
+  const status = getStatusBadge(fte)
+
+  const hrsColor = fte > 1.0 ? '#A32D2D' : fte >= 0.8 ? '#BA7517' : '#111110'
+  const hrsWeight = fte > 1.0 ? 700 : 400
+
+  return (
+    <div
+      className="grid items-center hover:bg-gray-50 transition-colors"
+      style={{ gridTemplateColumns: gridCols, borderBottom: '0.5px solid #F4F3EF' }}
+    >
+      {/* Role */}
+      <div style={{ padding: '10px 12px' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#111110' }}>{role.name}</div>
+        <div style={{ fontSize: 10, color: '#6B6A65' }}>
+          {role.selectedLevel || role.icLevel || 'IC3'} &middot; {(role.type || 'prime') === 'prime' ? 'Prime' : 'Sub'}
         </div>
       </div>
+
+      {/* Hours/yr */}
+      <div style={{ padding: '10px 12px', textAlign: 'right', fontSize: 13, fontWeight: hrsWeight, color: hrsColor }}>
+        {hrs.toLocaleString()}
+      </div>
+
+      {/* Capacity */}
+      <div style={{ padding: '10px 12px', textAlign: 'right', fontSize: 13, color: '#6B6A65' }}>
+        {capacity.toLocaleString()}
+      </div>
+
+      {/* FTE loading */}
+      <div style={{ padding: '10px 12px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        {/* Bar */}
+        <div style={{ width: 120, height: 6, background: '#F4F3EF', borderRadius: 3, position: 'relative' }}>
+          <div
+            style={{
+              width: `${Math.min(fte * 100, 100)}%`,
+              height: 6,
+              borderRadius: 3,
+              background: getBarColor(fte),
+            }}
+          />
+          {/* 1.0 FTE marker */}
+          <div
+            style={{
+              position: 'absolute',
+              right: 0,
+              top: -3,
+              width: 1,
+              height: 12,
+              background: '#D4D3CE',
+            }}
+          />
+        </div>
+        {/* Value */}
+        <span style={{ minWidth: 32, textAlign: 'right', fontSize: 11, fontWeight: 700, color: getFteColor(fte) }}>
+          {fte.toFixed(2)}
+        </span>
+      </div>
+
+      {/* Status */}
+      <div style={{ padding: '10px 12px', textAlign: 'center' }}>
+        <span
+          style={{
+            fontSize: 9,
+            fontWeight: 600,
+            padding: '2px 7px',
+            borderRadius: 3,
+            background: status.bg,
+            color: status.text,
+          }}
+        >
+          {status.label}
+        </span>
+      </div>
+
+      {/* Available hrs */}
+      <div style={{
+        padding: '10px 12px',
+        textAlign: 'right',
+        fontSize: 13,
+        color: available < 0 ? '#A32D2D' : '#6B6A65',
+        fontWeight: available < 0 ? 600 : 400,
+      }}>
+        {available < 0 ? `\u2212${Math.abs(available).toLocaleString()} hrs` : `${available.toLocaleString()} hrs`}
+      </div>
+    </div>
+  )
+}
+
+function HeaderCell({ children, first, right, center }: { children: React.ReactNode; first?: boolean; right?: boolean; center?: boolean }) {
+  return (
+    <div style={{
+      padding: '8px 12px',
+      fontSize: 9,
+      fontWeight: 700,
+      textTransform: 'uppercase',
+      letterSpacing: '1.5px',
+      color: '#C4C3BE',
+      textAlign: right ? 'right' : center ? 'center' : 'left',
+      paddingLeft: first ? 20 : 12,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function SectionHeader({ label, color, gridCols }: { label: string; color: string; gridCols: string }) {
+  return (
+    <div style={{ background: '#F4F3EF', padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ width: 6, height: 6, borderRadius: '50%', background: color }} />
+      <span style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', color: '#5F5E5A' }}>{label}</span>
     </div>
   )
 }
