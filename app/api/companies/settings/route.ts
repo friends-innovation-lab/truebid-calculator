@@ -78,6 +78,7 @@ export async function POST(request: Request) {
   if (body.salary_structure !== undefined) updateData.salary_structure = body.salary_structure
   if (body.step_increase_percent !== undefined) updateData.step_increase_percent = body.step_increase_percent
   if (body.writing_guide !== undefined) updateData.writing_guide = body.writing_guide
+  if (body.content_library !== undefined) updateData.content_library = body.content_library
 
   // Check if settings row exists
   const { data: existing } = await supabase

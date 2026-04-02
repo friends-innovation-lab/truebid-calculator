@@ -3,6 +3,25 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { getWritingGuidePrompt } from '@/lib/writing-guide'
 
+interface PastPerformanceEntry {
+  id: string
+  title: string
+  agency: string
+  contractNumber: string
+  periodOfPerformance: string
+  contractValue: string
+  scope: string
+  outcomes: string[]
+  status: 'active' | 'complete'
+}
+
+interface StandardApproachEntry {
+  category: string
+  title: string
+  body: string
+  tags?: string[]
+}
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -84,6 +103,37 @@ export async function POST(
     el.requirementLinks?.some(link => reqRefs.includes(link))
   )
 
+  // Get company settings (writing guide, content library)
+  const { data: company } = await supabase
+    .from('companies')
+    .select('id')
+    .eq('owner_id', user.id)
+    .single()
+
+  let contentLibrary: { pastPerformance?: PastPerformanceEntry[]; standardApproaches?: StandardApproachEntry[] } = {}
+  if (company) {
+    const { data: settings } = await supabase
+      .from('company_settings')
+      .select('content_library')
+      .eq('company_id', company.id)
+      .single()
+    contentLibrary = (settings?.content_library || {}) as typeof contentLibrary
+  }
+
+  // Get past performance entries
+  const pastPerformance = contentLibrary.pastPerformance || []
+  const relevantPP = pastPerformance
+    .filter(pp => pp.status === 'active' || pp.status === 'complete')
+    .slice(0, 5) // Top 5 only
+
+  // Get standard approaches relevant to this section
+  const standardApproaches = contentLibrary.standardApproaches || []
+  const sectionTitleLower = sectionTitle.toLowerCase()
+  const relevantApproaches = standardApproaches.filter(sa =>
+    sectionTitleLower.includes(sa.category || '') ||
+    sa.tags?.some(tag => sectionTitleLower.includes(tag.toLowerCase()))
+  )
+
   // Get writing guide from company settings
   const writingGuidePrompt = await getWritingGuidePrompt()
   const voiceRules = writingGuidePrompt || `Default voice rules:
@@ -134,6 +184,30 @@ ${relatedWbs.length > 0 ? `RELATED WORK PACKAGES FROM WBS (reference naturally w
 PAGE TARGET: ${pageTarget} pages (approx ${Math.round(pageTarget * 250)} words)
 
 ${subsections.length > 0 ? `SUBSECTIONS TO STRUCTURE (use as H2 headers in your draft):\n${subsections.map(s => `${s.number} ${s.title}`).join('\n')}` : 'No subsections — write as flowing prose.'}
+
+${relevantPP.length > 0 ? `FFTC PAST PERFORMANCE — CITE THESE SPECIFICALLY, DO NOT INVENT OTHERS:
+
+${relevantPP.map(pp => `
+PROJECT: ${pp.title}
+AGENCY: ${pp.agency}
+CONTRACT: ${pp.contractNumber}
+PERIOD: ${pp.periodOfPerformance}
+VALUE: ${pp.contractValue}
+SCOPE: ${pp.scope}
+OUTCOMES:
+  ${pp.outcomes.join('\n  ')}
+`).join('\n---\n')}
+
+Only cite projects listed above. Never invent contract numbers, agencies, or outcomes. When referencing past performance, include the agency name and a specific outcome — not just the project title.` : ''}
+
+${relevantApproaches.length > 0 ? `FFTC STANDARD APPROACHES — USE AS FOUNDATION, ADAPT TO THIS PROPOSAL:
+
+${relevantApproaches.map(sa => `
+[${(sa.category || 'general').toUpperCase()}]
+${sa.title}
+
+${sa.body}
+`).join('\n---\n')}` : ''}
 
 Write the complete section now. Do not include the section title as a heading — start with content. Use H2 headers only for subsections.`
 
