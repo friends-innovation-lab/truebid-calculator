@@ -1,8 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
-import { useAppContext, type SectionContent, type OutlineSection, type OutlineSectionStatus } from '@/contexts/app-context'
-import { ArrowLeft } from 'lucide-react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useAppContext, type OutlineSection, type OutlineSectionStatus } from '@/contexts/app-context'
+import { useParams } from 'next/navigation'
+import { ArrowLeft, Sparkles, Bold, Italic, Heading1, Heading2, List, Pilcrow } from 'lucide-react'
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Placeholder from '@tiptap/extension-placeholder'
 
 // ==================== MAIN COMPONENT ====================
 
@@ -40,14 +44,56 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     )
   )
 
-  // Local editor content
+  const params = useParams()
+  const proposalId = params?.id as string
+
+  // State
   const existing = sectionContent[sectionId]
-  const [content, setContent] = useState(existing?.content || '')
   const [lastSaved, setLastSaved] = useState(existing?.lastSaved || '')
+  const [isStreaming, setIsStreaming] = useState(false)
+  const [wordCount, setWordCount] = useState(existing?.wordCount || 0)
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Calculate time since last save
+  // TipTap editor
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: { levels: [1, 2] } }),
+      Placeholder.configure({ placeholder: 'Start writing, or use Draft with AI to generate a starting point...' }),
+    ],
+    content: existing?.content || '',
+    autofocus: true,
+    onUpdate: ({ editor: ed }) => {
+      const html = ed.getHTML()
+      const words = ed.getText().split(/\s+/).filter(Boolean).length
+      setWordCount(words)
+
+      // Debounced save
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+      saveTimeoutRef.current = setTimeout(() => {
+        const now = new Date().toISOString()
+        setSectionContent({
+          ...sectionContent,
+          [sectionId]: {
+            sectionId,
+            content: html,
+            lastSaved: now,
+            wordCount: words,
+            status: html.replace(/<[^>]*>/g, '').trim() ? 'in_progress' : 'not_started',
+          },
+        })
+        setLastSaved(now)
+      }, 1000)
+    },
+    editorProps: {
+      attributes: {
+        class: 'focus:outline-none min-h-[400px]',
+        style: 'font-family: Inter, sans-serif; font-size: 15px; line-height: 1.85; color: #111110; max-width: 680px; margin: 0 auto;',
+      },
+    },
+  })
+
+  // Time since last save
   const [timeSinceSave, setTimeSinceSave] = useState('')
-
   useEffect(() => {
     if (!lastSaved) return
     const update = () => {
@@ -60,29 +106,69 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     return () => clearInterval(interval)
   }, [lastSaved])
 
-  // Word count
-  const wordCount = content.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(Boolean).length
+  // AI Draft streaming
+  const handleDraftWithAI = useCallback(async () => {
+    if (!editor || isStreaming) return
+    setIsStreaming(true)
 
-  // Auto-save with debounce
-  const save = useCallback((text: string) => {
-    const now = new Date().toISOString()
-    const updated: SectionContent = {
-      sectionId,
-      content: text,
-      lastSaved: now,
-      wordCount: text.replace(/<[^>]*>/g, '').trim().split(/\s+/).filter(Boolean).length,
-      status: text.trim() ? 'in_progress' : 'not_started',
+    try {
+      const response = await fetch(`/api/proposals/${proposalId}/draft-section`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionId, sectionTitle, proposalId }),
+      })
+
+      if (!response.ok) {
+        setIsStreaming(false)
+        return
+      }
+
+      const reader = response.body?.getReader()
+      if (!reader) { setIsStreaming(false); return }
+
+      const decoder = new TextDecoder()
+      let fullContent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const data = JSON.parse(line.slice(6))
+              if (data.type === 'content_block_delta' && data.delta?.text) {
+                fullContent += data.delta.text
+                editor.commands.setContent(fullContent)
+              }
+            } catch { /* skip malformed chunks */ }
+          }
+        }
+      }
+
+      // Final save
+      const words = editor.getText().split(/\s+/).filter(Boolean).length
+      const now = new Date().toISOString()
+      setSectionContent({
+        ...sectionContent,
+        [sectionId]: {
+          sectionId,
+          content: editor.getHTML(),
+          lastSaved: now,
+          wordCount: words,
+          status: 'draft',
+        },
+      })
+      setLastSaved(now)
+      setWordCount(words)
+    } catch (err) {
+      console.error('[WriteContent] AI draft failed:', err)
+    } finally {
+      setIsStreaming(false)
     }
-    setSectionContent({ ...sectionContent, [sectionId]: updated })
-    setLastSaved(now)
-  }, [sectionId, sectionContent, setSectionContent])
-
-  useEffect(() => {
-    if (!content && !existing?.content) return
-    const timeout = setTimeout(() => save(content), 1500)
-    return () => clearTimeout(timeout)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [content])
+  }, [editor, isStreaming, proposalId, sectionId, sectionTitle, sectionContent, setSectionContent])
 
   // Truncate title for breadcrumb
   const displayTitle = sectionTitle.length > 40
@@ -182,43 +268,69 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
         />
 
         {/* CENTER EDITOR */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Editor toolbar placeholder */}
+        <div className="flex-1 flex flex-col overflow-hidden" style={{ background: '#fff' }}>
+          {/* Editor toolbar */}
           <div
-            className="shrink-0 flex items-center gap-2"
+            className="shrink-0 flex items-center gap-1.5"
             style={{
-              padding: '8px 24px',
+              padding: '8px 16px',
               borderBottom: '0.5px solid #F4F3EF',
-              background: '#FFFFFF',
+              background: '#FAFAF9',
             }}
           >
-            <span style={{ fontSize: 10, color: '#C4C3BE' }}>
-              {wordCount} words
-            </span>
+            <ToolbarBtn icon={<Bold className="w-3.5 h-3.5" />} active={editor?.isActive('bold')} onClick={() => editor?.chain().focus().toggleBold().run()} title="Bold" />
+            <ToolbarBtn icon={<Italic className="w-3.5 h-3.5" />} active={editor?.isActive('italic')} onClick={() => editor?.chain().focus().toggleItalic().run()} title="Italic" />
+            <ToolbarSep />
+            <ToolbarBtn icon={<Heading1 className="w-3.5 h-3.5" />} active={editor?.isActive('heading', { level: 1 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 1 }).run()} title="Heading 1" />
+            <ToolbarBtn icon={<Heading2 className="w-3.5 h-3.5" />} active={editor?.isActive('heading', { level: 2 })} onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()} title="Heading 2" />
+            <ToolbarBtn icon={<Pilcrow className="w-3.5 h-3.5" />} active={editor?.isActive('paragraph')} onClick={() => editor?.chain().focus().setParagraph().run()} title="Paragraph" />
+            <ToolbarBtn icon={<List className="w-3.5 h-3.5" />} active={editor?.isActive('bulletList')} onClick={() => editor?.chain().focus().toggleBulletList().run()} title="Bullet list" />
+
+            {/* Right side */}
+            <div className="flex items-center gap-2 ml-auto">
+              <span style={{ fontSize: 10, color: '#C4C3BE' }}>{wordCount} words</span>
+              <button
+                onClick={handleDraftWithAI}
+                disabled={isStreaming}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  padding: '5px 12px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  color: '#111110',
+                  background: '#F5C200',
+                  border: 'none',
+                  borderRadius: 5,
+                  cursor: isStreaming ? 'not-allowed' : 'pointer',
+                  opacity: isStreaming ? 0.7 : 1,
+                }}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                {isStreaming ? 'Drafting...' : 'Draft with AI'}
+              </button>
+            </div>
           </div>
 
-          {/* Editor area */}
-          <div className="flex-1 overflow-y-auto" style={{ padding: '32px 48px' }}>
-            <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111110', letterSpacing: -0.5, marginBottom: 16 }}>
-              {sectionTitle}
-            </h2>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder="Start writing this section..."
-              style={{
-                width: '100%',
-                minHeight: 400,
-                fontSize: 14,
-                lineHeight: 1.7,
-                color: '#111110',
-                background: 'transparent',
-                border: 'none',
-                outline: 'none',
-                resize: 'none',
-                fontFamily: 'Inter, sans-serif',
-              }}
-            />
+          {/* Editor canvas */}
+          <div
+            className="flex-1 overflow-y-auto"
+            style={{
+              padding: '40px 60px',
+              borderLeft: isStreaming ? '2px solid #F5C200' : '2px solid transparent',
+              transition: 'border-color 0.3s',
+            }}
+          >
+            <style>{`
+              .ProseMirror h1 { font-size: 20px; font-weight: 700; margin-bottom: 16px; font-family: Inter, sans-serif; }
+              .ProseMirror h2 { font-size: 16px; font-weight: 600; margin-bottom: 12px; font-family: Inter, sans-serif; }
+              .ProseMirror p { margin-bottom: 16px; }
+              .ProseMirror ul { margin-bottom: 16px; padding-left: 20px; }
+              .ProseMirror strong { font-weight: 700; }
+              .ProseMirror p.is-editor-empty:first-child::before { color: #C4C3BE; content: attr(data-placeholder); float: left; height: 0; pointer-events: none; }
+            `}</style>
+            <EditorContent editor={editor} />
           </div>
         </div>
 
@@ -242,6 +354,34 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       </div>
     </div>
   )
+}
+
+// ==================== TOOLBAR HELPERS ====================
+
+function ToolbarBtn({ icon, active, onClick, title }: { icon: React.ReactNode; active?: boolean; onClick?: () => void; title: string }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      style={{
+        padding: 4,
+        borderRadius: 4,
+        background: active ? '#E8E7E2' : 'transparent',
+        color: active ? '#111110' : '#9B9A95',
+        border: 'none',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      {icon}
+    </button>
+  )
+}
+
+function ToolbarSep() {
+  return <div style={{ width: 1, height: 16, background: '#E8E7E2', margin: '0 4px' }} />
 }
 
 // ==================== STATUS CONFIG ====================
