@@ -83,6 +83,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   // Coaching state
   const [coaching, setCoaching] = useState<CoachingResult | null>(null)
   const [isCoaching, setIsCoaching] = useState(false)
+  const isCoachingRef = useRef(false)
   const coachTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // TipTap editor
@@ -140,7 +141,10 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
 
   // Coaching API call
   const runCoaching = useCallback(async (text: string) => {
-    if (!text.replace(/<[^>]*>/g, '').trim() || isCoaching) return
+    const plainText = text.replace(/<[^>]*>/g, '').trim()
+    const words = plainText.split(/\s+/).filter(Boolean).length
+    if (!plainText || words < 50 || isCoachingRef.current) return
+    isCoachingRef.current = true
     setIsCoaching(true)
     try {
       const res = await fetch(`/api/proposals/${proposalId}/coach-section`, {
@@ -155,9 +159,10 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     } catch (err) {
       console.error('[WriteContent] Coaching failed:', err)
     } finally {
+      isCoachingRef.current = false
       setIsCoaching(false)
     }
-  }, [proposalId, sectionId, isCoaching])
+  }, [proposalId, sectionId])
 
   // Auto-trigger coaching on idle (5s after last edit)
   const scheduleCoaching = useCallback((html: string) => {
@@ -703,8 +708,8 @@ function CoachingPanel({ coaching, isCoaching }: { coaching: CoachingResult | nu
         <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#6B6A65' }}>
           Shipley score
         </div>
-        <div style={{ fontSize: 10, color: '#9B9A95', marginTop: 2 }}>
-          Based on current draft
+        <div style={{ fontSize: 10, color: isCoaching ? '#BA7517' : '#9B9A95', marginTop: 2 }}>
+          {isCoaching ? 'Analyzing...' : 'Based on current draft'}
         </div>
       </div>
 
@@ -747,7 +752,7 @@ function CoachingPanel({ coaching, isCoaching }: { coaching: CoachingResult | nu
               const score = coaching.scores[d.key]
               const color = getScoreColor(score)
               return (
-                <div key={d.key} className="flex items-center gap-2" style={{ marginBottom: 10 }}>
+                <div key={d.key} className={`flex items-center gap-2 ${isCoaching ? 'animate-pulse' : ''}`} style={{ marginBottom: 10, opacity: isCoaching ? 0.5 : 1, transition: 'opacity 0.3s' }}>
                   <span style={{ fontSize: 11, color: '#5F5E5A', flex: 1 }}>{d.label}</span>
                   <div style={{ width: 60, height: 4, background: '#F0EDE6', borderRadius: 2 }}>
                     <div style={{ width: `${(score / 5) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
