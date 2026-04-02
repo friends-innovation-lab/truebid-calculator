@@ -143,13 +143,17 @@ export function Team() {
     ? Math.round((primeHours / totalHours) * 100)
     : 0
 
+  // Documented prime work share from team member card (what gets submitted)
+  const primeMember = teamMembers.find(m => m.type === 'prime')
+  const documentedPrimeShare = primeMember?.workShare || 0
+
   // Calculate stats
   const stats: TeamStats = {
     primeCount: teamMembers.filter(m => m.type === 'prime').length,
     subCount: teamMembers.filter(m => m.type === 'sub').length,
     partnerCount: teamMembers.filter(m => m.type === 'partner').length,
     directorCount: directors.length,
-    primeWorkShare: primeShare,
+    primeWorkShare: documentedPrimeShare,
   }
 
   // Get compliance rule for current set-aside
@@ -317,7 +321,7 @@ export function Team() {
       </div>
 
       {/* COMPLIANCE BANNER */}
-      <ComplianceBanner compliance={compliance} primeShare={primeShare} />
+      <ComplianceBanner compliance={compliance} primeShare={documentedPrimeShare} calculatedShare={primeShare} />
 
       {/* CONTENT AREA */}
       <div className="flex-1 overflow-y-auto">
@@ -1196,16 +1200,13 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
 
 // ==================== COMPLIANCE BANNER ====================
 
-function ComplianceBanner({ compliance, primeShare }: { compliance: ComplianceRule | null; primeShare: number }) {
-  // Don&apos;t render banner for Full & Open or if no set-aside configured
+function ComplianceBanner({ compliance, primeShare, calculatedShare }: { compliance: ComplianceRule | null; primeShare: number; calculatedShare: number }) {
   if (!compliance) return null
 
-  // Determine state
   const isCompliant = primeShare >= compliance.threshold
   const isWarning = primeShare >= 40 && primeShare < compliance.threshold
   const isDanger = primeShare < 40
 
-  // State-based colors
   let backgroundColor: string
   let borderColor: string
   let accentColor: string
@@ -1224,7 +1225,6 @@ function ComplianceBanner({ compliance, primeShare }: { compliance: ComplianceRu
     accentColor = '#A32D2D'
   }
 
-  // Extract clause number (e.g., "52.219-14" from "FAR 52.219-14")
   const clauseNumber = compliance.clause.replace('FAR ', '')
 
   return (
@@ -1241,16 +1241,20 @@ function ComplianceBanner({ compliance, primeShare }: { compliance: ComplianceRu
       {/* Left icon - clause number */}
       <div
         style={{
-          width: 28,
-          height: 28,
-          borderRadius: 4,
+          minWidth: 52,
+          minHeight: 36,
+          padding: '6px 8px',
+          borderRadius: 5,
           background: '#111110',
           color: '#F5C200',
           fontSize: 9,
+          fontWeight: 600,
           fontFamily: 'JetBrains Mono, monospace',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          textAlign: 'center',
+          whiteSpace: 'nowrap',
           flexShrink: 0,
         }}
       >
@@ -1273,7 +1277,7 @@ function ComplianceBanner({ compliance, primeShare }: { compliance: ComplianceRu
         )}
         {primeShare === 0 && (
           <div style={{ fontSize: 11, color: '#A32D2D', marginTop: 2 }}>
-            No roles added yet — add roles in Roles &amp; Pricing to calculate prime work share
+            Set work share % on the prime team member card
           </div>
         )}
       </div>
@@ -1284,7 +1288,7 @@ function ComplianceBanner({ compliance, primeShare }: { compliance: ComplianceRu
           {primeShare}%
         </div>
         <div style={{ fontSize: 9, color: '#6B6A65', marginBottom: 4 }}>
-          FFTC prime share
+          Documented prime share
         </div>
         {/* Progress bar */}
         <div style={{ width: 120, height: 4, background: '#E8E7E2', borderRadius: 2, position: 'relative' }}>
@@ -1300,6 +1304,11 @@ function ComplianceBanner({ compliance, primeShare }: { compliance: ComplianceRu
         <div style={{ fontSize: 9, color: '#6B6A65', marginTop: 2 }}>
           Required: {compliance.threshold}%
         </div>
+        {calculatedShare > 0 && (
+          <div style={{ fontSize: 10, color: '#6B6A65', marginTop: 4 }}>
+            Roles &amp; Pricing calculation: {calculatedShare}%
+          </div>
+        )}
       </div>
     </div>
   )
