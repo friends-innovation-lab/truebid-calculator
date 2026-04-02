@@ -28,6 +28,7 @@ import { Strategy } from '@/components/tabs/scope/strategy'
 import { Solicitation } from '@/components/tabs/scope/solicitation'
 import { Requirements } from '@/components/tabs/scope/requirements'
 import { ProposalOutlinePage } from '@/components/tabs/write/proposal-outline'
+import { WriteContent } from '@/components/tabs/write/write-content'
 import { TechnicalVolume } from '@/components/tabs/write/technical-volume'
 
 // ==================== TYPES ====================
@@ -224,11 +225,19 @@ export function SectionNavigation() {
           <ProposalOutlinePage />
         )}
         {activeView === 'technical-editor' && activeSection === 'write' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <TechnicalVolume />
+          searchParams.get('sectionId') ? (
+            <WriteContent
+              sectionId={searchParams.get('sectionId')!}
+              sectionTitle={decodeURIComponent(searchParams.get('sectionTitle') || 'Untitled Section')}
+              onBack={() => handleViewChange('outline')}
+            />
+          ) : (
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-5xl mx-auto">
+                <TechnicalVolume />
+              </div>
             </div>
-          </div>
+          )
         )}
 
         {/* DELIVER views - scrollable with padding */}

@@ -88,7 +88,7 @@ const MANAGED_FIELDS = [
 type ContextSetters = Pick<
   ReturnType<typeof useAppContext>,
   'setSolicitation' | 'updateSolicitation' | 'setSelectedRoles' | 'setSubcontractors' |
-  'setTeamingPartners' | 'setTeamMembers' | 'setDirectors' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType' | 'setProposalSetup' | 'setOutline'
+  'setTeamingPartners' | 'setTeamMembers' | 'setDirectors' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType' | 'setProposalSetup' | 'setOutline' | 'setSectionContent'
 >
 
 function hydrateContext(
@@ -118,6 +118,7 @@ function hydrateContext(
   if (data.perDiem) setters.setPerDiem(data.perDiem as Parameters<ContextSetters['setPerDiem']>[0])
   if (data.extractedRequirements) setters.setExtractedRequirements(data.extractedRequirements as Parameters<ContextSetters['setExtractedRequirements']>[0])
   if (data.outline) setters.setOutline(data.outline as Parameters<ContextSetters['setOutline']>[0])
+  if (data.sectionContent) setters.setSectionContent(data.sectionContent as Parameters<ContextSetters['setSectionContent']>[0])
 
   // Merge solicitation: API metadata takes precedence, working_data fills the rest
   const localSol = (data.solicitation || {}) as Record<string, unknown>
@@ -171,6 +172,8 @@ export function useProposalSync(proposalId: string) {
     setProposalSetup,
     outline,
     setOutline,
+    sectionContent,
+    setSectionContent,
     resetSolicitation,
   } = useAppContext()
 
@@ -183,7 +186,7 @@ export function useProposalSync(proposalId: string) {
 
   const setters = {
     setSolicitation, updateSolicitation, setSelectedRoles, setSubcontractors,
-    setTeamingPartners, setTeamMembers, setDirectors, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType, setProposalSetup, setOutline,
+    setTeamingPartners, setTeamMembers, setDirectors, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType, setProposalSetup, setOutline, setSectionContent,
   }
 
   // Clear all working data state (call when proposal changes)
@@ -331,6 +334,7 @@ export function useProposalSync(proposalId: string) {
       extractedRequirements,
       proposalSetup,
       outline,
+      sectionContent,
       gsaEnabled,
       lastSaved: new Date().toISOString(),
     }
@@ -350,6 +354,7 @@ export function useProposalSync(proposalId: string) {
       extractedRequirements,
       proposalSetup,
       outline,
+      sectionContent,
       gsaEnabled,
     }
     const dataHash = JSON.stringify(managedData)
@@ -406,6 +411,7 @@ export function useProposalSync(proposalId: string) {
     contractType,
     proposalSetup,
     outline,
+    sectionContent,
   ])
 }
 

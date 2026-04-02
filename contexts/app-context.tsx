@@ -1037,6 +1037,16 @@ export interface ProposalOutline {
   volumes: OutlineVolume[]
 }
 
+// ==================== SECTION CONTENT ====================
+
+export interface SectionContent {
+  sectionId: string
+  content: string
+  lastSaved: string
+  wordCount: number
+  status: 'not_started' | 'in_progress' | 'draft' | 'review'
+}
+
 // ==================== ODCs ====================
 
 export interface ODCItem {
@@ -1265,6 +1275,10 @@ interface AppContextType {
   // Outline
   outline: ProposalOutline | null;
   setOutline: (outline: ProposalOutline | null) => void;
+
+  // Section Content
+  sectionContent: Record<string, SectionContent>;
+  setSectionContent: (content: Record<string, SectionContent>) => void;
 
   // Rate Justifications (persist across tab switches)
   rateJustifications: Record<string, RoleJustification>;
@@ -1904,6 +1918,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
   const [directors, setDirectors] = useState<Director[]>([]);
   const [outline, setOutline] = useState<ProposalOutline | null>(null);
+  const [sectionContent, setSectionContent] = useState<Record<string, SectionContent>>({});
   const [odcs, setODCs] = useState<ODCItem[]>([]);
   const [perDiem, setPerDiem] = useState<PerDiemCalculation[]>([]);
   const [gsaContractInfo, setGSAContractInfo] = useState<GSAContractInfo | null>(null);
@@ -2645,6 +2660,10 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     // Outline
     outline,
     setOutline,
+
+    // Section Content
+    sectionContent,
+    setSectionContent,
 
     // Rate Justifications
     rateJustifications,
