@@ -8,6 +8,20 @@ import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 
+// ==================== TYPES ====================
+
+interface CoachingResult {
+  overall: number
+  scores: {
+    customerFocus: number
+    winThemes: number
+    discriminators: number
+    proofPoints: number
+    compliance: number
+  }
+  feedback: { type: 'issue' | 'suggestion' | 'positive'; title: string; text: string }[]
+}
+
 // ==================== MAIN COMPONENT ====================
 
 interface WriteContentProps {
@@ -54,6 +68,11 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   const [wordCount, setWordCount] = useState(existing?.wordCount || 0)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Coaching state
+  const [coaching, setCoaching] = useState<CoachingResult | null>(null)
+  const [isCoaching, setIsCoaching] = useState(false)
+  const coachTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   // TipTap editor
   const editor = useEditor({
     extensions: [
@@ -66,6 +85,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       const html = ed.getHTML()
       const words = ed.getText().split(/\s+/).filter(Boolean).length
       setWordCount(words)
+      scheduleCoaching(html)
 
       // Debounced save
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
@@ -105,6 +125,33 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     const interval = setInterval(update, 30000)
     return () => clearInterval(interval)
   }, [lastSaved])
+
+  // Coaching API call
+  const runCoaching = useCallback(async (text: string) => {
+    if (!text.replace(/<[^>]*>/g, '').trim() || isCoaching) return
+    setIsCoaching(true)
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/coach-section`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sectionId, content: text, proposalId }),
+      })
+      if (res.ok) {
+        const { coaching: result } = await res.json()
+        setCoaching(result)
+      }
+    } catch (err) {
+      console.error('[WriteContent] Coaching failed:', err)
+    } finally {
+      setIsCoaching(false)
+    }
+  }, [proposalId, sectionId, isCoaching])
+
+  // Auto-trigger coaching on idle (5s after last edit)
+  const scheduleCoaching = useCallback((html: string) => {
+    if (coachTimeoutRef.current) clearTimeout(coachTimeoutRef.current)
+    coachTimeoutRef.current = setTimeout(() => runCoaching(html), 5000)
+  }, [runCoaching])
 
   // AI Draft streaming
   const handleDraftWithAI = useCallback(async () => {
@@ -163,12 +210,14 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       })
       setLastSaved(now)
       setWordCount(words)
+      // Trigger coaching on the draft
+      runCoaching(editor.getHTML())
     } catch (err) {
       console.error('[WriteContent] AI draft failed:', err)
     } finally {
       setIsStreaming(false)
     }
-  }, [editor, isStreaming, proposalId, sectionId, sectionTitle, sectionContent, setSectionContent])
+  }, [editor, isStreaming, proposalId, sectionId, sectionTitle, sectionContent, setSectionContent, runCoaching])
 
   // Truncate title for breadcrumb
   const displayTitle = sectionTitle.length > 40
@@ -335,22 +384,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
         </div>
 
         {/* RIGHT COACHING PANEL */}
-        <div
-          className="shrink-0 overflow-y-auto"
-          style={{
-            width: 240,
-            borderLeft: '0.5px solid #E8E7E2',
-            background: '#FAFAF9',
-            padding: 16,
-          }}
-        >
-          <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#C4C3BE', marginBottom: 12 }}>
-            Writing Coach
-          </div>
-          <div style={{ fontSize: 11, color: '#6B6A65', lineHeight: 1.5 }}>
-            AI writing suggestions and compliance checks will appear here as you write.
-          </div>
-        </div>
+        <CoachingPanel coaching={coaching} isCoaching={isCoaching} />
       </div>
     </div>
   )
@@ -584,6 +618,141 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '2px', color: '#C4C3BE', marginBottom: 8 }}>
       {children}
+    </div>
+  )
+}
+
+// ==================== COACHING PANEL ====================
+
+const SCORE_DIMENSIONS: { key: keyof CoachingResult['scores']; label: string }[] = [
+  { key: 'customerFocus', label: 'Customer focus' },
+  { key: 'winThemes', label: 'Win themes' },
+  { key: 'discriminators', label: 'Discriminators' },
+  { key: 'proofPoints', label: 'Proof points' },
+  { key: 'compliance', label: 'Compliance' },
+]
+
+const FEEDBACK_BORDER: Record<string, string> = {
+  issue: '#A32D2D',
+  suggestion: '#BA7517',
+  positive: '#639922',
+}
+
+function getScoreColor(score: number): string {
+  if (score >= 4.0) return '#639922'
+  if (score >= 3.0) return '#BA7517'
+  return '#A32D2D'
+}
+
+function getCoachingLabel(overall: number): string {
+  if (overall >= 3.8) return 'Strong draft'
+  if (overall >= 3.0) return 'Good foundation'
+  if (overall >= 2.0) return 'Needs work'
+  return 'Major gaps'
+}
+
+function CoachingPanel({ coaching, isCoaching }: { coaching: CoachingResult | null; isCoaching: boolean }) {
+  return (
+    <div
+      className="shrink-0 flex flex-col"
+      style={{
+        width: 240,
+        borderLeft: '0.5px solid #E8E7E2',
+        background: '#fff',
+      }}
+    >
+      {/* Header */}
+      <div className="shrink-0" style={{ padding: '12px 14px', borderBottom: '0.5px solid #E8E7E2' }}>
+        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#6B6A65' }}>
+          Shipley score
+        </div>
+        <div style={{ fontSize: 10, color: '#9B9A95', marginTop: 2 }}>
+          Based on current draft
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="flex-1 overflow-y-auto" style={{ padding: '12px 14px' }}>
+        {!coaching && !isCoaching && (
+          <div style={{ fontSize: 11, color: '#C4C3BE', lineHeight: 1.5 }}>
+            Start writing or use Draft with AI to see your Shipley score.
+          </div>
+        )}
+
+        {isCoaching && !coaching && (
+          <div className="flex flex-col gap-3">
+            {SCORE_DIMENSIONS.map(d => (
+              <div key={d.key} className="flex items-center gap-2">
+                <span style={{ fontSize: 11, color: '#C4C3BE', flex: 1 }}>{d.label}</span>
+                <div className="animate-pulse" style={{ width: 60, height: 4, background: '#F0EDE6', borderRadius: 2 }} />
+              </div>
+            ))}
+          </div>
+        )}
+
+        {coaching && (
+          <>
+            {/* Overall score */}
+            <div style={{ marginBottom: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
+                <span style={{ fontSize: 28, fontWeight: 800, color: '#111110', letterSpacing: -1 }}>
+                  {coaching.overall.toFixed(1)}
+                </span>
+                <span style={{ fontSize: 10, color: '#9B9A95' }}>out of 5</span>
+              </div>
+              <div style={{ fontSize: 10, color: '#9B9A95', lineHeight: 1.4 }}>
+                {getCoachingLabel(coaching.overall)}
+              </div>
+            </div>
+
+            {/* Score bars */}
+            {SCORE_DIMENSIONS.map(d => {
+              const score = coaching.scores[d.key]
+              const color = getScoreColor(score)
+              return (
+                <div key={d.key} className="flex items-center gap-2" style={{ marginBottom: 10 }}>
+                  <span style={{ fontSize: 11, color: '#5F5E5A', flex: 1 }}>{d.label}</span>
+                  <div style={{ width: 60, height: 4, background: '#F0EDE6', borderRadius: 2 }}>
+                    <div style={{ width: `${(score / 5) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'right', color }}>
+                    {score.toFixed(1)}
+                  </span>
+                </div>
+              )
+            })}
+
+            {/* Divider */}
+            <div style={{ height: 0.5, background: '#F4F3EF', margin: '10px 0' }} />
+
+            {/* Loading overlay on re-coaching */}
+            {isCoaching && (
+              <div style={{ fontSize: 10, color: '#9B9A95', marginBottom: 8 }}>Updating scores...</div>
+            )}
+
+            {/* Feedback cards */}
+            {coaching.feedback.map((fb, i) => (
+              <div
+                key={i}
+                style={{
+                  fontSize: 11,
+                  color: '#5F5E5A',
+                  lineHeight: 1.5,
+                  padding: '8px 10px',
+                  background: '#FAFAF9',
+                  border: '0.5px solid #E8E7E2',
+                  borderLeft: `2px solid ${FEEDBACK_BORDER[fb.type] || '#E8E7E2'}`,
+                  borderRadius: 5,
+                  marginBottom: 8,
+                }}
+              >
+                <div style={{ fontWeight: 600, color: '#111110', marginBottom: 2 }}>{fb.title}</div>
+                {fb.text}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
     </div>
   )
 }
