@@ -337,8 +337,10 @@ function ContentCard({
             <Icon className={`w-4 h-4 ${config.color}`} />
           </div>
           <div className="min-w-0 flex-1">
-            <Badge variant="secondary" className={`text-[10px] ${config.bgColor} ${config.color} mb-1`}>
-              {config.label}
+            <Badge variant="secondary" className={`text-[10px] ${config.bgColor} ${config.color} mb-1 capitalize`}>
+              {item.type === 'standard_approach' && (item.content as Record<string, unknown>)?.category
+                ? (item.content as Record<string, unknown>).category as string
+                : config.label}
             </Badge>
             <h4 className="font-medium text-sm text-gray-900 truncate">{item.title}</h4>
             {preview && (
