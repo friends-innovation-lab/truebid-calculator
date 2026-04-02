@@ -6,6 +6,7 @@ import { useAppContext, type OutlineSection, type OutlineSubsection, type Outlin
 import { FileDown, Sparkles, ChevronDown, ChevronRight, FileText, Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 // ==================== STATUS COLORS ====================
 
@@ -298,6 +299,9 @@ export function ProposalOutlinePage() {
               volume={volume}
               expanded={expandedVolumes.has(volume.id)}
               onToggle={() => toggleVolume(volume.id)}
+              proposalId={proposalId}
+              outline={outline!}
+              setOutline={setOutline}
             />
           ))}
         </div>
@@ -318,7 +322,7 @@ export function ProposalOutlinePage() {
 
 // ==================== VOLUME BLOCK ====================
 
-function VolumeBlock({ volume, expanded, onToggle }: { volume: OutlineVolume; expanded: boolean; onToggle: () => void }) {
+function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutline }: { volume: OutlineVolume; expanded: boolean; onToggle: () => void; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void }) {
   const totalSections = volume.sections.length
   const draftedSections = volume.sections.filter(s => s.status === 'draft' || s.status === 'review').length
   const progressPct = totalSections > 0 ? Math.round((draftedSections / totalSections) * 100) : 0
@@ -380,7 +384,7 @@ function VolumeBlock({ volume, expanded, onToggle }: { volume: OutlineVolume; ex
       {/* Sections */}
       {expanded && volume.sections.map(section => (
         <div key={section.id}>
-          <SectionRow section={section} />
+          <SectionRow section={section} proposalId={proposalId} outline={outline!} setOutline={setOutline} />
           {section.subsections.map(sub => (
             <SubsectionRow key={sub.id} subsection={sub} />
           ))}
@@ -392,7 +396,8 @@ function VolumeBlock({ volume, expanded, onToggle }: { volume: OutlineVolume; ex
 
 // ==================== SECTION ROW ====================
 
-function SectionRow({ section }: { section: OutlineSection }) {
+function SectionRow({ section, proposalId, outline, setOutline }: { section: OutlineSection; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void }) {
+  const router = useRouter()
   const allRefs = [...section.complianceRefs, ...section.requirementRefs]
   const visibleRefs = allRefs.slice(0, 4)
   const moreCount = allRefs.length - visibleRefs.length
@@ -508,7 +513,22 @@ function SectionRow({ section }: { section: OutlineSection }) {
             e.currentTarget.style.background = '#fff'
             e.currentTarget.style.borderColor = '#E8E7E2'
           }}
-          onClick={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation()
+            // Mark as in_progress if not started
+            if (section.status === 'not_started') {
+              const updated: ProposalOutline = {
+                volumes: outline.volumes.map(v => ({
+                  ...v,
+                  sections: v.sections.map(s =>
+                    s.id === section.id ? { ...s, status: 'in_progress' as const } : s
+                  ),
+                })),
+              }
+              setOutline(updated)
+            }
+            router.push(`/${proposalId}?tab=write&view=technical-editor&sectionId=${section.id}&sectionTitle=${encodeURIComponent(section.title)}`)
+          }}
         >
           Open &rarr;
         </button>
