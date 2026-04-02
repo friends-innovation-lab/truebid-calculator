@@ -258,11 +258,17 @@ export function LaborLoading() {
             Go to Roles &amp; Pricing &rarr;
           </button>
         </div>
-      ) : (
+      ) : viewMode === 'role' ? (
         <CapacityTable
           roles={rolesWithHours}
           billableHrs={billableHrs}
           selectedYear={selectedYear}
+        />
+      ) : (
+        <TimelineView
+          roles={rolesWithHours}
+          billableHrs={billableHrs}
+          optionYears={optionYears}
         />
       )}
     </div>
@@ -451,6 +457,165 @@ function RoleRow({ role, billableHrs, selectedYear, gridCols }: { role: Role; bi
       }}>
         {available < 0 ? `\u2212${Math.abs(available).toLocaleString()} hrs` : `${available.toLocaleString()} hrs`}
       </div>
+    </div>
+  )
+}
+
+// ==================== TIMELINE VIEW ====================
+
+function TimelineView({ roles, billableHrs, optionYears }: { roles: Role[]; billableHrs: number; optionYears: number }) {
+  const yearCols: { key: keyof NonNullable<Role['hoursByYear']>; label: string }[] = [
+    { key: 'baseYear', label: 'Base yr' },
+    ...(optionYears >= 1 ? [{ key: 'oy1' as const, label: 'OY1' }] : []),
+    ...(optionYears >= 2 ? [{ key: 'oy2' as const, label: 'OY2' }] : []),
+    ...(optionYears >= 3 ? [{ key: 'oy3' as const, label: 'OY3' }] : []),
+    ...(optionYears >= 4 ? [{ key: 'oy4' as const, label: 'OY4' }] : []),
+  ]
+
+  const gridCols = `200px ${yearCols.map(() => '1fr').join(' ')}`
+
+  // Sort by base year FTE descending
+  const sorted = [...roles].sort((a, b) => {
+    const fteA = (a.hoursByYear?.baseYear || 0) / billableHrs
+    const fteB = (b.hoursByYear?.baseYear || 0) / billableHrs
+    return fteB - fteA
+  })
+
+  const primeRoles = sorted.filter(r => (r.type || 'prime') === 'prime')
+  const subRoles = sorted.filter(r => r.type === 'sub')
+
+  // Total FTE per year
+  const yearTotals = yearCols.map(col => {
+    const total = roles.reduce((sum, r) => sum + ((r.hoursByYear?.[col.key] || 0) / billableHrs), 0)
+    return total
+  })
+
+  return (
+    <div className="flex-1 overflow-auto flex flex-col">
+      <div className="flex-1 overflow-auto">
+        {/* Header */}
+        <div
+          className="grid sticky top-0 z-10"
+          style={{ gridTemplateColumns: gridCols, background: '#FAFAF9', borderBottom: '0.5px solid #E8E7E2' }}
+        >
+          <div style={{ padding: '8px 12px 8px 20px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#C4C3BE' }}>
+            Role
+          </div>
+          {yearCols.map(col => (
+            <div key={col.key} style={{ padding: '8px 12px', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#C4C3BE', textAlign: 'center' }}>
+              {col.label}
+            </div>
+          ))}
+        </div>
+
+        {/* Prime section */}
+        {primeRoles.length > 0 && (
+          <>
+            <SectionHeader label="Prime labor" color="#111110" gridCols={gridCols} />
+            {primeRoles.map(role => (
+              <TimelineRow key={role.id} role={role} yearCols={yearCols} billableHrs={billableHrs} gridCols={gridCols} />
+            ))}
+          </>
+        )}
+
+        {/* Sub section */}
+        {subRoles.length > 0 && (
+          <>
+            <SectionHeader label="Subcontractor labor" color="#6B6A65" gridCols={gridCols} />
+            {subRoles.map(role => (
+              <TimelineRow key={role.id} role={role} yearCols={yearCols} billableHrs={billableHrs} gridCols={gridCols} />
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Footer — Total FTE */}
+      <div
+        className="grid shrink-0"
+        style={{ gridTemplateColumns: gridCols, borderTop: '2px solid #111110', background: '#FAFAF9' }}
+      >
+        <div style={{ padding: '10px 12px 10px 20px', fontSize: 11, fontWeight: 700, color: '#111110' }}>
+          Total FTE
+        </div>
+        {yearTotals.map((total, i) => (
+          <div key={i} style={{ padding: '10px 12px', textAlign: 'center', fontSize: 13, fontWeight: 800, color: '#111110' }}>
+            {total.toFixed(2)} FTE
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function TimelineRow({ role, yearCols, billableHrs, gridCols }: {
+  role: Role
+  yearCols: { key: keyof NonNullable<Role['hoursByYear']>; label: string }[]
+  billableHrs: number
+  gridCols: string
+}) {
+  return (
+    <div
+      className="grid items-center"
+      style={{ gridTemplateColumns: gridCols, borderBottom: '0.5px solid #F4F3EF' }}
+    >
+      {/* Role name */}
+      <div style={{ padding: '10px 12px 10px 20px' }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: '#111110' }}>{role.name}</div>
+        <div style={{ fontSize: 10, color: '#6B6A65' }}>
+          {role.selectedLevel || role.icLevel || 'IC3'} &middot; {(role.type || 'prime') === 'prime' ? 'Prime' : 'Sub'}
+        </div>
+      </div>
+
+      {/* Year cells */}
+      {yearCols.map(col => {
+        const hrs = role.hoursByYear?.[col.key] || 0
+        const fte = hrs / billableHrs
+
+        let bg: string
+        let textColor: string
+        let label: string
+
+        if (hrs === 0) {
+          bg = '#FAFAF9'
+          textColor = '#C4C3BE'
+          label = '\u2014'
+        } else if (fte > 1.0) {
+          bg = '#FCEBEB'
+          textColor = '#A32D2D'
+          label = `${fte.toFixed(2)}x FTE`
+        } else if (fte >= 0.8) {
+          bg = '#FAEEDA'
+          textColor = '#BA7517'
+          label = `${fte.toFixed(2)}x FTE`
+        } else if (fte >= 0.5) {
+          bg = '#EAF3DE'
+          textColor = '#27500A'
+          label = `${fte.toFixed(2)}x FTE`
+        } else {
+          bg = '#F4F3EF'
+          textColor = '#5F5E5A'
+          label = `${fte.toFixed(2)}x FTE`
+        }
+
+        return (
+          <div
+            key={col.key}
+            style={{
+              height: 44,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: bg,
+              fontSize: 11,
+              fontWeight: 700,
+              color: textColor,
+              margin: '0 1px',
+            }}
+          >
+            {label}
+          </div>
+        )
+      })}
     </div>
   )
 }
