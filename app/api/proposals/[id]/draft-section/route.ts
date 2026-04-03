@@ -154,7 +154,7 @@ export async function POST(
   const solicitationNumber = (solicitation.solicitationNumber as string) || ''
   const pageTarget = sectionData?.pageTarget || 1
   const subsections = sectionData?.subsections || []
-  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 371
+  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 392
   const targetWordCount = pageTarget * wordsPerPage
 
   const systemPrompt = `You are writing a proposal section on behalf of Friends From The City.
