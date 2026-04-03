@@ -179,7 +179,49 @@ async function seed() {
     return NextResponse.json({ error: 'No company found' }, { status: 404 })
   }
 
-  // Get existing content library
+  // Check existing standard approaches in content_library table
+  const { data: existingItems } = await supabase
+    .from('content_library')
+    .select('title')
+    .eq('company_id', company.id)
+    .eq('type', 'standard_approach')
+
+  const existingTitles = new Set((existingItems || []).map(i => i.title))
+  const newApproaches = STANDARD_APPROACHES.filter(a => !existingTitles.has(a.title))
+
+  console.log(`[seed-standard-approaches] Before: ${existingTitles.size} existing, adding ${newApproaches.length} new`)
+
+  if (newApproaches.length === 0) {
+    return NextResponse.json({
+      before: existingTitles.size,
+      added: 0,
+      after: existingTitles.size,
+      skipped: STANDARD_APPROACHES.length,
+    })
+  }
+
+  // Insert into content_library table
+  const { error: insertError } = await supabase
+    .from('content_library')
+    .insert(newApproaches.map(entry => ({
+      company_id: company.id,
+      type: 'standard_approach',
+      title: entry.title,
+      content: {
+        category: entry.category,
+        body: entry.body,
+        customization_notes: entry.customizationNotes,
+      },
+      tags: entry.tags,
+      created_by: user.id,
+    })))
+
+  if (insertError) {
+    console.error('[seed-standard-approaches] Insert failed:', insertError)
+    return NextResponse.json({ error: insertError.message }, { status: 500 })
+  }
+
+  // Also update company_settings.content_library.standardApproaches for draft-section route
   const { data: settings } = await supabase
     .from('company_settings')
     .select('content_library')
@@ -187,38 +229,26 @@ async function seed() {
     .single()
 
   const contentLibrary = (settings?.content_library || {}) as Record<string, unknown>
-  const existingApproaches = (contentLibrary.standardApproaches || []) as { id: string; title: string }[]
+  const existingSettingsApproaches = (contentLibrary.standardApproaches || []) as { title: string }[]
+  const settingsTitles = new Set(existingSettingsApproaches.map(a => a.title))
+  const newSettingsApproaches = STANDARD_APPROACHES.filter(a => !settingsTitles.has(a.title))
 
-  console.log(`[seed-standard-approaches] Before: ${existingApproaches.length} existing approaches`)
-
-  // Filter out duplicates by title
-  const existingTitles = new Set(existingApproaches.map(a => a.title))
-  const newApproaches = STANDARD_APPROACHES.filter(a => !existingTitles.has(a.title))
-
-  console.log(`[seed-standard-approaches] Adding ${newApproaches.length} new approaches (${STANDARD_APPROACHES.length - newApproaches.length} already exist)`)
-
-  const merged = [...existingApproaches, ...newApproaches]
-
-  // Save back
-  const { error: updateError } = await supabase
-    .from('company_settings')
-    .update({
-      content_library: {
-        ...contentLibrary,
-        standardApproaches: merged,
-      },
-    })
-    .eq('company_id', company.id)
-
-  if (updateError) {
-    console.error('[seed-standard-approaches] Save failed:', updateError)
-    return NextResponse.json({ error: 'Failed to save' }, { status: 500 })
+  if (newSettingsApproaches.length > 0) {
+    await supabase
+      .from('company_settings')
+      .update({
+        content_library: {
+          ...contentLibrary,
+          standardApproaches: [...existingSettingsApproaches, ...newSettingsApproaches],
+        },
+      })
+      .eq('company_id', company.id)
   }
 
   return NextResponse.json({
-    before: existingApproaches.length,
+    before: existingTitles.size,
     added: newApproaches.length,
-    after: merged.length,
+    after: existingTitles.size + newApproaches.length,
     skipped: STANDARD_APPROACHES.length - newApproaches.length,
   })
 }
