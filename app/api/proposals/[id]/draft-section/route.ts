@@ -148,39 +148,34 @@ export async function POST(
 
   // Get writing guide from company settings
   const writingGuide = await getWritingGuidePrompt()
-  console.log('[draft-section] Writing guide loaded:', writingGuide ? writingGuide.slice(0, 100) : 'NULL — not loading')
+  console.log('[draft-section] Writing guide loaded:', writingGuide ? `${writingGuide.length} chars` : 'NULL — falling back')
 
   const setAside = (proposalSetup.setAside as string) || ''
   const solicitationNumber = (solicitation.solicitationNumber as string) || ''
   const pageTarget = sectionData?.pageTarget || 1
   const subsections = sectionData?.subsections || []
-  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 500
+  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 371
   const targetWordCount = pageTarget * wordsPerPage
 
-  const systemPrompt = `You are writing a government proposal section for Friends From The City (FFTC).
+  const systemPrompt = `You are writing a proposal section on behalf of Friends From The City.
 
-FFTC VOICE — FOLLOW THIS EXACTLY:
-${writingGuide || `
-Write with the confidence of a practitioner, not the caution of a contractor. Be specific. Cite the agency, the outcome, the number. Trust the evaluator to draw conclusions without being told what to think.
+Do not write like a proposal writer. Write like a practitioner describing decisions and outcomes. The work is the subject. Describe what was done, name the system and the people who used it, and let the outcome speak for itself.
 
-Every paragraph must fully develop one idea. Introduce the idea, explain the reasoning or methodology, ground it in specific evidence or a real outcome from FFTC's work, and connect it to what the evaluator cares about. No paragraph should be fewer than four sentences unless it opens or closes a section.
+${writingGuide || `Write to the evaluator as a peer, not a stranger. Confident but not boastful. Specific over impressive. Describe what Friends From The City actually did, name the user population and system, and pair every capability claim with a verifiable outcome. Avoid process descriptions unless you explain what they produced. Never use capability language that could apply to any firm.`}
 
-Write sentences the way FFTC writes its case studies: declarative, grounded, direct. Short sentences are acceptable when they carry weight. Long sentences are acceptable when they connect ideas. Choppy fragments are never acceptable.
-`}
+ANTI-HALLUCINATION RULES:
+These are absolute. Violating them disqualifies the proposal.
 
-WORDS YOU MUST NEVER USE:
-leverage, leveraging, leverages, robust, best-in-class, cutting-edge, synergy, synergistic, holistic, seamlessly, world-class, innovative, innovation (unless quoting an RFP), deep dive, deep expertise, deeply, transformative, empower, impactful, utilize, spearhead, game-changing, state-of-the-art, best practices (unless citing a specific standard)
+1. Only cite past performance projects explicitly listed in this prompt. Never invent a project, agency, contract number, or outcome.
+2. Only cite technical capabilities FFTC has explicitly demonstrated in the listed past performance. Do not claim security clearances, FedRAMP experience, DevSecOps pipelines, or any other capability unless it appears in the past performance list.
+3. If no relevant past performance exists for a claim, do not make the claim. Write around it using methodology and approach instead.
+4. Every specific number — percentages, click counts, user counts, ticket counts — must come from the past performance list provided. Do not generate or round numbers.
 
-If you find yourself writing any of these words, stop and rewrite the sentence with a specific claim instead.
+IDENTITY:
+Use "Friends From The City" on first reference in each section. Use "Friends" thereafter. Never use FFTC. Never open a section with "Friends From The City brings..." or "Friends From The City is..." — start with the problem or the work.
 
-BULLETS AND NUMBERED LISTS:
-Bullets are permitted only when presenting three or more parallel items that would be genuinely awkward in continuous prose — for example, a list of deliverables, technical specifications, or team roles. A bulleted list must never be used to avoid writing a paragraph. Numbered lists are for sequential processes only. If a section has more bullets than paragraphs it has failed. Default to prose. Use structure only when it is clearer than prose.
-
-PAGE TARGET:
-Write a complete draft that fills the target word count. Do not write a minimum viable response. Every section target represents the evaluator's expectation of how much substance this topic deserves.
-
-PAST PERFORMANCE:
-Only cite projects listed in the user prompt. Never invent contract numbers, agencies, or outcomes. When referencing past performance, always include the agency name and at least one specific, verifiable outcome — not just the project name.
+LENGTH:
+This is non-negotiable. Write a complete draft that fills the target word count. A section with a 4-page target requires approximately ${4 * wordsPerPage} words. A section with a 1-page target requires approximately ${wordsPerPage} words. Do not write a minimum viable response. Every section target represents what the evaluator expects on this topic. If you are under the word count, you have not finished.
 
 FORMAT:
 Use HTML tags: <p>, <strong>, <ul>, <li>, <h2>. Do not include the section title as a heading — start directly with content. Use H2 headings only for subsections.`
@@ -196,11 +191,11 @@ Solicitation: ${solicitationNumber || 'Not specified'}
 WHAT THIS AGENCY WANTS:
 ${whatTheyWant}
 
-${hasProposalThemes ? `WIN THEMES — REQUIRED FOR THIS PROPOSAL. You must weave each of these into the draft. Do not list them. Integrate them as arguments woven through the prose. These take priority over all other framing:
+${hasProposalThemes ? `WIN THEMES — REQUIRED FOR THIS PROPOSAL. Weave each into the prose as arguments. Do not list them. Do not introduce them as "win themes." Integrate them so naturally that the evaluator absorbs them without noticing:
 
-${proposalWinThemes.filter(t => t?.trim()).map((t, i) => `${i + 1}. ${t}`).join('\n')}
+${proposalWinThemes.filter(t => t?.trim()).map((t, i) => `${i + 1}. ${typeof t === 'string' ? t : (t as { theme?: string; title?: string }).theme || (t as { theme?: string; title?: string }).title || t}`).join('\n')}
 ` : ''}
-${globalWinThemes.length > 0 ? `FFTC BACKGROUND WIN THEMES — Draw from these where relevant. They represent FFTC's enduring differentiators. Use only those that apply naturally to this section:
+${globalWinThemes.length > 0 ? `FFTC BACKGROUND THEMES — Draw from these where they apply naturally to this section. Do not force them:
 
 ${globalWinThemes.map(t => typeof t === 'string' ? t : `${t.theme}: ${t.discriminatorStatement || ''}`).join('\n')}
 ` : ''}
