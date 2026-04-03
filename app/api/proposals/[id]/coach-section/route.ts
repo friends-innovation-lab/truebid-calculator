@@ -119,6 +119,20 @@ Return ONLY valid JSON, no other text:
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }
 
+    // Save to DB
+    await supabase
+      .from('section_coaching')
+      .upsert({
+        proposal_id: proposalId,
+        section_id: sectionId,
+        scores: parsed.scores,
+        overall_assessment: String(parsed.overall),
+        feedback: parsed.feedback,
+        generated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'proposal_id,section_id'
+      })
+
     return NextResponse.json({ coaching: parsed })
 
   } catch (error) {

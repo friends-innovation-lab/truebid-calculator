@@ -86,6 +86,23 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   const isCoachingRef = useRef(false)
   const coachTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Load existing coaching from DB on mount
+  useEffect(() => {
+    if (!proposalId || !sectionId) return
+    const loadCoaching = async () => {
+      try {
+        const res = await fetch(`/api/proposals/${proposalId}/section-coaching/${sectionId}`)
+        if (res.ok) {
+          const { coaching: savedCoaching } = await res.json()
+          if (savedCoaching) setCoaching(savedCoaching)
+        }
+      } catch (err) {
+        console.error('[WriteContent] Failed to load coaching:', err)
+      }
+    }
+    loadCoaching()
+  }, [proposalId, sectionId])
+
   // TipTap editor
   const editor = useEditor({
     extensions: [
