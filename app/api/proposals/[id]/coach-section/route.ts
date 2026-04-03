@@ -120,7 +120,7 @@ Return ONLY valid JSON, no other text:
     }
 
     // Save to DB
-    await supabase
+    const { error: upsertError } = await supabase
       .from('section_coaching')
       .upsert({
         proposal_id: proposalId,
@@ -132,6 +132,11 @@ Return ONLY valid JSON, no other text:
       }, {
         onConflict: 'proposal_id,section_id'
       })
+
+    if (upsertError) {
+      console.error('[coach-section] Failed to save coaching:', upsertError)
+      // Still return the coaching result even if save failed
+    }
 
     return NextResponse.json({ coaching: parsed })
 
