@@ -330,11 +330,15 @@ function ContentCard({
   const Icon = config.icon
   const [expanded, setExpanded] = useState(false)
   const content = item.content as Record<string, unknown>
-  const fullBody = (content?.body as string) || (content?.scope_description as string) || (content?.bio as string) || (content?.overview as string) || ''
+  const fullBody = (content?.body as string) || (content?.scope_description as string) || (content?.bio as string) || (content?.overview as string) || (content?.theme as string) || (content?.relevance_statement as string) || ''
   const customizationNotes = (content?.customization_notes as string) || ''
+  // Build extra details for types that have structured data beyond body text
+  const proofPoints = (content?.proof_points as string[]) || []
+  const discriminator = (content?.discriminator_statement as string) || ''
+  const bestUsedFor = (content?.best_used_for as string) || ''
 
   return (
-    <Card className="p-4 hover:shadow-md transition-shadow">
+    <Card className={`p-4 hover:shadow-md transition-shadow ${expanded ? 'md:col-span-2' : ''}`}>
       <div className="flex items-start justify-between gap-3">
         <div
           className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer"
@@ -397,11 +401,31 @@ function ContentCard({
           </Button>
         </div>
       </div>
-      {expanded && fullBody && (
+      {expanded && (fullBody || proofPoints.length > 0) && (
         <div className="mt-3 pt-3" style={{ borderTop: '0.5px solid #F4F3EF' }}>
-          <div style={{ fontSize: 13, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-            {fullBody}
-          </div>
+          {fullBody && (
+            <div style={{ fontSize: 13, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+              {fullBody}
+            </div>
+          )}
+          {discriminator && (
+            <div className="mt-2" style={{ fontSize: 12, color: '#111', fontWeight: 600 }}>
+              Discriminator: <span style={{ fontWeight: 400, color: '#5F5E5A' }}>{discriminator}</span>
+            </div>
+          )}
+          {bestUsedFor && (
+            <div className="mt-1" style={{ fontSize: 12, color: '#111', fontWeight: 600 }}>
+              Best used for: <span style={{ fontWeight: 400, color: '#5F5E5A' }}>{bestUsedFor}</span>
+            </div>
+          )}
+          {proofPoints.length > 0 && (
+            <div className="mt-2">
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#6B6A65', marginBottom: 4 }}>Proof points:</div>
+              <ul style={{ fontSize: 12, color: '#5F5E5A', lineHeight: 1.6, paddingLeft: 16, margin: 0 }}>
+                {proofPoints.map((pp, i) => <li key={i}>{pp}</li>)}
+              </ul>
+            </div>
+          )}
           {customizationNotes && (
             <div className="mt-3 p-2.5 rounded" style={{ background: '#FBF9F0', border: '0.5px solid #F0EDE6' }}>
               <div style={{ fontSize: 10, fontWeight: 700, color: '#9B9A95', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>
