@@ -156,8 +156,11 @@ const STANDARD_APPROACHES = [
   }
 ]
 
-// POST - Seed standard approaches into content library
-export async function POST() {
+// GET or POST - Seed standard approaches into content library
+export async function GET() { return seed() }
+export async function POST() { return seed() }
+
+async function seed() {
   const supabase = await createClient()
 
   const { data: { user }, error: authError } = await supabase.auth.getUser()
