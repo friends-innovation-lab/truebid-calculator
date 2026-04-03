@@ -60,6 +60,12 @@ export async function POST(
     return reqRefs.includes(ref)
   })
 
+  // Truncate very long content to avoid token limits
+  const maxContentLength = 8000
+  const truncatedContent = content.length > maxContentLength
+    ? content.substring(0, maxContentLength) + '\n\n[Content truncated for scoring...]'
+    : content
+
   const userPrompt = `Score this government proposal section on 6 Shipley dimensions (1.0-5.0 each):
 
 1. Customer focus: Does it center on what the customer gets, not what the vendor does?
@@ -78,7 +84,7 @@ ${wordsToAvoid.length > 0 ? `WORDS TO AVOID (flag if found):\n${wordsToAvoid.joi
 ${writingGuidePrompt ? `COMPANY WRITING GUIDE:\n${writingGuidePrompt}` : ''}
 
 SECTION CONTENT:
-${content}
+${truncatedContent}
 
 Return ONLY valid JSON, no other text:
 {
@@ -105,7 +111,7 @@ Return ONLY valid JSON, no other text:
 
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2000,
+      max_tokens: 3000,
       messages: [{ role: 'user', content: userPrompt }],
     })
 
