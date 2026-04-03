@@ -276,14 +276,20 @@ OUTCOMES:
 ${relatedWbs.length > 0 ? `RELATED WORK PACKAGES:
 ${relatedWbs.map(w => `${w.ref || ''}: ${w.title}`).join('\n')}
 ` : ''}
-PAGE TARGET: ${pageTarget} pages
-TARGET WORD COUNT: approximately ${targetWordCount} words
-
 ${subsections.length > 0 ? `SUBSECTION STRUCTURE — Use these as H2 headings and write substantive content under each one. Do not skip any subsection:
 ${subsections.map(s => `${s.number} ${s.title}`).join('\n')}
-` : 'No subsections — write as flowing prose.'}
+` : ''}
+WORD COUNT FOR THIS SPECIFIC SECTION:
+This section has a page target of ${pageTarget} pages.
+That requires EXACTLY ${targetWordCount} words minimum.
+Current draft word count will be shown to the user. If the draft is under ${targetWordCount} words you have failed this instruction.
+Write until you reach ${targetWordCount} words. Do not stop early.
 
-Write the complete section now. Do not include the section title as a heading. Start with the first paragraph of content. Use H2 headings only for subsections. Fill the target word count.`
+SUBSECTION DEPTH REQUIREMENT:
+${subsections.length > 0 ? `This section has ${subsections.length} subsections. Each subsection is an H2 heading. Each subsection requires a MINIMUM of ${Math.floor(targetWordCount / subsections.length)} words of substantive content.
+Do not write a single paragraph per subsection. Write multiple paragraphs that fully develop the topic with specific methodology, tools, outcomes, and connection to this agency's needs.` : `Write multiple paragraphs that fully develop each aspect of this topic. Minimum 4 paragraphs of substantive content.`}
+
+Write the complete section now. Do not include the section title as a heading. Start with the first paragraph of content. Use H2 headings only for subsections.`
 
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
