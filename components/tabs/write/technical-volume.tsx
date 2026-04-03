@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { sectionsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -41,10 +41,14 @@ const STATUS_DOT_COLORS: Record<SectionStatus, string> = {
 
 export function TechnicalVolume() {
   const params = useParams()
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const pathname = usePathname()
   const proposalId = params?.id as string
 
   const [sections, setSections] = useState<Section[]>([])
-  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null)
+  // Get sectionId from URL params for persistence across navigation
+  const urlSectionId = searchParams.get('sectionId')
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
@@ -72,10 +76,10 @@ export function TechnicalVolume() {
           .map(s => s.id)
         setExpandedSections(new Set(topLevel))
 
-        // Select first section by default
-        if (response.sections?.length > 0) {
+        // Set default section in URL if none specified
+        if (response.sections?.length > 0 && !searchParams.get('sectionId')) {
           const firstSection = response.sections.find(s => !s.parentId) || response.sections[0]
-          setSelectedSectionId(firstSection.id)
+          router.replace(`${pathname}?sectionId=${firstSection.id}`)
         }
       } catch (err) {
         console.error('[TechnicalVolume] Failed to load:', err)
@@ -88,6 +92,9 @@ export function TechnicalVolume() {
     loadData()
   }, [proposalId])
 
+  // Compute selected section from URL or default to first
+  const selectedSectionId = urlSectionId || sections.find(s => !s.parentId)?.id || sections[0]?.id || null
+
   // Handle section selection with unsaved changes check
   const handleSelectSection = useCallback((sectionId: string) => {
     if (sectionId === selectedSectionId) return
@@ -96,14 +103,14 @@ export function TechnicalVolume() {
       setPendingSectionId(sectionId)
       setShowUnsavedDialog(true)
     } else {
-      setSelectedSectionId(sectionId)
+      router.push(`${pathname}?sectionId=${sectionId}`)
     }
-  }, [selectedSectionId, hasUnsavedChanges])
+  }, [selectedSectionId, hasUnsavedChanges, router, pathname])
 
   const proceedWithoutSaving = () => {
     setHasUnsavedChanges(false)
     if (pendingSectionId) {
-      setSelectedSectionId(pendingSectionId)
+      router.push(`${pathname}?sectionId=${pendingSectionId}`)
       setPendingSectionId(null)
     }
     if (pendingCallbackRef.current) {
@@ -379,15 +386,32 @@ function CompactSectionItem({
           </Badge>
         )}
 
-        {/* Title */}
-        <span
-          className={cn(
-            'flex-1 truncate',
-            isSelected ? 'font-medium text-gray-900' : 'text-gray-600'
-          )}
-        >
-          {section.title}
-        </span>
+        {/* Title and Open Button */}
+        <div className="flex-1 flex items-center justify-between min-w-0 gap-2">
+          <span
+            className={cn(
+              'truncate',
+              isSelected ? 'font-medium text-gray-900' : 'text-gray-600'
+            )}
+          >
+            {section.title}
+          </span>
+          <span
+            style={{
+              fontSize: '11px',
+              fontWeight: 600,
+              color: '#111',
+              padding: '3px 8px',
+              border: '0.5px solid #E8E7E2',
+              borderRadius: '4px',
+              background: '#fff',
+              whiteSpace: 'nowrap',
+              flexShrink: 0,
+            }}
+          >
+            Open →
+          </span>
+        </div>
       </button>
 
       {/* Children */}
