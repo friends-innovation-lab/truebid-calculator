@@ -109,13 +109,22 @@ Return ONLY valid JSON, no other text:
 
     let parsed
     try {
-      const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+      // Strip markdown code fences if present
+      const cleanedResponse = responseText
+        .replace(/^```json\s*/i, '')
+        .replace(/^```\s*/i, '')
+        .replace(/\s*```$/i, '')
+        .trim()
+
+      // Try to find JSON object
+      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
+        console.error('[coach-section] No JSON found in:', cleanedResponse.substring(0, 300))
         return NextResponse.json({ error: 'AI did not return valid JSON' }, { status: 500 })
       }
       parsed = JSON.parse(jsonMatch[0])
-    } catch {
-      console.error('[coach-section] Parse failed:', responseText.substring(0, 300))
+    } catch (parseErr) {
+      console.error('[coach-section] Parse failed:', responseText.substring(0, 500), parseErr)
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }
 
