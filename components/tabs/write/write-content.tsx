@@ -86,10 +86,18 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   const [isCoaching, setIsCoaching] = useState(false)
   const isCoachingRef = useRef(false)
   const coachTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const skipNextLoadRef = useRef(false) // Prevent load from overwriting fresh coaching
 
   // Load existing coaching from DB on mount
   useEffect(() => {
     if (!proposalId || !sectionId) return
+
+    // Skip if we just ran coaching (prevents overwriting fresh data)
+    if (skipNextLoadRef.current) {
+      skipNextLoadRef.current = false
+      return
+    }
+
     const loadCoaching = async () => {
       try {
         const res = await fetch(`/api/proposals/${proposalId}/section-coaching/${sectionId}`)
@@ -287,6 +295,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       })
       if (res.ok) {
         const { coaching: result } = await res.json()
+        skipNextLoadRef.current = true // Prevent load effect from overwriting
         setCoaching(result)
       }
     } catch (err) {
