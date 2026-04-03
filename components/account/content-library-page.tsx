@@ -47,7 +47,7 @@ const CONTENT_TYPES: { value: ContentType; label: string; icon: LucideIcon; colo
 ]
 
 const CLEARANCE_LEVELS = ['None', 'Public Trust', 'Secret', 'Top Secret', 'TS/SCI']
-const APPROACH_CATEGORIES = ['agile', 'security', 'accessibility', 'quality', 'transition', 'staffing', 'other']
+const APPROACH_CATEGORIES = ['agile', 'engineering', 'design', 'research', 'product', 'delivery', 'security', 'accessibility', 'quality', 'transition', 'staffing', 'other']
 
 // ==================== HELPERS ====================
 

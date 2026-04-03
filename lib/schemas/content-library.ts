@@ -63,7 +63,7 @@ export const capabilityStatementContentSchema = z.object({
 })
 
 export const standardApproachContentSchema = z.object({
-  category: z.enum(['agile', 'security', 'accessibility', 'quality', 'transition', 'staffing', 'other']).optional(),
+  category: z.enum(['agile', 'engineering', 'design', 'research', 'product', 'delivery', 'security', 'accessibility', 'quality', 'transition', 'staffing', 'other']).optional(),
   body: z.string().optional(),
   customization_notes: z.string().optional(),
 })
