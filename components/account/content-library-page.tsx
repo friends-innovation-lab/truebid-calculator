@@ -328,25 +328,32 @@ function ContentCard({
   const config = getTypeConfig(item.type)
   const preview = getContentPreview(item)
   const Icon = config.icon
+  const [expanded, setExpanded] = useState(false)
+  const content = item.content as Record<string, unknown>
+  const fullBody = (content?.body as string) || (content?.scope_description as string) || (content?.bio as string) || (content?.overview as string) || ''
+  const customizationNotes = (content?.customization_notes as string) || ''
 
   return (
     <Card className="p-4 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
+        <div
+          className="flex items-start gap-3 min-w-0 flex-1 cursor-pointer"
+          onClick={() => setExpanded(!expanded)}
+        >
           <div className={`w-8 h-8 rounded-lg ${config.bgColor} flex items-center justify-center flex-shrink-0`}>
             <Icon className={`w-4 h-4 ${config.color}`} />
           </div>
           <div className="min-w-0 flex-1">
             <Badge variant="secondary" className={`text-[10px] ${config.bgColor} ${config.color} mb-1 capitalize`}>
-              {item.type === 'standard_approach' && (item.content as Record<string, unknown>)?.category
-                ? (item.content as Record<string, unknown>).category as string
+              {item.type === 'standard_approach' && content?.category
+                ? content.category as string
                 : config.label}
             </Badge>
-            <h4 className="font-medium text-sm text-gray-900 truncate">{item.title}</h4>
-            {preview && (
+            <h4 className="font-medium text-sm text-gray-900">{item.title}</h4>
+            {!expanded && preview && (
               <p className="text-xs text-gray-500 mt-1 line-clamp-2">{preview.slice(0, 100)}...</p>
             )}
-            {item.tags && item.tags.length > 0 && (
+            {!expanded && item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-2">
                 {item.tags.slice(0, 3).map((tag, i) => (
                   <span key={i} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
@@ -390,6 +397,32 @@ function ContentCard({
           </Button>
         </div>
       </div>
+      {expanded && fullBody && (
+        <div className="mt-3 pt-3" style={{ borderTop: '0.5px solid #F4F3EF' }}>
+          <div style={{ fontSize: 13, color: '#333', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+            {fullBody}
+          </div>
+          {customizationNotes && (
+            <div className="mt-3 p-2.5 rounded" style={{ background: '#FBF9F0', border: '0.5px solid #F0EDE6' }}>
+              <div style={{ fontSize: 10, fontWeight: 700, color: '#9B9A95', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: 4 }}>
+                Customization Notes
+              </div>
+              <div style={{ fontSize: 12, color: '#5F5E5A', lineHeight: 1.5 }}>
+                {customizationNotes}
+              </div>
+            </div>
+          )}
+          {item.tags && item.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-3">
+              {item.tags.map((tag, i) => (
+                <span key={i} className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   )
 }
