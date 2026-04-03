@@ -108,16 +108,34 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   const [dbSection, setDbSection] = useState<{ content?: string | object; contentText?: string } | null>(null)
   const [isLoadingSection, setIsLoadingSection] = useState(true)
 
-  // Load section content from DB on mount
+  // Load section content from DB or outline
   useEffect(() => {
     if (!proposalId || !sectionId) return
     setIsLoadingSection(true)
+
+    const isOutlineSection = sectionId.startsWith('sec-')
+
     const loadSection = async () => {
       try {
-        const response = await sectionsApi.list(proposalId) as { sections: { id: string; content?: string | object; contentText?: string }[] }
-        const section = response.sections?.find(s => s.id === sectionId)
-        if (section) {
-          setDbSection(section)
+        if (isOutlineSection) {
+          // For outline sections, check outline context first, then working_data
+          const outlineSec = outlineSection as { content?: string } | null
+          if (outlineSec?.content) {
+            setDbSection({ content: outlineSec.content })
+          } else {
+            // Also check sectionContent context
+            const contextSection = sectionContent[sectionId]
+            if (contextSection?.content) {
+              setDbSection({ content: contextSection.content })
+            }
+          }
+        } else {
+          // For proposal_sections UUIDs, load from DB
+          const response = await sectionsApi.list(proposalId) as { sections: { id: string; content?: string | object; contentText?: string }[] }
+          const section = response.sections?.find(s => s.id === sectionId)
+          if (section) {
+            setDbSection(section)
+          }
         }
       } catch (err) {
         console.error('[WriteContent] Failed to load section:', err)
@@ -126,7 +144,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       }
     }
     loadSection()
-  }, [proposalId, sectionId])
+  }, [proposalId, sectionId, sectionContent, outlineSection])
 
   // TipTap editor
   const editor = useEditor({
@@ -149,15 +167,43 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
         const text = ed.getText()
         const newStatus = text.trim() ? 'in_progress' as const : 'not_started' as const
 
-        // Save to DB first
-        try {
-          await sectionsApi.update(proposalId, sectionId, {
-            content: html,
-            contentText: text,
-            lastEditedAt: now,
-          })
-        } catch (err) {
-          console.error('[WriteContent] Failed to save to DB:', err)
+        // Save to DB if this is a proposal_sections UUID, or update outline if it's an outline section ID
+        const isOutlineSection = sectionId.startsWith('sec-')
+        if (!isOutlineSection) {
+          try {
+            await sectionsApi.update(proposalId, sectionId, {
+              content: html,
+              contentText: text,
+              lastEditedAt: now,
+            })
+          } catch (err) {
+            console.error('[WriteContent] Failed to save to DB:', err)
+          }
+        } else {
+          // For outline sections, save to working_data.outline via API
+          try {
+            await fetch(`/api/proposals/${proposalId}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                working_data: {
+                  outline: {
+                    ...outline,
+                    volumes: outline?.volumes.map(vol => ({
+                      ...vol,
+                      sections: vol.sections.map(sec =>
+                        sec.id === sectionId
+                          ? { ...sec, content: html, contentText: text }
+                          : sec
+                      ),
+                    })),
+                  },
+                },
+              }),
+            })
+          } catch (err) {
+            console.error('[WriteContent] Failed to save outline section:', err)
+          }
         }
 
         // Update context
