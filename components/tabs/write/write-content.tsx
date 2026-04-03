@@ -86,6 +86,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   // Coaching state
   const [coaching, setCoaching] = useState<CoachingResult | null>(null)
   const [isCoaching, setIsCoaching] = useState(false)
+  const [coachingError, setCoachingError] = useState<string | null>(null)
   const isCoachingRef = useRef(false)
   const coachTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const skipNextLoadRef = useRef(false) // Prevent load from overwriting fresh coaching
@@ -291,6 +292,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     if (!plainText || words < 50 || isCoachingRef.current) return
     isCoachingRef.current = true
     setIsCoaching(true)
+    setCoachingError(null)
     try {
       const res = await fetch(`/api/proposals/${proposalId}/coach-section`, {
         method: 'POST',
@@ -301,9 +303,15 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
         const { coaching: result } = await res.json()
         skipNextLoadRef.current = true // Prevent load effect from overwriting
         setCoaching(result)
+      } else {
+        const errorData = await res.json().catch(() => ({}))
+        const errorMsg = errorData.error || `Coaching failed (${res.status})`
+        console.error('[WriteContent] Coaching API error:', res.status, errorMsg)
+        setCoachingError(errorMsg)
       }
     } catch (err) {
       console.error('[WriteContent] Coaching failed:', err)
+      setCoachingError(err instanceof Error ? err.message : 'Network error')
     } finally {
       isCoachingRef.current = false
       setIsCoaching(false)
@@ -570,7 +578,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
         </div>
 
         {/* RIGHT COACHING PANEL */}
-        <CoachingPanel coaching={coaching} isCoaching={isCoaching} editor={editor} onRescore={runCoaching} />
+        <CoachingPanel coaching={coaching} isCoaching={isCoaching} coachingError={coachingError} editor={editor} onRescore={runCoaching} />
       </div>
     </div>
   )
@@ -870,7 +878,7 @@ function getCoachingLabel(overall: number): string {
   return 'Major gaps'
 }
 
-function CoachingPanel({ coaching, isCoaching, editor, onRescore }: { coaching: CoachingResult | null; isCoaching: boolean; editor: Editor | null; onRescore: (html: string) => void }) {
+function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore }: { coaching: CoachingResult | null; isCoaching: boolean; coachingError: string | null; editor: Editor | null; onRescore: (html: string) => void }) {
   return (
     <div
       className="shrink-0 flex flex-col"
@@ -941,9 +949,21 @@ function CoachingPanel({ coaching, isCoaching, editor, onRescore }: { coaching: 
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto" style={{ padding: '12px 14px' }}>
-        {!coaching && !isCoaching && (
+        {!coaching && !isCoaching && !coachingError && (
           <div style={{ fontSize: 11, color: '#C4C3BE', lineHeight: 1.5 }}>
             Start writing or use Draft with AI to see your Shipley score.
+          </div>
+        )}
+
+        {coachingError && !isCoaching && (
+          <div style={{ fontSize: 11, color: '#DC2626', lineHeight: 1.5, padding: '8px 10px', background: '#FEF2F2', borderRadius: 6 }}>
+            <strong>Coaching error:</strong> {coachingError}
+            <button
+              onClick={() => editor && onRescore(editor.getHTML())}
+              style={{ display: 'block', marginTop: 6, fontSize: 10, color: '#2563EB', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+            >
+              Try again
+            </button>
           </div>
         )}
 
