@@ -364,18 +364,20 @@ export function Strategy() {
 
   const handleGenerateSuggestions = async () => {
     setIsGeneratingSuggestions(true)
-    // Simulate AI generation - in production this would call the API
-    await new Promise(resolve => setTimeout(resolve, 1500))
-
-    // Placeholder suggestions based on solicitation
-    const suggestions: [string, string, string] = [
-      'Our prior work with similar federal agencies demonstrates direct capability alignment',
-      'We have existing security clearances and infrastructure ready to deploy',
-      'Our technical approach reduces implementation risk through proven methodologies',
-    ]
-
-    updateStrategy({ winThemes: suggestions })
-    setIsGeneratingSuggestions(false)
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/generate-win-themes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proposalId }),
+      })
+      if (!res.ok) throw new Error('Generation failed')
+      const { winThemes } = await res.json()
+      updateStrategy({ winThemes: winThemes as [string, string, string] })
+    } catch {
+      console.error('[Strategy] Win theme generation failed')
+    } finally {
+      setIsGeneratingSuggestions(false)
+    }
   }
 
   if (isLoading) {
