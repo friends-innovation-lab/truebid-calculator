@@ -166,8 +166,8 @@ export async function POST(
     sa.tags?.some(tag => sectionTitleLower.includes(tag.toLowerCase()))
   )
 
-  // Get writing guide from company settings
-  const writingGuide = await getWritingGuidePrompt()
+  // Get writing guide from company settings (pass companyId to avoid owner lookup failure)
+  const writingGuide = await getWritingGuidePrompt(companyId || undefined)
   console.log('[draft-section] Writing guide loaded:', writingGuide ? `${writingGuide.length} chars` : 'NULL — falling back')
 
   const setAside = (proposalSetup.setAside as string) || ''

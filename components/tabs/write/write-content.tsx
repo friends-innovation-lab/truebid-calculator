@@ -79,6 +79,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   const existing = sectionContent[sectionId]
   const [lastSaved, setLastSaved] = useState(existing?.lastSaved || '')
   const [isStreaming, setIsStreaming] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
   const [wordCount, setWordCount] = useState(existing?.wordCount || 0)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -172,6 +173,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       // Debounced save to DB and context
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = setTimeout(async () => {
+        setIsSaving(true)
         const now = new Date().toISOString()
         const text = ed.getText()
         const newStatus = text.trim() ? 'in_progress' as const : 'not_started' as const
@@ -214,6 +216,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
             console.error('[WriteContent] Failed to save outline section:', err)
           }
         }
+        setIsSaving(false)
 
         // Update context
         setSectionContent(prev => ({
@@ -450,8 +453,8 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
 
         {/* Right: Auto-save + badge */}
         <div className="flex items-center gap-3">
-          <span style={{ fontSize: 10, color: '#6B6A65' }}>
-            {lastSaved ? `Auto-saved ${timeSinceSave}` : 'Not saved yet'}
+          <span style={{ fontSize: 10, color: isSaving ? '#9B9A95' : '#6B6A65' }}>
+            {isSaving ? 'Saving...' : lastSaved ? `Auto-saved ${timeSinceSave}` : 'Not saved yet'}
           </span>
           <span
             style={{
