@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAppContext, type OutlineSection, type OutlineSectionStatus } from '@/contexts/app-context'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, Sparkles, Bold, Italic, Heading1, Heading2, List, Pilcrow } from 'lucide-react'
-import { useEditor, EditorContent } from '@tiptap/react'
+import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 
@@ -292,6 +292,14 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
 
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: '#FFFFFF' }}>
+      {/* Keyframe for spin animation */}
+      <style>{`
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+
       {/* SIMPLIFIED NAV */}
       <div
         className="shrink-0 flex items-center gap-4"
@@ -449,7 +457,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
         </div>
 
         {/* RIGHT COACHING PANEL */}
-        <CoachingPanel coaching={coaching} isCoaching={isCoaching} />
+        <CoachingPanel coaching={coaching} isCoaching={isCoaching} editor={editor} onRescore={runCoaching} />
       </div>
     </div>
   )
@@ -748,7 +756,7 @@ function getCoachingLabel(overall: number): string {
   return 'Major gaps'
 }
 
-function CoachingPanel({ coaching, isCoaching }: { coaching: CoachingResult | null; isCoaching: boolean }) {
+function CoachingPanel({ coaching, isCoaching, editor, onRescore }: { coaching: CoachingResult | null; isCoaching: boolean; editor: Editor | null; onRescore: (html: string) => void }) {
   return (
     <div
       className="shrink-0 flex flex-col"
@@ -760,8 +768,57 @@ function CoachingPanel({ coaching, isCoaching }: { coaching: CoachingResult | nu
     >
       {/* Header */}
       <div className="shrink-0" style={{ padding: '12px 14px', borderBottom: '0.5px solid #E8E7E2' }}>
-        <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#6B6A65' }}>
-          Shipley score
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#6B6A65' }}>
+            Shipley score
+          </div>
+          <button
+            onClick={() => {
+              const text = editor?.getText() || ''
+              if (text.length > 50) {
+                onRescore(editor?.getHTML() || '')
+              }
+            }}
+            disabled={isCoaching}
+            title="Re-score"
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 4,
+              border: '0.5px solid #E8E7E2',
+              background: '#fff',
+              cursor: isCoaching ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: isCoaching ? 0.5 : 1,
+              marginLeft: 'auto',
+              flexShrink: 0,
+            }}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 12 12"
+              fill="none"
+              style={{
+                animation: isCoaching ? 'spin 1s linear infinite' : 'none',
+              }}
+            >
+              <path
+                d="M10 6A4 4 0 1 1 6 2"
+                stroke="#5F5E5A"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+              <path
+                d="M6 2L8 4M6 2L4 4"
+                stroke="#5F5E5A"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+              />
+            </svg>
+          </button>
         </div>
         <div style={{ fontSize: 10, color: isCoaching ? '#BA7517' : '#9B9A95', marginTop: 2 }}>
           {isCoaching ? 'Analyzing...' : 'Based on current draft'}
