@@ -64,9 +64,29 @@ export async function POST(
   interface OutlineSec { id: string; complianceRefs?: string[]; requirementRefs?: string[]; pageTarget?: number; subsections?: { number: string; title: string }[] }
   const outline = (workingData.outline || {}) as { volumes?: { sections?: OutlineSec[] }[] }
 
-  // Find the section in the outline
-  const allSections = (outline.volumes || []).flatMap(v => v.sections || [])
-  const sectionData = allSections.find(s => s.id === sectionId) || null
+  // Find the section in the outline OR in proposal_sections table
+  const allOutlineSections = (outline.volumes || []).flatMap(v => v.sections || [])
+  const sectionData = allOutlineSections.find(s => s.id === sectionId) || null
+
+  // If not found in outline, try to get from proposal_sections table
+  let dbSection: { title?: string; target_word_count?: number; instructions?: string } | null = null
+  if (!sectionData) {
+    const { data: section } = await supabase
+      .from('proposal_sections')
+      .select('title, target_word_count, instructions')
+      .eq('id', sectionId)
+      .single()
+    dbSection = section
+  }
+
+  console.log('[draft-section] Section lookup:', {
+    sectionId,
+    foundInOutline: !!sectionData,
+    foundInDb: !!dbSection,
+    outlineSectionCount: allOutlineSections.length,
+    pageTarget: sectionData?.pageTarget || dbSection?.target_word_count || 1,
+    subsectionsCount: sectionData?.subsections?.length || 0
+  })
 
   // Get solicitation summary
   const whatTheyWant = (solicitation.whatTheyWant as string) || (solicitation.what_they_want as string) || 'Federal IT services contract'
@@ -152,10 +172,12 @@ export async function POST(
 
   const setAside = (proposalSetup.setAside as string) || ''
   const solicitationNumber = (solicitation.solicitationNumber as string) || ''
-  const pageTarget = sectionData?.pageTarget || 1
+  // Use outline pageTarget, or DB target_word_count (which might be in words, not pages), or default to 2 pages
+  const pageTarget = sectionData?.pageTarget || 2
   const subsections = sectionData?.subsections || []
-  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 392
-  const targetWordCount = pageTarget * wordsPerPage
+  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 500
+  // If DB has target_word_count, use it directly; otherwise calculate from pages
+  const targetWordCount = dbSection?.target_word_count || (pageTarget * wordsPerPage)
 
   const systemPrompt = `You are writing a proposal section on behalf of Friends From The City.
 
