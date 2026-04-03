@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
+import { getWritingGuideForCoaching } from '@/lib/writing-guide'
 
 export async function POST(
   request: Request,
@@ -28,7 +29,7 @@ export async function POST(
   // Fetch proposal data
   const { data: proposal, error: fetchError } = await supabase
     .from('proposals')
-    .select('working_data, strategy')
+    .select('working_data, strategy, company_id')
     .eq('id', proposalId)
     .single()
 
@@ -38,6 +39,10 @@ export async function POST(
 
   const workingData = (proposal.working_data || {}) as Record<string, unknown>
   const strategy = (proposal.strategy || {}) as Record<string, unknown>
+
+  // Get writing guide from company settings
+  const { prompt: writingGuidePrompt, guide: writingGuide } = await getWritingGuideForCoaching(proposal.company_id)
+  const wordsToAvoid = writingGuide?.words_to_avoid?.filter(w => w.trim()) || []
 
   // Get win themes
   const winThemes = (strategy.winThemes as string[]) || []
@@ -55,17 +60,22 @@ export async function POST(
     return reqRefs.includes(ref)
   })
 
-  const userPrompt = `Score this government proposal section on 5 Shipley dimensions (1.0-5.0 each):
+  const userPrompt = `Score this government proposal section on 6 Shipley dimensions (1.0-5.0 each):
 
 1. Customer focus: Does it center on what the customer gets, not what the vendor does?
 2. Win themes: Are the win themes woven in naturally?
 3. Discriminators: Does it show why FFTC specifically, not just any vendor?
 4. Proof points: Are claims backed by specific evidence, numbers, or examples?
 5. Compliance: Does it address the stated requirements?
+6. Writing style: Does it follow the company writing guide? Are banned words avoided?
 
 ${winThemes.filter(t => t?.trim()).length > 0 ? `Win themes for this proposal:\n${winThemes.filter(t => t?.trim()).join('\n')}` : 'No win themes defined yet.'}
 
 ${relatedReqs.length > 0 ? `Requirements this section must address:\n${relatedReqs.map(r => r.text || r.description || r.title).join('\n')}` : 'No specific requirements linked to this section.'}
+
+${wordsToAvoid.length > 0 ? `WORDS TO AVOID (flag if found):\n${wordsToAvoid.join(', ')}` : ''}
+
+${writingGuidePrompt ? `COMPANY WRITING GUIDE:\n${writingGuidePrompt}` : ''}
 
 SECTION CONTENT:
 ${content}
@@ -78,7 +88,8 @@ Return ONLY valid JSON, no other text:
     "winThemes": 3.6,
     "discriminators": 3.0,
     "proofPoints": 2.8,
-    "compliance": 4.4
+    "compliance": 4.4,
+    "writingStyle": 4.0
   },
   "feedback": [
     {

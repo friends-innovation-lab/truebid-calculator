@@ -19,6 +19,7 @@ interface CoachingResult {
     discriminators: number
     proofPoints: number
     compliance: number
+    writingStyle?: number
   }
   feedback: { type: 'issue' | 'suggestion' | 'positive'; title: string; text: string }[]
 }
@@ -844,6 +845,7 @@ const SCORE_DIMENSIONS: { key: keyof CoachingResult['scores']; label: string }[]
   { key: 'discriminators', label: 'Discriminators' },
   { key: 'proofPoints', label: 'Proof points' },
   { key: 'compliance', label: 'Compliance' },
+  { key: 'writingStyle', label: 'Writing style' },
 ]
 
 const FEEDBACK_BORDER: Record<string, string> = {
@@ -971,6 +973,7 @@ function CoachingPanel({ coaching, isCoaching, editor, onRescore }: { coaching: 
             {/* Score bars */}
             {SCORE_DIMENSIONS.map(d => {
               const score = coaching.scores[d.key]
+              if (score === undefined) return null // Skip dimensions not in this coaching result
               const color = getScoreColor(score)
               return (
                 <div key={d.key} className={`flex items-center gap-2 ${isCoaching ? 'animate-pulse' : ''}`} style={{ marginBottom: 10, opacity: isCoaching ? 0.5 : 1, transition: 'opacity 0.3s' }}>
