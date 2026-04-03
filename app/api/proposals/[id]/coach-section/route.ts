@@ -105,7 +105,7 @@ Return ONLY valid JSON, no other text:
 
     const message = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
+      max_tokens: 2000,
       messages: [{ role: 'user', content: userPrompt }],
     })
 
@@ -118,24 +118,33 @@ Return ONLY valid JSON, no other text:
       return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
     }
 
+    // Check if response was truncated
+    if (message.stop_reason === 'max_tokens') {
+      console.error('[coach-section] Response truncated - max_tokens reached')
+      return NextResponse.json({ error: 'AI response was truncated. Try with shorter content.' }, { status: 500 })
+    }
+
     let parsed
     try {
-      // Strip markdown code fences if present
-      const cleanedResponse = responseText
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim()
+      // Extract JSON from response - handle markdown fences anywhere
+      let jsonStr = responseText
 
-      // Try to find JSON object
-      const jsonMatch = cleanedResponse.match(/\{[\s\S]*\}/)
+      // Try to extract from markdown code block first
+      const codeBlockMatch = responseText.match(/```(?:json)?\s*([\s\S]*?)```/)
+      if (codeBlockMatch) {
+        jsonStr = codeBlockMatch[1].trim()
+      }
+
+      // Find the JSON object
+      const jsonMatch = jsonStr.match(/\{[\s\S]*\}/)
       if (!jsonMatch) {
-        console.error('[coach-section] No JSON found in:', cleanedResponse.substring(0, 300))
+        console.error('[coach-section] No JSON found in:', responseText.substring(0, 500))
         return NextResponse.json({ error: 'AI did not return valid JSON' }, { status: 500 })
       }
+
       parsed = JSON.parse(jsonMatch[0])
     } catch (parseErr) {
-      console.error('[coach-section] Parse failed:', responseText.substring(0, 500), parseErr)
+      console.error('[coach-section] Parse failed:', responseText.substring(0, 800), parseErr)
       return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
     }
 
