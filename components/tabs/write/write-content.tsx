@@ -7,6 +7,7 @@ import { ArrowLeft, Sparkles, Bold, Italic, Heading1, Heading2, List, Pilcrow } 
 import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
+import { sectionsApi } from '@/lib/api'
 
 // ==================== TYPES ====================
 
@@ -103,13 +104,37 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     loadCoaching()
   }, [proposalId, sectionId])
 
+  // State for section loaded from DB
+  const [dbSection, setDbSection] = useState<{ content?: string | object; contentText?: string } | null>(null)
+  const [isLoadingSection, setIsLoadingSection] = useState(true)
+
+  // Load section content from DB on mount
+  useEffect(() => {
+    if (!proposalId || !sectionId) return
+    setIsLoadingSection(true)
+    const loadSection = async () => {
+      try {
+        const response = await sectionsApi.list(proposalId) as { sections: { id: string; content?: string | object; contentText?: string }[] }
+        const section = response.sections?.find(s => s.id === sectionId)
+        if (section) {
+          setDbSection(section)
+        }
+      } catch (err) {
+        console.error('[WriteContent] Failed to load section:', err)
+      } finally {
+        setIsLoadingSection(false)
+      }
+    }
+    loadSection()
+  }, [proposalId, sectionId])
+
   // TipTap editor
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [1, 2] } }),
       Placeholder.configure({ placeholder: 'Start writing, or use Draft with AI to generate a starting point...' }),
     ],
-    content: existing?.content || '',
+    content: '', // Start empty, will be populated from DB
     autofocus: true,
     onUpdate: ({ editor: ed }) => {
       const html = ed.getHTML()
@@ -117,11 +142,25 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       setWordCount(words)
       scheduleCoaching(html)
 
-      // Debounced save
+      // Debounced save to DB and context
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
-      saveTimeoutRef.current = setTimeout(() => {
+      saveTimeoutRef.current = setTimeout(async () => {
         const now = new Date().toISOString()
-        const newStatus = html.replace(/<[^>]*>/g, '').trim() ? 'in_progress' as const : 'not_started' as const
+        const text = ed.getText()
+        const newStatus = text.trim() ? 'in_progress' as const : 'not_started' as const
+
+        // Save to DB first
+        try {
+          await sectionsApi.update(proposalId, sectionId, {
+            content: html,
+            contentText: text,
+            lastEditedAt: now,
+          })
+        } catch (err) {
+          console.error('[WriteContent] Failed to save to DB:', err)
+        }
+
+        // Update context
         setSectionContent(prev => ({
           ...prev,
           [sectionId]: {
@@ -157,6 +196,21 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       },
     },
   })
+
+  // Load content from DB into editor when dbSection is loaded
+  useEffect(() => {
+    if (!editor || isLoadingSection) return
+    if (dbSection?.content) {
+      // Content can be a string (HTML) or an object (TipTap JSON)
+      const content = typeof dbSection.content === 'string'
+        ? dbSection.content
+        : dbSection.content
+      editor.commands.setContent(content)
+      // Update word count from loaded content
+      const words = editor.getText().split(/\s+/).filter(Boolean).length
+      setWordCount(words)
+    }
+  }, [editor, dbSection, isLoadingSection])
 
   // Time since last save
   const [timeSinceSave, setTimeSinceSave] = useState('')
