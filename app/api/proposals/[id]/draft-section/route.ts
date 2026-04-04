@@ -1,7 +1,44 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { getWritingGuidePrompt } from '@/lib/writing-guide'
+import { getWritingGuidePrompt, getWritingGuideForCoaching } from '@/lib/writing-guide'
+
+// Helper function for section-type-specific instructions
+function getSectionTypeInstructions(sectionTitle: string): string {
+  const title = sectionTitle.toLowerCase()
+
+  if (title.includes('technical')) {
+    return `Technical sections follow this cycle per paragraph: state the specific technical challenge this agency faces, explain why it is hard or what makes it fail, describe the Friends technical approach, cite a specific documented outcome, state what that means for this contract. Never lead with capabilities. Always lead with the agency's problem.`
+  }
+
+  if (title.includes('management') || title.includes('staffing')) {
+    return `Management sections follow this cycle: state the management or staffing challenge this contract presents, describe the Friends team structure or management approach, explain how it prevents that specific failure mode, cite past performance where this structure delivered results.`
+  }
+
+  if (title.includes('past performance') || title.includes('relevant experience')) {
+    return `Past performance sections follow this cycle: open with the relevance to this contract specifically, state the agency and contract, describe the challenge faced, describe what Friends did, state the measurable outcome, close with the direct connection to this procurement.`
+  }
+
+  if (title.includes('understand')) {
+    return `Understanding sections follow this cycle: state what the agency is trying to accomplish and why it is difficult, demonstrate that Friends understands the operational reality behind the requirement, connect that understanding to documented experience, show what that means for delivery.`
+  }
+
+  return `Each paragraph follows this cycle: state the problem or need this paragraph addresses for this agency, describe the Friends approach, cite specific documented evidence, connect to this agency's specific situation. Never lead with capabilities. Always lead with the agency's need.`
+}
+
+// Types for Pass 1 outline
+interface ParagraphOutline {
+  subsection: string | null
+  problem: string
+  approach: string
+  evidence: string | null
+  agencyConnection: string
+}
+
+interface Pass1Outline {
+  sectionSummary: string
+  paragraphs: ParagraphOutline[]
+}
 
 interface PastPerformanceEntry {
   id: string
@@ -168,6 +205,8 @@ export async function POST(
 
   // Get writing guide from company settings (pass companyId to avoid owner lookup failure)
   const writingGuide = await getWritingGuidePrompt(companyId || undefined)
+  const { guide: writingGuideRaw } = await getWritingGuideForCoaching(companyId || undefined)
+  const wordsToAvoid = writingGuideRaw?.words_to_avoid?.join(', ') || 'robust, leverage, proven, iterative, mission-critical, seamlessly, deeply, ensure, cutting-edge, innovative'
   console.log('[draft-section] Writing guide loaded:', writingGuide ? `${writingGuide.length} chars` : 'NULL — falling back')
 
   const setAside = (proposalSetup.setAside as string) || ''
@@ -281,7 +320,8 @@ ${relatedCompliance.length > 0 ? relatedCompliance.map(c => `[${(c as { requirem
 SPECIFIC REQUIREMENTS TO ADDRESS:
 ${relatedReqs.length > 0 ? relatedReqs.map(r => `[${r.reference_number || r.id}] ${r.text || r.description || r.title}`).join('\n') : 'Not available — write to the section title and context'}
 
-${relevantApproaches.length > 0 ? `STANDARD APPROACHES FROM FFTC — Use these as foundation. Adapt the specific language to this proposal and agency. Do not copy verbatim:
+${relevantApproaches.length > 0 ? `METHODOLOGY FRAMEWORKS ONLY:
+The following describe how Friends thinks about this type of work. Do NOT cite any specific tool, technology, platform, or practice from these frameworks as something Friends has done unless it also appears explicitly in the past performance list above. Do not mention Redis, Kubernetes, Terraform, Docker, machine learning, FedRAMP, or any specific technology unless it is in the past performance list. Use these frameworks for structure and thinking only.
 
 ${relevantApproaches.map(sa => `[${(sa.category || 'general').toUpperCase()}] ${sa.title}\n${sa.body}`).join('\n---\n')}
 ` : ''}
@@ -316,11 +356,134 @@ Write the complete section now. Do not include the section title as a heading. S
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // PASS 1 — STRUCTURE (non-streaming)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    let pass1Outline: Pass1Outline | null = null
+
+    const pass1SystemPrompt = `You are a proposal strategist helping Friends From The City plan a proposal section before any writing begins.
+
+Your job is to decide what each paragraph needs to argue before a writer writes it. You are not writing prose. You are creating a paragraph-by-paragraph outline that a writer will follow.
+
+Every paragraph in a government proposal must complete this cycle:
+1. Problem: what challenge or need does this paragraph address for this specific agency?
+2. Approach: what does Friends do about it?
+3. Evidence: which specific, documented past performance project and outcome supports this claim?
+4. Agency connection: why does this matter specifically to this agency and this contract?
+
+Anti-hallucination rule: Evidence must come only from the past performance list provided. If no relevant past performance exists for a paragraph, mark evidence as null and the approach paragraph will rely on methodology only.
+
+Return ONLY valid JSON. No prose. No explanation. No markdown. Just the JSON object.`
+
+    const pass1UserPrompt = `Plan the paragraph structure for the "${sectionTitle}" section.
+
+SECTION PAGE TARGET: ${pageTarget} pages (${targetWordCount} words)
+
+SUBSECTIONS:
+${subsections.length > 0 ? subsections.map(s => `${s.number} ${s.title}`).join('\n') : 'No subsections — single flowing section'}
+
+WHAT THIS AGENCY NEEDS:
+${whatTheyWant}
+
+COMPLIANCE REQUIREMENTS:
+${relatedCompliance.slice(0, 5).map(c => `[${(c as { requirement_ref?: string }).requirement_ref || ''}] ${c.requirement_text}`).join('\n') || 'None'}
+
+SPECIFIC REQUIREMENTS:
+${relatedReqs.slice(0, 10).map(r => `[${r.reference_number || r.id}] ${r.text || r.description || r.title}`).join('\n') || 'None'}
+
+FFTC PAST PERFORMANCE — evidence must come only from this list:
+${relevantPP.slice(0, 5).map(pp => `PROJECT: ${pp.title}
+AGENCY: ${pp.agency}
+OUTCOMES: ${pp.outcomes?.slice(0, 2).join('; ')}`).join('\n---\n') || 'None available'}
+
+SECTION TYPE INSTRUCTIONS:
+${getSectionTypeInstructions(sectionTitle)}
+
+Return this JSON structure:
+{
+  "sectionSummary": "One sentence stating the core argument of this entire section",
+  "paragraphs": [
+    {
+      "subsection": "subsection title or null if no subsections",
+      "problem": "The specific problem or need this paragraph addresses for this agency",
+      "approach": "What Friends does about it — method, process, or practice",
+      "evidence": "Specific project name and outcome from past performance list, or null",
+      "agencyConnection": "Why this matters specifically to this agency right now"
+    }
+  ]
+}
+
+Create enough paragraph entries to fill ${targetWordCount} words when written. Each paragraph is approximately 120-150 words. So create approximately ${Math.ceil(targetWordCount / 135)} paragraph entries.`
+
+    try {
+      const pass1Response = await anthropic.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        system: pass1SystemPrompt,
+        messages: [{ role: 'user', content: pass1UserPrompt }],
+      })
+
+      const pass1Text = pass1Response.content
+        .filter(block => block.type === 'text')
+        .map(block => (block as { type: 'text'; text: string }).text)
+        .join('')
+
+      // Parse the JSON response
+      const jsonMatch = pass1Text.match(/\{[\s\S]*\}/)
+      if (jsonMatch) {
+        pass1Outline = JSON.parse(jsonMatch[0]) as Pass1Outline
+        console.log('[draft-section] Pass 1 outline generated:', JSON.stringify({
+          paragraphCount: pass1Outline.paragraphs.length,
+          sectionSummary: pass1Outline.sectionSummary?.slice(0, 100),
+          targetWordCount
+        }))
+      }
+    } catch (pass1Error) {
+      console.log('[draft-section] Pass 1 failed, falling back to single pass:', pass1Error instanceof Error ? pass1Error.message : 'Unknown error')
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // PASS 2 — PROSE (streaming)
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    // Build Pass 2 user prompt — use outline if available, fall back to original prompt
+    let pass2UserPrompt: string
+
+    if (pass1Outline && pass1Outline.paragraphs.length > 0) {
+      console.log('[draft-section] Pass 2 starting with outline of', pass1Outline.paragraphs.length, 'paragraphs targeting', targetWordCount, 'words')
+
+      pass2UserPrompt = `Write the "${sectionTitle}" section using this outline.
+
+CORE ARGUMENT OF THIS SECTION:
+${pass1Outline.sectionSummary}
+
+WRITE EACH PARAGRAPH FROM ITS OUTLINE ENTRY:
+${pass1Outline.paragraphs.map((p, i) => `PARAGRAPH ${i + 1}
+${p.subsection ? `[Under H2: ${p.subsection}]` : ''}
+Problem to address: ${p.problem}
+Approach to describe: ${p.approach}
+Evidence to cite: ${p.evidence || 'Methodology only — no past performance citation'}
+Why it matters to this agency: ${p.agencyConnection}
+
+Write 120-150 words for this paragraph. Start with the problem statement. Never start with "Friends From The City" as the first words.`).join('\n\n')}
+
+FORMATTING:
+Use H2 headings for each subsection. Write prose paragraphs under each heading. Never use em dashes. Never use: ${wordsToAvoid}
+
+IDENTITY:
+"Friends From The City" on first reference. "Friends" thereafter. Never "FFTC."
+
+TOTAL TARGET: ${targetWordCount} words. Fill the target completely.`
+    } else {
+      // Fall back to original user prompt if Pass 1 failed
+      pass2UserPrompt = userPrompt
+    }
+
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4096,
       system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
+      messages: [{ role: 'user', content: pass2UserPrompt }],
     })
 
     // Convert to SSE stream
