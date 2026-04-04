@@ -196,12 +196,21 @@ export async function POST(
   console.log('[draft-section] Past performance:', pastPerformance.length, 'total,', relevantPP.length, 'relevant')
 
   // Get standard approaches relevant to this section
+  // Block categories with aspirational content that lacks documented outcomes
+  const BLOCKED_CATEGORIES = [
+    'devops',
+    'infrastructure',
+    'backend',
+    'security'
+  ]
   const standardApproaches = contentLibrary.standardApproaches || []
   const sectionTitleLower = sectionTitle.toLowerCase()
-  const relevantApproaches = standardApproaches.filter(sa =>
-    sectionTitleLower.includes(sa.category || '') ||
-    sa.tags?.some(tag => sectionTitleLower.includes(tag.toLowerCase()))
-  )
+  const relevantApproaches = standardApproaches
+    .filter(sa => !BLOCKED_CATEGORIES.includes((sa.category || '').toLowerCase()))
+    .filter(sa =>
+      sectionTitleLower.includes(sa.category || '') ||
+      sa.tags?.some(tag => sectionTitleLower.includes(tag.toLowerCase()))
+    )
 
   // Get writing guide from company settings (pass companyId to avoid owner lookup failure)
   const writingGuide = await getWritingGuidePrompt(companyId || undefined)
