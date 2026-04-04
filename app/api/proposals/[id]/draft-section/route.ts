@@ -9,6 +9,7 @@ type ParagraphRole = 'opener' | 'subsection_opener' | 'development' | 'evidence'
 interface ParagraphOutline {
   role: ParagraphRole
   subsection: string | null
+  subsectionNumber: string | null
   instruction: string
   approach: string
   evidence: string | null
@@ -432,7 +433,7 @@ Return ONLY valid JSON. No prose. No explanation. No markdown. Just the JSON obj
 
 SECTION PAGE TARGET: ${pageTarget} pages (${targetWordCount} words)
 
-SUBSECTIONS:
+SUBSECTIONS (include the number in subsectionNumber for each paragraph):
 ${subsections.length > 0 ? subsections.map(s => `${s.number} ${s.title}`).join('\n') : 'No subsections — single flowing section'}
 
 WHAT THIS AGENCY NEEDS:
@@ -456,6 +457,7 @@ Return this JSON structure:
     {
       "role": "opener | subsection_opener | development | evidence | transition",
       "subsection": "H2 heading title this paragraph belongs under, or null",
+      "subsectionNumber": "The subsection number (e.g. '1.1', '2.3') exactly as provided, or null",
       "instruction": "Specific instruction for what this paragraph must do based on its role",
       "approach": "What Friends does or has done",
       "evidence": "Specific past performance project and outcome, or null if not applicable",
@@ -463,6 +465,8 @@ Return this JSON structure:
     }
   ]
 }
+
+Include the subsection number in every outline entry under subsectionNumber. Use the exact number from the subsections list (e.g., "1.1", "1.2", "2.1").
 
 ROLE DISTRIBUTION FOR THIS SECTION:
 This section has ${subsections.length} subsections and needs approximately ${totalParagraphs} paragraphs total.
@@ -521,17 +525,54 @@ The section should read as ONE connected argument, not ${subsections.length || 1
 SECTION ARGUMENT:
 ${pass1Outline.sectionArgument}
 
+SUBSECTION HEADINGS:
+Every subsection must have an H2 heading that includes the section number exactly as it appears in the outline. The heading format is:
+
+## [number] [title]
+
+For example:
+## 1.1 Understanding of Requirements
+## 1.2 CAMP MVP Enhancement Strategy
+## 2.1 Project Management Framework
+
+The number comes from the subsection data passed in the outline. Use it exactly. Do not omit it. Do not renumber. Do not use bold text instead of a heading.
+
 WRITE EACH PARAGRAPH FROM ITS ROLE:
 ${pass1Outline.paragraphs.map((p, i) => `PARAGRAPH ${i + 1}
-${p.subsection ? `[Under H2: ${p.subsection}]` : '[Before first H2]'}
+${p.subsection ? `[Under H2 heading: ## ${p.subsectionNumber ? `${p.subsectionNumber} ` : ''}${p.subsection}]` : '[Before first H2 — no heading]'}
 Role: ${(p.role || 'development').toUpperCase()}
 
 ${p.role === 'opener' ? `Open with the government's specific operational problem or reality. State what is at stake. Introduce Friends. Establish the argument this section makes. Do not start with "Friends From The City." Start with the problem.` : ''}
 ${p.role === 'subsection_opener' ? `Connect to the section's overall argument. Introduce this subsection's specific angle. Do NOT restate the problem already established in the opening. Feel like a continuation. Open with "That..." or "Within that context..." or a similar phrase that connects backward before moving forward.` : ''}
-${p.role === 'development' ? `Develop one specific aspect of the approach. Go into depth. Be specific about methodology, decisions, and what they prevent or enable. Do not restate any problem. Open with the approach or decision, not a challenge.` : ''}
-${p.role === 'evidence' ? `Cite documented past performance. Name the agency and contract. State the challenge. Describe what Friends did. State the measurable outcome. Connect to why this matters for the current contract. Do not invent numbers or outcomes.
-Evidence to use: ${p.evidence || 'No past performance available — use development approach instead'}` : ''}
-${p.role === 'transition' ? `Close this subsection's argument. Last sentence hands off to the next subsection: ${p.transitionTo || 'next topic'}. Do not restate any problem. End with forward momentum.` : ''}
+${p.role === 'development' ? `Develop one specific aspect of the approach with depth and precision. Do NOT write a capability list. Do NOT write "Friends implements X, Y, and Z."
+
+Write like a practitioner explaining a decision:
+- What problem does this specific approach address?
+- What would go wrong without it?
+- What specific decision did the team make and why?
+- What does that decision prevent or enable?
+
+If no past performance evidence exists, write from methodology. Describe how practitioners think about this problem, what tradeoffs exist, and what the right decision looks like. Ground it in operational reality, not capability claims.
+
+Never write:
+"Friends implements [list of tools]"
+"The team uses [X, Y, and Z]"
+"Our approach includes [list]"
+
+Always write:
+"[Specific decision] prevents [specific failure]. [Why that decision matters in this operational context]."` : ''}
+${p.role === 'evidence' ? `${p.evidence ? `Cite this documented past performance:
+${p.evidence}
+Name the agency, describe what Friends did, state the measurable outcome, connect to why this matters for the current contract.` : `No documented past performance exists for this specific topic. Write a development paragraph instead. Describe how practitioners approach this problem, what decisions matter, what failure modes exist, and what the right approach prevents. Do not invent past performance. Do not write a capability list. Write like someone who has thought carefully about this problem.`}` : ''}
+${p.role === 'transition' ? `This paragraph closes the current subsection and hands off to the next.
+
+Rules:
+- Do NOT restate any problem from this subsection or the section opener
+- Close the argument of this subsection with a concluding sentence that reflects what was established here
+- The final sentence must hand off naturally to the next subsection: "${p.transitionTo || 'next subsection'}"
+- The connection should feel earned, not mechanical. Do not write "Now we turn to..." or "The next section addresses..."
+- Instead, close the current thought in a way that makes the next topic feel like the natural continuation. Example: "That delivery structure works because deliverable quality is tracked with the same rigor as timeline — which the next section addresses directly."
+- Never use em dashes in the transition sentence` : ''}
 
 What to cover: ${p.instruction}
 Approach: ${p.approach}

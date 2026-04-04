@@ -35,7 +35,7 @@ interface WriteContentProps {
 export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentProps) {
   const params = useParams()
   const proposalId = params?.id as string
-  const { sectionContent, setSectionContent, solicitation, outline, setOutline, extractedRequirements, estimateWbsElements, proposalSetup } = useAppContext()
+  const { sectionContent, setSectionContent, outline, setOutline, extractedRequirements, estimateWbsElements, proposalSetup } = useAppContext()
 
   // Load win themes from proposal strategy (not in AppContext)
   const [winThemes, setWinThemes] = useState<string[]>([])
@@ -487,9 +487,6 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     ? sectionTitle.substring(0, 40) + '...'
     : sectionTitle
 
-  const contractType = solicitation?.contractType || 'T&M'
-  const contractBadge = contractType === 'FFP' ? 'FFP' : contractType === 'CPFF' ? 'CPFF' : contractType === 'GSA' ? 'GSA' : 'T&M'
-
   return (
     <div className="flex flex-col h-full" style={{ backgroundColor: '#FFFFFF' }}>
       {/* Keyframe for spin animation */}
@@ -510,12 +507,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
           borderBottom: '2.5px solid #111110',
         }}
       >
-        {/* Left: Wordmark */}
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#111110', letterSpacing: -0.5 }}>
-          TrueBid
-        </div>
-
-        {/* Middle: Breadcrumb */}
+        {/* Breadcrumb */}
         <div className="flex items-center gap-2 flex-1">
           <button
             onClick={onBack}
@@ -538,40 +530,10 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
           </span>
         </div>
 
-        {/* Right: Auto-save + badge */}
-        <div className="flex items-center gap-3">
-          <span style={{ fontSize: 10, color: isSaving ? '#9B9A95' : '#6B6A65' }}>
-            {isSaving ? 'Saving...' : lastSaved ? `Auto-saved ${timeSinceSave}` : 'Not saved yet'}
-          </span>
-          <span
-            style={{
-              fontSize: 9,
-              fontWeight: 700,
-              padding: '2px 6px',
-              borderRadius: 3,
-              background: '#F0EDE6',
-              color: '#5F5E5A',
-            }}
-          >
-            {contractBadge}
-          </span>
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background: '#111110',
-              color: '#F5C200',
-              fontSize: 11,
-              fontWeight: 700,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            LT
-          </div>
-        </div>
+        {/* Right: Auto-save */}
+        <span style={{ fontSize: 10, color: isSaving ? '#9B9A95' : '#6B6A65' }}>
+          {isSaving ? 'Saving...' : lastSaved ? `Auto-saved ${timeSinceSave}` : 'Not saved yet'}
+        </span>
       </div>
 
       {/* THREE PANEL LAYOUT */}
@@ -586,7 +548,6 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
           winThemes={winThemes}
           wordCount={wordCount}
           wordsPerPage={proposalSetup?.wordsPerPage || 500}
-          onBack={onBack}
         />
 
         {/* CENTER EDITOR */}
@@ -749,7 +710,6 @@ function ContextPanel({
   winThemes,
   wordCount,
   wordsPerPage,
-  onBack,
 }: {
   sectionId: string
   sectionTitle: string
@@ -759,7 +719,6 @@ function ContextPanel({
   winThemes: string[]
   wordCount: number
   wordsPerPage: number
-  onBack: () => void
 }) {
   const complianceRefs = outlineSection?.complianceRefs || []
   const requirementRefs = outlineSection?.requirementRefs || []
@@ -783,12 +742,6 @@ function ContextPanel({
     >
       {/* Panel header */}
       <div className="shrink-0" style={{ padding: '14px 16px 10px', borderBottom: '0.5px solid #E8E7E2' }}>
-        <button
-          onClick={onBack}
-          style={{ fontSize: 11, color: '#9B9A95', background: 'none', border: 'none', cursor: 'pointer', marginBottom: 8 }}
-        >
-          &larr; Back to outline
-        </button>
         <div style={{ fontSize: 14, fontWeight: 700, color: '#111110', letterSpacing: -0.3, lineHeight: 1.3 }}>
           {outlineSection?.number ? `${outlineSection.number} ` : ''}{sectionTitle}
         </div>
