@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAppContext, type OutlineSection, type OutlineSectionStatus } from '@/contexts/app-context'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, Sparkles, Bold, Italic, Heading1, Heading2, List, Pilcrow, Copy, Check } from 'lucide-react'
+import { ArrowLeft, Sparkles, Bold, Italic, Heading1, Heading2, List, Pilcrow, Copy, Check, Trash2 } from 'lucide-react'
 import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -300,6 +300,18 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     }
   }, [editor])
 
+  // Clear editor content
+  const handleClear = useCallback(() => {
+    if (!editor) return
+    const text = editor.getText()
+    if (!text.trim()) return
+    if (window.confirm('Clear all content? This cannot be undone.')) {
+      editor.commands.clearContent()
+      setWordCount(0)
+      setCoaching(null)
+    }
+  }, [editor])
+
   // Coaching API call
   const runCoaching = useCallback(async (text: string) => {
     const plainText = text.replace(/<[^>]*>/g, '').trim()
@@ -565,6 +577,25 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
                 }}
               >
                 {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                onClick={handleClear}
+                title="Clear content"
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  color: '#9B9A95',
+                  transition: 'all 0.2s',
+                }}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
               <button
                 onClick={handleDraftWithAI}
