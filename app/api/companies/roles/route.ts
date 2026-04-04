@@ -121,7 +121,14 @@ export async function GET() {
 
   // Transform to frontend format
   const roles = (data || []).map(transformRoleFromDb)
-  return NextResponse.json({ roles })
+  return NextResponse.json(
+    { roles },
+    {
+      headers: {
+        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
+      },
+    }
+  )
 }
 
 // POST - Create a new role

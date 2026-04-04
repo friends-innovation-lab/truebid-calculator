@@ -32,7 +32,14 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ settings: data })
+  return NextResponse.json(
+    { settings: data },
+    {
+      headers: {
+        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
+      },
+    }
+  )
 }
 
 // POST - Create or update company settings (upsert)

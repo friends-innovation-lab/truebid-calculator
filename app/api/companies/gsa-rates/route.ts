@@ -50,7 +50,14 @@ export async function GET() {
     notes: r.notes,
   }))
 
-  return NextResponse.json({ rates })
+  return NextResponse.json(
+    { rates },
+    {
+      headers: {
+        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
+      },
+    }
+  )
 }
 
 // POST - Create a new GSA rate

@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import {
   Upload,
   Users,
@@ -39,13 +40,37 @@ import {
 } from '@/components/ui/tooltip'
 import { useAppContext } from '@/contexts/app-context'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
-import { UploadTab } from '@/components/tabs/upload-tab'
-import { EstimateTab } from '@/components/tabs/estimate-tab'
-import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
-import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
-import { SubRatesTab } from '@/components/tabs/sub-rates-tab'
-import { Outline } from '@/components/tabs/write/outline'
-import { ExportTab } from '@/components/tabs/export-tab'
+import { TabSkeleton } from '@/components/ui/skeletons'
+
+// Lazy-load heavy tab components to reduce initial bundle size
+const UploadTab = dynamic(
+  () => import('@/components/tabs/upload-tab').then(mod => ({ default: mod.UploadTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const EstimateTab = dynamic(
+  () => import('@/components/tabs/estimate-tab').then(mod => ({ default: mod.EstimateTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const RolesAndPricingTab = dynamic(
+  () => import('@/components/tabs/roles-and-pricing-tab').then(mod => ({ default: mod.RolesAndPricingTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const TeamingPartnersTab = dynamic(
+  () => import('@/components/tabs/teaming-partners-tab').then(mod => ({ default: mod.TeamingPartnersTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const SubRatesTab = dynamic(
+  () => import('@/components/tabs/sub-rates-tab').then(mod => ({ default: mod.SubRatesTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const Outline = dynamic(
+  () => import('@/components/tabs/write/outline').then(mod => ({ default: mod.Outline })),
+  { loading: () => <TabSkeleton /> }
+)
+const ExportTab = dynamic(
+  () => import('@/components/tabs/export-tab').then(mod => ({ default: mod.ExportTab })),
+  { loading: () => <TabSkeleton /> }
+)
 
 // ==================== CONSTANTS ====================
 

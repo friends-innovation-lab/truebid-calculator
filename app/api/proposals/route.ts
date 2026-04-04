@@ -66,7 +66,14 @@ export async function GET() {
 
   // Transform all proposals to camelCase
   const proposals = (data || []).map(transformProposal)
-  return NextResponse.json({ proposals })
+  return NextResponse.json(
+    { proposals },
+    {
+      headers: {
+        'Cache-Control': 'private, s-maxage=30, stale-while-revalidate=60',
+      },
+    }
+  )
 }
 
 // POST - Create a new proposal

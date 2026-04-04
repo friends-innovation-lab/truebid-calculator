@@ -54,7 +54,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
-  return NextResponse.json({ items: items || [] })
+  return NextResponse.json(
+    { items: items || [] },
+    {
+      headers: {
+        'Cache-Control': 'private, s-maxage=60, stale-while-revalidate=120',
+      },
+    }
+  )
 }
 
 // POST - Create a new content library item

@@ -716,14 +716,18 @@ function RecentActivityPanel({
 // MAIN DASHBOARD
 // ============================================================================
 
-export function Dashboard() {
+export interface DashboardProps {
+  initialProposals?: Proposal[]
+}
+
+export function Dashboard({ initialProposals }: DashboardProps = {}) {
   const router = useRouter()
   const { user } = useAuth()
   const { setActiveUtilityTool } = useAppContext()
 
-  // Core state
-  const [proposals, setProposals] = useState<Proposal[]>([])
-  const [isLoaded, setIsLoaded] = useState(false)
+  // Core state - use initialProposals if provided (from SSR)
+  const [proposals, setProposals] = useState<Proposal[]>(initialProposals || [])
+  const [isLoaded, setIsLoaded] = useState(!!initialProposals)
   const [proposalToDelete, setProposalToDelete] = useState<string | null>(null)
 
   // Load proposals from API
