@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useAppContext, type OutlineSection, type OutlineSectionStatus } from '@/contexts/app-context'
+import { useAppContext, type OutlineSection, type OutlineSubsection, type OutlineSectionStatus } from '@/contexts/app-context'
 import { useParams } from 'next/navigation'
 import { ArrowLeft, Sparkles, Bold, Italic, Heading1, Heading2, List, Pilcrow, Copy, Check, Trash2 } from 'lucide-react'
 import { useEditor, EditorContent, Editor } from '@tiptap/react'
@@ -22,6 +22,64 @@ interface CoachingResult {
     writingStyle?: number
   }
   feedback: { type: 'issue' | 'suggestion' | 'positive'; title: string; text: string }[]
+}
+
+// ==================== SUBSECTION STATUS HELPERS ====================
+
+function getSubsectionStatus(
+  wordCount: number,
+  pageTarget: number,
+  wordsPerPage: number = 392
+): OutlineSectionStatus {
+  if (wordCount === 0) return 'not_started'
+  const target = pageTarget * wordsPerPage * 0.8
+  if (wordCount >= target) return 'draft'
+  if (wordCount >= 50) return 'in_progress'
+  return 'not_started'
+}
+
+function computeSubsectionStatuses(
+  content: string,
+  subsections: OutlineSubsection[],
+  wordsPerPage: number = 392
+): OutlineSubsection[] {
+  if (typeof window === 'undefined') return subsections
+
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(content, 'text/html')
+  const headings = Array.from(doc.querySelectorAll('h2'))
+
+  return subsections.map(sub => {
+    let wordCount = 0
+
+    // Find the H2 that matches this subsection title
+    const matchingH2 = headings.find(h2 =>
+      h2.textContent?.includes(sub.title) || h2.textContent?.includes(sub.number)
+    )
+
+    if (matchingH2) {
+      // Count words between this H2 and the next H2
+      let node = matchingH2.nextSibling
+      let text = ''
+      while (node && node.nodeName !== 'H2') {
+        text += node.textContent || ''
+        node = node.nextSibling
+      }
+      wordCount = text.trim().split(/\s+/).filter(Boolean).length
+    }
+
+    return {
+      ...sub,
+      status: getSubsectionStatus(wordCount, sub.pageTarget || 1, wordsPerPage)
+    }
+  })
+}
+
+function getParentStatus(subsections: OutlineSubsection[]): OutlineSectionStatus {
+  if (subsections.length === 0) return 'not_started'
+  if (subsections.every(s => s.status === 'draft')) return 'draft'
+  if (subsections.some(s => s.status === 'in_progress' || s.status === 'draft')) return 'in_progress'
+  return 'not_started'
 }
 
 // ==================== MAIN COMPONENT ====================
@@ -193,7 +251,17 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
             console.error('[WriteContent] Failed to save to DB:', err)
           }
         } else {
-          // For outline sections, save to working_data.outline via API
+          // For outline sections, compute subsection statuses and save to working_data.outline
+          const currentSection = outline?.volumes
+            .flatMap(v => v.sections)
+            .find(s => s.id === sectionId)
+          const updatedSubsections = currentSection?.subsections
+            ? computeSubsectionStatuses(html, currentSection.subsections, proposalSetup?.wordsPerPage || 392)
+            : []
+          const updatedSectionStatus = updatedSubsections.length > 0
+            ? getParentStatus(updatedSubsections)
+            : (text.trim() ? 'in_progress' as const : 'not_started' as const)
+
           try {
             await fetch(`/api/proposals/${proposalId}`, {
               method: 'PUT',
@@ -206,7 +274,13 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
                       ...vol,
                       sections: vol.sections.map(sec =>
                         sec.id === sectionId
-                          ? { ...sec, content: html, contentText: text }
+                          ? {
+                              ...sec,
+                              content: html,
+                              contentText: text,
+                              subsections: updatedSubsections.length > 0 ? updatedSubsections : sec.subsections,
+                              status: updatedSectionStatus
+                            }
                           : sec
                       ),
                     })),
@@ -232,18 +306,27 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
           },
         }))
         setLastSaved(now)
-        // Update outline section status
+        // Update outline section and subsection statuses
         setOutline(prev => {
           if (!prev) return prev
           return {
             ...prev,
             volumes: prev.volumes.map(vol => ({
               ...vol,
-              sections: vol.sections.map(sec =>
-                sec.id === sectionId && sec.status === 'not_started'
-                  ? { ...sec, status: 'in_progress' as const }
-                  : sec
-              ),
+              sections: vol.sections.map(sec => {
+                if (sec.id !== sectionId) return sec
+                const updatedSubs = sec.subsections.length > 0
+                  ? computeSubsectionStatuses(html, sec.subsections, proposalSetup?.wordsPerPage || 392)
+                  : []
+                const parentStatus = updatedSubs.length > 0
+                  ? getParentStatus(updatedSubs)
+                  : (text.trim() ? 'in_progress' as const : 'not_started' as const)
+                return {
+                  ...sec,
+                  subsections: updatedSubs.length > 0 ? updatedSubs : sec.subsections,
+                  status: parentStatus
+                }
+              }),
             })),
           }
         })

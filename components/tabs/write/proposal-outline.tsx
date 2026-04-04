@@ -416,7 +416,7 @@ function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutli
         <div key={section.id}>
           <SectionRow section={section} proposalId={proposalId} outline={outline!} setOutline={setOutline} sectionContent={sectionContent} wordsPerPage={wordsPerPage} />
           {section.subsections.map(sub => (
-            <SubsectionRow key={sub.id} subsection={sub} parentSection={section} proposalId={proposalId} />
+            <SubsectionRow key={sub.id} subsection={sub} parentSection={section} proposalId={proposalId} outline={outline} setOutline={setOutline} />
           ))}
         </div>
       ))}
@@ -594,8 +594,45 @@ function SectionRow({ section, proposalId, outline, setOutline, sectionContent, 
 
 // ==================== SUBSECTION ROW ====================
 
-function SubsectionRow({ subsection, parentSection, proposalId }: { subsection: OutlineSubsection; parentSection: OutlineSection; proposalId: string }) {
+function SubsectionRow({ subsection, parentSection, proposalId, outline, setOutline }: { subsection: OutlineSubsection; parentSection: OutlineSection; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void }) {
   const router = useRouter()
+
+  // Cycle through statuses on click
+  const cycleStatus = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    const statusOrder: OutlineSectionStatus[] = ['not_started', 'in_progress', 'draft']
+    const currentIndex = statusOrder.indexOf(subsection.status)
+    const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
+
+    // Update subsection status
+    const updated: ProposalOutline = {
+      volumes: outline.volumes.map(v => ({
+        ...v,
+        sections: v.sections.map(s => {
+          if (s.id !== parentSection.id) return s
+          const updatedSubs = s.subsections.map(sub =>
+            sub.id === subsection.id ? { ...sub, status: nextStatus } : sub
+          )
+          // Derive parent status from children
+          const parentStatus = updatedSubs.every(sub => sub.status === 'draft')
+            ? 'draft' as const
+            : updatedSubs.some(sub => sub.status === 'in_progress' || sub.status === 'draft')
+              ? 'in_progress' as const
+              : 'not_started' as const
+          return { ...s, subsections: updatedSubs, status: parentStatus }
+        }),
+      })),
+    }
+    setOutline(updated)
+
+    // Persist to DB
+    fetch(`/api/proposals/${proposalId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ working_data: { outline: updated } }),
+    }).catch(err => console.error('[SubsectionRow] Failed to save status:', err))
+  }
+
   return (
     <div
       className="flex items-center gap-3"
@@ -610,14 +647,22 @@ function SubsectionRow({ subsection, parentSection, proposalId }: { subsection: 
         router.push(`/${proposalId}?tab=write&view=technical-editor&sectionId=${parentSection.id}&sectionTitle=${encodeURIComponent(parentSection.title)}&anchor=${subsection.id}`)
       }}
     >
-      {/* Status dot */}
-      <div style={{
-        width: 8,
-        height: 8,
-        borderRadius: '50%',
-        background: STATUS_COLORS[subsection.status],
-        flexShrink: 0,
-      }} />
+      {/* Status dot - clickable to cycle */}
+      <div
+        onClick={cycleStatus}
+        title="Click to change status"
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: '50%',
+          background: STATUS_COLORS[subsection.status],
+          flexShrink: 0,
+          cursor: 'pointer',
+          transition: 'transform 0.15s',
+        }}
+        onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.4)' }}
+        onMouseLeave={(e) => { e.currentTarget.style.transform = '' }}
+      />
 
       {/* Number */}
       <span style={{
