@@ -265,6 +265,23 @@ WHY THIS IS GOOD:
 - Shows the thinking behind the approach
 - Outcome is specific and measurable
 
+ANOTHER BAD EXAMPLE:
+
+"Friends implements two-week sprint cycles with daily standups, sprint planning, retrospectives, and demos tailored to DOS stakeholder availability. Our DevOps approach includes automated security scanning, infrastructure as code, and continuous compliance monitoring across all environments."
+
+WHY THIS IS BAD:
+Three problems in two sentences. First, it lists activities without stating what problem they solve. Second, it reads like a checklist of things any contractor could claim. Third, the evaluator learns nothing about what Friends actually did or what it prevented. A list of three items after a verb is almost always a sign that the writer avoided stating an outcome. Cut the list and replace it with one specific thing and what it produced.
+
+ANOTHER GOOD EXAMPLE:
+
+"Federal deployments that skip security review in the development pipeline accumulate vulnerability backlogs that stall ATO processes for months. On the VA PACT Act 526ez project, security scanning ran on every pull request. A failing scan blocked the merge. The security team inherited a clean codebase rather than a remediation list. That decision is not a DevOps preference. It is what makes an ATO timeline predictable."
+
+WHY THIS IS GOOD:
+Opens with the problem the agency recognizes from experience. Names the specific contract. Describes one specific decision. States what it prevented. The evaluator can picture the scenario because it is described in terms of consequences, not capabilities.
+
+THE RULE THIS ILLUSTRATES:
+When writing about technical capabilities, name one specific thing, explain what failure it prevents or what it enables, and connect it to a documented outcome. Never list three capabilities in one sentence. A comma-separated list of capabilities is a signal that the paragraph has not finished its job.
+
 RULES FOR CITING PAST PERFORMANCE:
 
 When referencing a past project, always use a linking sentence that connects the past work to the current need. Do not just drop a project name.
@@ -288,6 +305,9 @@ Use "Friends From The City" on first reference. Use "Friends" thereafter. Never 
 
 ANTI-HALLUCINATION:
 Only cite past performance explicitly listed in this prompt. Never invent projects, agencies, contract numbers, outcomes, or numbers. If a specific number is not in the past performance list, do not use it. No security clearances, FedRAMP, or DevSecOps claims unless explicitly in the past performance list.
+
+CAPABILITY LISTS:
+Never write a sentence that lists three or more technical capabilities separated by commas. This pattern produces unverifiable claims and reads as generic AI output. If you find yourself writing "Friends implements X, Y, and Z" — stop. Pick the one that is most specific and most documented. Write what it prevented or enabled. Cut the other two.
 
 LENGTH:
 Fill the target word count. This is non-negotiable. A 4-page section = ${4 * wordsPerPage} words minimum. A 2-page section = ${2 * wordsPerPage} words minimum. A 1-page section = ${wordsPerPage} words minimum. If you are under the target you have not finished. Write more.
