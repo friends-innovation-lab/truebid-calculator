@@ -301,7 +301,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   }, [editor])
 
   // Clear editor content
-  const handleClear = useCallback(() => {
+  const handleClear = useCallback(async () => {
     if (!editor) return
     const text = editor.getText()
     if (!text.trim()) return
@@ -309,8 +309,60 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       editor.commands.clearContent()
       setWordCount(0)
       setCoaching(null)
+      setDbSection(null) // Prevent reload from restoring old content
+
+      // Immediately save the cleared content
+      const isOutlineSection = sectionId.startsWith('sec-')
+      if (!isOutlineSection) {
+        try {
+          await sectionsApi.update(proposalId, sectionId, {
+            content: '',
+            contentText: '',
+            lastEditedAt: new Date().toISOString(),
+          })
+        } catch (err) {
+          console.error('[WriteContent] Failed to clear section:', err)
+        }
+      } else {
+        // For outline sections, update via API
+        try {
+          await fetch(`/api/proposals/${proposalId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              working_data: {
+                outline: {
+                  ...outline,
+                  volumes: outline?.volumes.map(vol => ({
+                    ...vol,
+                    sections: vol.sections.map(sec =>
+                      sec.id === sectionId
+                        ? { ...sec, content: '', contentText: '' }
+                        : sec
+                    ),
+                  })),
+                },
+              },
+            }),
+          })
+        } catch (err) {
+          console.error('[WriteContent] Failed to clear outline section:', err)
+        }
+      }
+
+      // Update context
+      setSectionContent(prev => ({
+        ...prev,
+        [sectionId]: {
+          sectionId,
+          content: '',
+          lastSaved: new Date().toISOString(),
+          wordCount: 0,
+          status: 'not_started',
+        },
+      }))
     }
-  }, [editor])
+  }, [editor, sectionId, proposalId, outline, setSectionContent])
 
   // Coaching API call
   const runCoaching = useCallback(async (text: string) => {
