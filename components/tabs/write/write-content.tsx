@@ -1115,7 +1115,7 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
             )}
 
             {/* Feedback cards */}
-            {coaching.feedback.map((fb, i) => (
+            {Array.isArray(coaching.feedback) && coaching.feedback.map((fb, i) => (
               <div
                 key={i}
                 style={{
