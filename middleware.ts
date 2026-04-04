@@ -1,14 +1,37 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
+// Generate a short unique request ID
+function generateRequestId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 export async function middleware(request: NextRequest) {
+  const requestId = generateRequestId()
+  const startTime = Date.now()
+
+  // Helper to add logging headers and log the request
+  function finalizeResponse(response: NextResponse, status?: number): NextResponse {
+    const duration = Date.now() - startTime
+    response.headers.set('x-request-id', requestId)
+
+    // Log in development or if explicitly enabled
+    if (process.env.NODE_ENV === 'development' || process.env.LOG_REQUESTS === 'true') {
+      console.log(
+        `[${requestId}] ${request.method} ${request.nextUrl.pathname} - ${status || response.status} (${duration}ms)`
+      )
+    }
+
+    return response
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
 
   // Skip auth check if env vars are not configured (e.g., during build)
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    return supabaseResponse
+    return finalizeResponse(supabaseResponse)
   }
 
   const supabase = createServerClient(
@@ -38,7 +61,7 @@ export async function middleware(request: NextRequest) {
   if (request.nextUrl.pathname === '/') {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return finalizeResponse(NextResponse.redirect(url), 307)
   }
 
   const {
@@ -64,7 +87,7 @@ export async function middleware(request: NextRequest) {
   if ((isProtectedPath || isProposalRoute) && !user) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
-    return NextResponse.redirect(url)
+    return finalizeResponse(NextResponse.redirect(url), 307)
   }
 
   // Auth routes - redirect to dashboard if already logged in
@@ -76,10 +99,10 @@ export async function middleware(request: NextRequest) {
   if (isAuthPath && user) {
     const url = request.nextUrl.clone()
     url.pathname = '/dashboard'
-    return NextResponse.redirect(url)
+    return finalizeResponse(NextResponse.redirect(url), 307)
   }
 
-  return supabaseResponse
+  return finalizeResponse(supabaseResponse)
 }
 
 export const config = {

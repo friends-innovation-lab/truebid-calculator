@@ -2303,11 +2303,15 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
       }
     } catch (e) {
       console.error('Failed to create role in API:', e);
-      // Optionally rollback: setCompanyRoles(prev => prev.filter(r => r.id !== role.id));
+      // Rollback: remove the optimistically added role
+      setCompanyRoles(prev => prev.filter(r => r.id !== role.id));
     }
   };
 
   const updateCompanyRole = async (id: string, updates: Partial<CompanyRole>) => {
+    // Capture previous state for rollback
+    const previousRole = companyRoles.find(r => r.id === id);
+
     // Optimistic update
     setCompanyRoles(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
 
@@ -2319,10 +2323,18 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
       }
     } catch (e) {
       console.error('Failed to update role in API:', e);
+      // Rollback: restore previous state
+      if (previousRole) {
+        setCompanyRoles(prev => prev.map(r => r.id === id ? previousRole : r));
+      }
     }
   };
 
   const removeCompanyRole = async (id: string) => {
+    // Capture previous state for rollback
+    const previousRole = companyRoles.find(r => r.id === id);
+    const previousIndex = companyRoles.findIndex(r => r.id === id);
+
     // Optimistic update
     setCompanyRoles(prev => prev.filter(r => r.id !== id));
 
@@ -2331,6 +2343,14 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
       await rolesApi.delete(id);
     } catch (e) {
       console.error('Failed to delete role from API:', e);
+      // Rollback: restore the deleted role at its original position
+      if (previousRole) {
+        setCompanyRoles(prev => {
+          const newRoles = [...prev];
+          newRoles.splice(previousIndex, 0, previousRole);
+          return newRoles;
+        });
+      }
     }
   };
 

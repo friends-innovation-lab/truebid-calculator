@@ -203,8 +203,14 @@ export const proposalsApi = {
 
 // Requirements
 export const requirementsApi = {
-  list: (proposalId: string) =>
-    fetchWithRetry(`${API_BASE}/proposals/${proposalId}/requirements`).then(handleResponse),
+  list: (proposalId: string, options?: { page?: number; limit?: number }) => {
+    const params = new URLSearchParams()
+    if (options?.page) params.set('page', String(options.page))
+    if (options?.limit) params.set('limit', String(options.limit))
+    const queryString = params.toString()
+    const url = `${API_BASE}/proposals/${proposalId}/requirements${queryString ? `?${queryString}` : ''}`
+    return fetchWithRetry(url).then(handleResponse)
+  },
 
   create: (proposalId: string, data: Record<string, unknown> | Record<string, unknown>[]) =>
     fetchWithRetry(`${API_BASE}/proposals/${proposalId}/requirements`, {
@@ -233,8 +239,14 @@ export const requirementsApi = {
 
 // WBS Elements
 export const wbsApi = {
-  list: (proposalId: string) =>
-    fetchWithRetry(`${API_BASE}/proposals/${proposalId}/wbs`).then(handleResponse),
+  list: (proposalId: string, options?: { page?: number; limit?: number }) => {
+    const params = new URLSearchParams()
+    if (options?.page) params.set('page', String(options.page))
+    if (options?.limit) params.set('limit', String(options.limit))
+    const queryString = params.toString()
+    const url = `${API_BASE}/proposals/${proposalId}/wbs${queryString ? `?${queryString}` : ''}`
+    return fetchWithRetry(url).then(handleResponse)
+  },
 
   create: (proposalId: string, data: Record<string, unknown> | Record<string, unknown>[]) =>
     fetchWithRetry(`${API_BASE}/proposals/${proposalId}/wbs`, {

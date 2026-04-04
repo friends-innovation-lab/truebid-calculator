@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 
-// GET - Fetch requirements for a proposal
+// GET - Fetch requirements for a proposal (with optional pagination)
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -15,12 +15,29 @@ export async function GET(
   }
 
   const { id } = await params
+  const { searchParams } = new URL(request.url)
 
-  const { data: requirements, error } = await supabase
+  // Pagination params (optional - if not provided, returns all)
+  const pageParam = searchParams.get('page')
+  const limitParam = searchParams.get('limit')
+  const isPaginated = pageParam !== null || limitParam !== null
+
+  const page = Math.max(1, parseInt(pageParam || '1', 10))
+  const limit = Math.min(100, Math.max(1, parseInt(limitParam || '50', 10)))
+  const offset = (page - 1) * limit
+
+  let query = supabase
     .from('requirements')
-    .select('*')
+    .select('*', isPaginated ? { count: 'exact' } : undefined)
     .eq('proposal_id', id)
     .order('created_at', { ascending: true })
+
+  // Apply pagination if requested
+  if (isPaginated) {
+    query = query.range(offset, offset + limit - 1)
+  }
+
+  const { data: requirements, error, count } = await query
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -40,6 +57,22 @@ export async function GET(
     wbsLinks: req.wbs_links || [],
     owner: req.owner || null,
   }))
+
+  // Include pagination metadata if paginated
+  if (isPaginated) {
+    const total = count || 0
+    const totalPages = Math.ceil(total / limit)
+    return NextResponse.json({
+      requirements: transformed,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    })
+  }
 
   return NextResponse.json({ requirements: transformed })
 }
