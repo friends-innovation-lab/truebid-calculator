@@ -181,6 +181,8 @@ export function useProposalSync(proposalId: string) {
   const lastSavedRef = useRef<string>('')
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const lastProposalIdRef = useRef<string>('')
+  // Track current proposalId to prevent stale saves when switching proposals
+  const currentProposalIdRef = useRef<string>(proposalId)
   // Store extra fields from DB that aren't managed by context (e.g., solicitationRawText)
   const extraFieldsRef = useRef<Record<string, unknown>>({})
 
@@ -217,6 +219,7 @@ export function useProposalSync(proposalId: string) {
       clearWorkingData()
     }
     lastProposalIdRef.current = proposalId
+    currentProposalIdRef.current = proposalId
 
     async function loadProposalData() {
       try {
@@ -375,6 +378,11 @@ export function useProposalSync(proposalId: string) {
     }
 
     saveTimeoutRef.current = setTimeout(async () => {
+      // Check if proposalId changed while waiting — abort stale save
+      if (currentProposalIdRef.current !== proposalId) {
+        console.log('[ProposalSync] Aborting stale save for', proposalId, '(current:', currentProposalIdRef.current, ')')
+        return
+      }
       try {
         await proposalsApi.update(proposalId, {
           // Metadata fields (for dashboard display)
