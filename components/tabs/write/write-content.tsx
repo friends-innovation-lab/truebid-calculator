@@ -988,6 +988,14 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
           }}>
             Red Team Lead
           </div>
+          <div style={{
+            fontSize: '10px',
+            color: '#9B9A96',
+            lineHeight: 1.2,
+            marginTop: '1px'
+          }}>
+            Shipley methodology
+          </div>
         </div>
         <div style={{
           fontSize: '22px',
