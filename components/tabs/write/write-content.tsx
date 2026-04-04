@@ -12,16 +12,23 @@ import { sectionsApi } from '@/lib/api'
 // ==================== TYPES ====================
 
 interface CoachingResult {
-  overall: number
+  overallScore: number
+  overallLabel: string
+  overallAssessment: string
   scores: {
     customerFocus: number
     winThemes: number
     discriminators: number
     proofPoints: number
     compliance: number
-    writingStyle?: number
   }
-  feedback: { type: 'issue' | 'suggestion' | 'positive'; title: string; text: string }[]
+  feedback: {
+    customerFocus: string
+    winThemes: string
+    discriminators: string
+    proofPoints: string
+    compliance: string
+  }
 }
 
 // ==================== MAIN COMPONENT ====================
@@ -921,14 +928,7 @@ const SCORE_DIMENSIONS: { key: keyof CoachingResult['scores']; label: string }[]
   { key: 'discriminators', label: 'Discriminators' },
   { key: 'proofPoints', label: 'Proof points' },
   { key: 'compliance', label: 'Compliance' },
-  { key: 'writingStyle', label: 'Writing style' },
 ]
-
-const FEEDBACK_BORDER: Record<string, string> = {
-  issue: '#A32D2D',
-  suggestion: '#BA7517',
-  positive: '#639922',
-}
 
 function getScoreColor(score: number): string {
   if (score >= 4.0) return '#639922'
@@ -936,93 +936,135 @@ function getScoreColor(score: number): string {
   return '#A32D2D'
 }
 
-function getCoachingLabel(overall: number): string {
-  if (overall >= 3.8) return 'Strong draft'
-  if (overall >= 3.0) return 'Good foundation'
-  if (overall >= 2.0) return 'Needs work'
-  return 'Major gaps'
-}
-
 function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore }: { coaching: CoachingResult | null; isCoaching: boolean; coachingError: string | null; editor: Editor | null; onRescore: (html: string) => void }) {
+  const handleRegenerate = () => {
+    const text = editor?.getText() || ''
+    if (text.length > 50) {
+      onRescore(editor?.getHTML() || '')
+    }
+  }
+
   return (
     <div
       className="shrink-0 flex flex-col"
       style={{
-        width: 240,
+        width: 260,
         borderLeft: '0.5px solid #E8E7E2',
         background: '#fff',
       }}
     >
-      {/* Header */}
-      <div className="shrink-0" style={{ padding: '12px 14px', borderBottom: '0.5px solid #E8E7E2' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', color: '#6B6A65' }}>
-            Shipley score
+      {/* Header with Morgan's photo */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        padding: '12px 16px',
+        borderBottom: '0.5px solid #E8E7E2'
+      }}>
+        <img
+          src="/images/morgan-ellis.jpg"
+          alt="Morgan Ellis"
+          style={{
+            width: '36px',
+            height: '36px',
+            borderRadius: '50%',
+            objectFit: 'cover',
+            flexShrink: 0
+          }}
+        />
+        <div style={{ flex: 1 }}>
+          <div style={{
+            fontSize: '12px',
+            fontWeight: 700,
+            color: '#111110',
+            lineHeight: 1.2
+          }}>
+            Morgan Ellis
           </div>
-          <button
-            onClick={() => {
-              const text = editor?.getText() || ''
-              if (text.length > 50) {
-                onRescore(editor?.getHTML() || '')
-              }
-            }}
-            disabled={isCoaching}
-            title="Re-score"
+          <div style={{
+            fontSize: '11px',
+            color: '#5F5E5A',
+            lineHeight: 1.2
+          }}>
+            Red Team Lead
+          </div>
+        </div>
+        <div style={{
+          fontSize: '22px',
+          fontWeight: 800,
+          color: '#111110',
+          lineHeight: 1
+        }}>
+          {coaching?.overallScore ? coaching.overallScore.toFixed(1) : '--'}
+        </div>
+        <button
+          onClick={handleRegenerate}
+          disabled={isCoaching}
+          title="Re-score"
+          style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '4px',
+            border: '0.5px solid #E8E7E2',
+            background: '#fff',
+            cursor: isCoaching ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: isCoaching ? 0.5 : 1,
+            flexShrink: 0
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
             style={{
-              width: 24,
-              height: 24,
-              borderRadius: 4,
-              border: '0.5px solid #E8E7E2',
-              background: '#fff',
-              cursor: isCoaching ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: isCoaching ? 0.5 : 1,
-              marginLeft: 'auto',
-              flexShrink: 0,
+              animation: isCoaching ? 'spin 1s linear infinite' : 'none'
             }}
           >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 12 12"
-              fill="none"
-              style={{
-                animation: isCoaching ? 'spin 1s linear infinite' : 'none',
-              }}
-            >
-              <path
-                d="M10 6A4 4 0 1 1 6 2"
-                stroke="#5F5E5A"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-              <path
-                d="M6 2L8 4M6 2L4 4"
-                stroke="#5F5E5A"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-              />
-            </svg>
-          </button>
-        </div>
-        <div style={{ fontSize: 10, color: isCoaching ? '#BA7517' : '#9B9A95', marginTop: 2 }}>
-          {isCoaching ? 'Analyzing...' : 'Based on current draft'}
-        </div>
+            <path
+              d="M10 6A4 4 0 1 1 6 2"
+              stroke="#5F5E5A"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            <path
+              d="M6 2L8 4M6 2L4 4"
+              stroke="#5F5E5A"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+          </svg>
+        </button>
       </div>
+
+      {/* Overall assessment quote */}
+      {coaching?.overallAssessment && (
+        <div style={{
+          padding: '12px 16px',
+          borderBottom: '0.5px solid #E8E7E2',
+          fontSize: '12px',
+          color: '#111110',
+          lineHeight: 1.6,
+          fontStyle: 'italic'
+        }}>
+          &ldquo;{coaching.overallAssessment}&rdquo;
+        </div>
+      )}
 
       {/* Body */}
       <div className="flex-1 overflow-y-auto" style={{ padding: '12px 14px' }}>
         {!coaching && !isCoaching && !coachingError && (
           <div style={{ fontSize: 11, color: '#C4C3BE', lineHeight: 1.5 }}>
-            Start writing or use Draft with AI to see your Shipley score.
+            Start writing or use Draft with AI to get Morgan&apos;s feedback.
           </div>
         )}
 
         {coachingError && !isCoaching && (
           <div style={{ fontSize: 11, color: '#DC2626', lineHeight: 1.5, padding: '8px 10px', background: '#FEF2F2', borderRadius: 6 }}>
-            <strong>Coaching error:</strong> {coachingError}
+            <strong>Error:</strong> {coachingError}
             <button
               onClick={() => editor && onRescore(editor.getHTML())}
               style={{ display: 'block', marginTop: 6, fontSize: 10, color: '#2563EB', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
@@ -1034,6 +1076,7 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
 
         {isCoaching && !coaching && (
           <div className="flex flex-col gap-3">
+            <div style={{ fontSize: 11, color: '#BA7517', marginBottom: 4 }}>Morgan is reviewing...</div>
             {SCORE_DIMENSIONS.map(d => (
               <div key={d.key} className="flex items-center gap-2">
                 <span style={{ fontSize: 11, color: '#C4C3BE', flex: 1 }}>{d.label}</span>
@@ -1045,65 +1088,43 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
 
         {coaching && (
           <>
-            {/* Overall score */}
-            <div style={{ marginBottom: 12 }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-                <span style={{ fontSize: 28, fontWeight: 800, color: '#111110', letterSpacing: -1 }}>
-                  {coaching.overall.toFixed(1)}
-                </span>
-                <span style={{ fontSize: 10, color: '#9B9A95' }}>out of 5</span>
+            {/* Overall label */}
+            {coaching.overallLabel && (
+              <div style={{ fontSize: 11, fontWeight: 600, color: getScoreColor(coaching.overallScore), marginBottom: 12 }}>
+                {coaching.overallLabel}
               </div>
-              <div style={{ fontSize: 10, color: '#9B9A95', lineHeight: 1.4 }}>
-                {getCoachingLabel(coaching.overall)}
-              </div>
-            </div>
+            )}
 
             {/* Score bars */}
             {SCORE_DIMENSIONS.map(d => {
               const score = coaching.scores[d.key]
-              if (score === undefined) return null // Skip dimensions not in this coaching result
+              if (score === undefined) return null
               const color = getScoreColor(score)
+              const feedbackText = coaching.feedback[d.key]
               return (
-                <div key={d.key} className={`flex items-center gap-2 ${isCoaching ? 'animate-pulse' : ''}`} style={{ marginBottom: 10, opacity: isCoaching ? 0.5 : 1, transition: 'opacity 0.3s' }}>
-                  <span style={{ fontSize: 11, color: '#5F5E5A', flex: 1 }}>{d.label}</span>
-                  <div style={{ width: 60, height: 4, background: '#F0EDE6', borderRadius: 2 }}>
-                    <div style={{ width: `${(score / 5) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
+                <div key={d.key} style={{ marginBottom: 14 }}>
+                  <div className={`flex items-center gap-2 ${isCoaching ? 'animate-pulse' : ''}`} style={{ marginBottom: 4, opacity: isCoaching ? 0.5 : 1, transition: 'opacity 0.3s' }}>
+                    <span style={{ fontSize: 11, color: '#5F5E5A', flex: 1 }}>{d.label}</span>
+                    <div style={{ width: 50, height: 4, background: '#F0EDE6', borderRadius: 2 }}>
+                      <div style={{ width: `${(score / 5) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
+                    </div>
+                    <span style={{ fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'right', color }}>
+                      {score.toFixed(1)}
+                    </span>
                   </div>
-                  <span style={{ fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'right', color }}>
-                    {score.toFixed(1)}
-                  </span>
+                  {feedbackText && (
+                    <div style={{ fontSize: 11, color: '#6B6A65', lineHeight: 1.5, paddingLeft: 0 }}>
+                      {feedbackText}
+                    </div>
+                  )}
                 </div>
               )
             })}
 
-            {/* Divider */}
-            <div style={{ height: 0.5, background: '#F4F3EF', margin: '10px 0' }} />
-
             {/* Loading overlay on re-coaching */}
             {isCoaching && (
-              <div style={{ fontSize: 10, color: '#9B9A95', marginBottom: 8 }}>Updating scores...</div>
+              <div style={{ fontSize: 10, color: '#9B9A95', marginTop: 8 }}>Updating scores...</div>
             )}
-
-            {/* Feedback cards */}
-            {coaching.feedback.map((fb, i) => (
-              <div
-                key={i}
-                style={{
-                  fontSize: 11,
-                  color: '#5F5E5A',
-                  lineHeight: 1.5,
-                  padding: '8px 10px',
-                  background: '#FAFAF9',
-                  border: '0.5px solid #E8E7E2',
-                  borderLeft: `2px solid ${FEEDBACK_BORDER[fb.type] || '#E8E7E2'}`,
-                  borderRadius: 5,
-                  marginBottom: 8,
-                }}
-              >
-                <div style={{ fontWeight: 600, color: '#111110', marginBottom: 2 }}>{fb.title}</div>
-                {fb.text}
-              </div>
-            ))}
           </>
         )}
       </div>
