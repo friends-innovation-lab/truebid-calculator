@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useAppContext, type OutlineSection, type OutlineSectionStatus } from '@/contexts/app-context'
 import { useParams } from 'next/navigation'
-import { ArrowLeft, Sparkles, Bold, Italic, Heading1, Heading2, List, Pilcrow } from 'lucide-react'
+import { ArrowLeft, Sparkles, Bold, Italic, Heading1, Heading2, List, Pilcrow, Copy, Check } from 'lucide-react'
 import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
@@ -80,6 +80,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
   const [lastSaved, setLastSaved] = useState(existing?.lastSaved || '')
   const [isStreaming, setIsStreaming] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isCopied, setIsCopied] = useState(false)
   const [wordCount, setWordCount] = useState(existing?.wordCount || 0)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
@@ -284,6 +285,20 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
     const interval = setInterval(update, 30000)
     return () => clearInterval(interval)
   }, [lastSaved])
+
+  // Copy content to clipboard
+  const handleCopy = useCallback(async () => {
+    if (!editor) return
+    const text = editor.getText()
+    if (!text.trim()) return
+    try {
+      await navigator.clipboard.writeText(text)
+      setIsCopied(true)
+      setTimeout(() => setIsCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }, [editor])
 
   // Coaching API call
   const runCoaching = useCallback(async (text: string) => {
@@ -532,6 +547,25 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
             {/* Right side */}
             <div className="flex items-center gap-2 ml-auto">
               <span style={{ fontSize: 10, color: '#C4C3BE' }}>{wordCount} words</span>
+              <button
+                onClick={handleCopy}
+                title={isCopied ? 'Copied!' : 'Copy content'}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: 28,
+                  height: 28,
+                  background: isCopied ? '#E8F5E9' : 'transparent',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: 'pointer',
+                  color: isCopied ? '#2E7D32' : '#9B9A95',
+                  transition: 'all 0.2s',
+                }}
+              >
+                {isCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
               <button
                 onClick={handleDraftWithAI}
                 disabled={isStreaming}
