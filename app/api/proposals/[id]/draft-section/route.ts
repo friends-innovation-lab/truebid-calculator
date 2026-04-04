@@ -3,40 +3,20 @@ import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { getWritingGuidePrompt, getWritingGuideForCoaching } from '@/lib/writing-guide'
 
-// Helper function for section-type-specific instructions
-function getSectionTypeInstructions(sectionTitle: string): string {
-  const title = sectionTitle.toLowerCase()
-
-  if (title.includes('technical')) {
-    return `Technical sections follow this cycle per paragraph: state the specific technical challenge this agency faces, explain why it is hard or what makes it fail, describe the Friends technical approach, cite a specific documented outcome, state what that means for this contract. Never lead with capabilities. Always lead with the agency's problem.`
-  }
-
-  if (title.includes('management') || title.includes('staffing')) {
-    return `Management sections follow this cycle: state the management or staffing challenge this contract presents, describe the Friends team structure or management approach, explain how it prevents that specific failure mode, cite past performance where this structure delivered results.`
-  }
-
-  if (title.includes('past performance') || title.includes('relevant experience')) {
-    return `Past performance sections follow this cycle: open with the relevance to this contract specifically, state the agency and contract, describe the challenge faced, describe what Friends did, state the measurable outcome, close with the direct connection to this procurement.`
-  }
-
-  if (title.includes('understand')) {
-    return `Understanding sections follow this cycle: state what the agency is trying to accomplish and why it is difficult, demonstrate that Friends understands the operational reality behind the requirement, connect that understanding to documented experience, show what that means for delivery.`
-  }
-
-  return `Each paragraph follows this cycle: state the problem or need this paragraph addresses for this agency, describe the Friends approach, cite specific documented evidence, connect to this agency's specific situation. Never lead with capabilities. Always lead with the agency's need.`
-}
-
 // Types for Pass 1 outline
+type ParagraphRole = 'opener' | 'subsection_opener' | 'development' | 'evidence' | 'transition'
+
 interface ParagraphOutline {
+  role: ParagraphRole
   subsection: string | null
-  problem: string
+  instruction: string
   approach: string
   evidence: string | null
-  agencyConnection: string
+  transitionTo: string | null
 }
 
 interface Pass1Outline {
-  sectionSummary: string
+  sectionArgument: string
   paragraphs: ParagraphOutline[]
 }
 
@@ -394,15 +374,59 @@ Write the complete section now. Do not include the section title as a heading. S
 
 Your job is to decide what each paragraph needs to argue before a writer writes it. You are not writing prose. You are creating a paragraph-by-paragraph outline that a writer will follow.
 
-Every paragraph in a government proposal must complete this cycle:
-1. Problem: what challenge or need does this paragraph address for this specific agency?
-2. Approach: what does Friends do about it?
-3. Evidence: which specific, documented past performance project and outcome supports this claim?
-4. Agency connection: why does this matter specifically to this agency and this contract?
+Shipley structure is a SECTION-level requirement, not a paragraph-level one. The section opener establishes the government's problem and the FFTC argument. Every subsequent paragraph advances that argument. Subsections develop specific aspects of it. They do not each restart from a problem statement.
 
-Anti-hallucination rule: Evidence must come only from the past performance list provided. If no relevant past performance exists for a paragraph, mark evidence as null and the approach paragraph will rely on methodology only.
+PARAGRAPH ROLES:
+
+opener — Use ONCE, for the very first paragraph of the entire section before any H2 headings. This paragraph must:
+- Open with the government's specific problem or operational reality
+- State what is at stake if the problem is not solved
+- Introduce Friends and what makes them uniquely positioned to solve it
+- Set up the argument the entire section will make
+Never use this role more than once.
+
+subsection_opener — First paragraph under each H2 heading. This paragraph must:
+- Connect to the section's overall argument established in the opener
+- Introduce the specific angle this subsection develops
+- NOT restate the overall problem already established
+- Feel like a continuation of the argument, not a new argument
+Example opening: "That operational context shapes how Friends approaches [subsection topic]." or "Within that framework, [subsection topic] works as follows."
+
+development — Middle paragraphs that advance the argument. This paragraph must:
+- Develop one specific aspect of the approach with enough depth to be credible
+- Connect to what came before in the same subsection
+- Never restate the problem
+- Open with the approach, methodology, or decision — not with a problem
+
+evidence — A paragraph that cites specific documented past performance. This paragraph must:
+- Name the agency and contract
+- State the specific challenge faced
+- Describe what Friends did
+- State the measurable outcome
+- Connect back to why this matters for the current contract
+Never invent evidence. If no relevant past performance exists, use a development role instead.
+
+transition — Last paragraph before a new H2 heading. This paragraph must:
+- Close the argument of the current subsection with a concluding sentence
+- Hand off naturally to the next subsection without restating the problem
+- Last sentence should set up the next subsection topic
+Example: "That delivery structure works because quality is tracked with the same rigor as timeline — which the next section addresses directly."
+
+ROLE DISTRIBUTION RULES:
+- Exactly ONE opener for the whole section
+- ONE subsection_opener per H2
+- At least TWO development paragraphs per subsection
+- At least ONE evidence paragraph per subsection where past performance exists
+- ONE transition paragraph at the end of each subsection EXCEPT the last
+
+Anti-hallucination rule: Evidence must come only from the past performance list provided. If no relevant past performance exists for a paragraph, mark evidence as null and use a development role instead.
 
 Return ONLY valid JSON. No prose. No explanation. No markdown. Just the JSON object.`
+
+    const totalParagraphs = Math.ceil(targetWordCount / 135)
+    const developmentPerSubsection = subsections.length > 0
+      ? Math.max(2, Math.floor((totalParagraphs - 1 - subsections.length * 2) / subsections.length))
+      : Math.max(2, totalParagraphs - 1)
 
     const pass1UserPrompt = `Plan the paragraph structure for the "${sectionTitle}" section.
 
@@ -425,24 +449,34 @@ ${relevantPP.slice(0, 5).map(pp => `PROJECT: ${pp.title}
 AGENCY: ${pp.agency}
 OUTCOMES: ${pp.outcomes?.slice(0, 2).join('; ')}`).join('\n---\n') || 'None available'}
 
-SECTION TYPE INSTRUCTIONS:
-${getSectionTypeInstructions(sectionTitle)}
-
 Return this JSON structure:
 {
-  "sectionSummary": "One sentence stating the core argument of this entire section",
+  "sectionArgument": "One sentence stating the single argument this entire section makes to the evaluator",
   "paragraphs": [
     {
-      "subsection": "subsection title or null if no subsections",
-      "problem": "The specific problem or need this paragraph addresses for this agency",
-      "approach": "What Friends does about it — method, process, or practice",
-      "evidence": "Specific project name and outcome from past performance list, or null",
-      "agencyConnection": "Why this matters specifically to this agency right now"
+      "role": "opener | subsection_opener | development | evidence | transition",
+      "subsection": "H2 heading title this paragraph belongs under, or null",
+      "instruction": "Specific instruction for what this paragraph must do based on its role",
+      "approach": "What Friends does or has done",
+      "evidence": "Specific past performance project and outcome, or null if not applicable",
+      "transitionTo": "For transition role only — what the next subsection is about"
     }
   ]
 }
 
-Create enough paragraph entries to fill ${targetWordCount} words when written. Each paragraph is approximately 120-150 words. So create approximately ${Math.ceil(targetWordCount / 135)} paragraph entries.`
+ROLE DISTRIBUTION FOR THIS SECTION:
+This section has ${subsections.length} subsections and needs approximately ${totalParagraphs} paragraphs total.
+
+Distribute roles as follows:
+- 1 opener (before any H2)
+${subsections.length > 0 ? `- For each subsection:
+  - 1 subsection_opener
+  - ${developmentPerSubsection} development paragraphs
+  - 1 evidence paragraph (if past performance exists for this topic)
+  - 1 transition paragraph (except for the last subsection)` : `- ${developmentPerSubsection} development paragraphs
+- 1 evidence paragraph (if past performance exists)`}
+
+The section should read as ONE connected argument, not ${subsections.length || 1} separate arguments. Subsections develop the case. They do not restart it.`
 
     try {
       const pass1Response = await anthropic.messages.create({
@@ -463,7 +497,8 @@ Create enough paragraph entries to fill ${targetWordCount} words when written. E
         pass1Outline = JSON.parse(jsonMatch[0]) as Pass1Outline
         console.log('[draft-section] Pass 1 outline generated:', JSON.stringify({
           paragraphCount: pass1Outline.paragraphs.length,
-          sectionSummary: pass1Outline.sectionSummary?.slice(0, 100),
+          sectionArgument: pass1Outline.sectionArgument?.slice(0, 100),
+          roles: pass1Outline.paragraphs.map(p => p.role).join(', '),
           targetWordCount
         }))
       }
@@ -483,18 +518,24 @@ Create enough paragraph entries to fill ${targetWordCount} words when written. E
 
       pass2UserPrompt = `Write the "${sectionTitle}" section using this outline.
 
-CORE ARGUMENT OF THIS SECTION:
-${pass1Outline.sectionSummary}
+SECTION ARGUMENT:
+${pass1Outline.sectionArgument}
 
-WRITE EACH PARAGRAPH FROM ITS OUTLINE ENTRY:
+WRITE EACH PARAGRAPH FROM ITS ROLE:
 ${pass1Outline.paragraphs.map((p, i) => `PARAGRAPH ${i + 1}
-${p.subsection ? `[Under H2: ${p.subsection}]` : ''}
-Problem to address: ${p.problem}
-Approach to describe: ${p.approach}
-Evidence to cite: ${p.evidence || 'Methodology only — no past performance citation'}
-Why it matters to this agency: ${p.agencyConnection}
+${p.subsection ? `[Under H2: ${p.subsection}]` : '[Before first H2]'}
+Role: ${(p.role || 'development').toUpperCase()}
 
-Write 120-150 words for this paragraph. Start with the problem statement. Never start with "Friends From The City" as the first words.`).join('\n\n')}
+${p.role === 'opener' ? `Open with the government's specific operational problem or reality. State what is at stake. Introduce Friends. Establish the argument this section makes. Do not start with "Friends From The City." Start with the problem.` : ''}
+${p.role === 'subsection_opener' ? `Connect to the section's overall argument. Introduce this subsection's specific angle. Do NOT restate the problem already established in the opening. Feel like a continuation. Open with "That..." or "Within that context..." or a similar phrase that connects backward before moving forward.` : ''}
+${p.role === 'development' ? `Develop one specific aspect of the approach. Go into depth. Be specific about methodology, decisions, and what they prevent or enable. Do not restate any problem. Open with the approach or decision, not a challenge.` : ''}
+${p.role === 'evidence' ? `Cite documented past performance. Name the agency and contract. State the challenge. Describe what Friends did. State the measurable outcome. Connect to why this matters for the current contract. Do not invent numbers or outcomes.
+Evidence to use: ${p.evidence || 'No past performance available — use development approach instead'}` : ''}
+${p.role === 'transition' ? `Close this subsection's argument. Last sentence hands off to the next subsection: ${p.transitionTo || 'next topic'}. Do not restate any problem. End with forward momentum.` : ''}
+
+What to cover: ${p.instruction}
+Approach: ${p.approach}
+Write 120-150 words.`).join('\n\n')}
 
 FORMATTING:
 Use H2 headings for each subsection. Write prose paragraphs under each heading. Never use em dashes. Never use: ${wordsToAvoid}
