@@ -12,23 +12,16 @@ import { sectionsApi } from '@/lib/api'
 // ==================== TYPES ====================
 
 interface CoachingResult {
-  overallScore: number
-  overallLabel: string
-  overallAssessment: string
+  overall: number
   scores: {
     customerFocus: number
     winThemes: number
     discriminators: number
     proofPoints: number
     compliance: number
+    writingStyle?: number
   }
-  feedback: {
-    customerFocus: string
-    winThemes: string
-    discriminators: string
-    proofPoints: string
-    compliance: string
-  }
+  feedback: { type: 'issue' | 'suggestion' | 'positive'; title: string; text: string }[]
 }
 
 // ==================== MAIN COMPONENT ====================
@@ -928,7 +921,15 @@ const SCORE_DIMENSIONS: { key: keyof CoachingResult['scores']; label: string }[]
   { key: 'discriminators', label: 'Discriminators' },
   { key: 'proofPoints', label: 'Proof points' },
   { key: 'compliance', label: 'Compliance' },
+  { key: 'writingStyle', label: 'Writing style' },
 ]
+
+function getCoachingLabel(overall: number): string {
+  if (overall >= 4.0) return 'Strong section'
+  if (overall >= 3.5) return 'Good foundation'
+  if (overall >= 2.5) return 'Getting there'
+  return 'Needs work'
+}
 
 function getScoreColor(score: number): string {
   if (score >= 4.0) return '#639922'
@@ -1003,7 +1004,7 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
           color: '#111110',
           lineHeight: 1
         }}>
-          {coaching?.overallScore ? coaching.overallScore.toFixed(1) : '--'}
+          {coaching?.overall ? coaching.overall.toFixed(1) : '--'}
         </div>
         <button
           onClick={handleRegenerate}
@@ -1048,20 +1049,6 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
         </button>
       </div>
 
-      {/* Overall assessment quote */}
-      {coaching?.overallAssessment && (
-        <div style={{
-          padding: '12px 16px',
-          borderBottom: '0.5px solid #E8E7E2',
-          fontSize: '12px',
-          color: '#111110',
-          lineHeight: 1.6,
-          fontStyle: 'italic'
-        }}>
-          &ldquo;{coaching.overallAssessment}&rdquo;
-        </div>
-      )}
-
       {/* Body */}
       <div className="flex-1 overflow-y-auto" style={{ padding: '12px 14px' }}>
         {!coaching && !isCoaching && !coachingError && (
@@ -1097,42 +1084,56 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
         {coaching && (
           <>
             {/* Overall label */}
-            {coaching.overallLabel && (
-              <div style={{ fontSize: 11, fontWeight: 600, color: getScoreColor(coaching.overallScore), marginBottom: 12 }}>
-                {coaching.overallLabel}
-              </div>
-            )}
+            <div style={{ fontSize: 11, fontWeight: 600, color: getScoreColor(coaching.overall), marginBottom: 12 }}>
+              {getCoachingLabel(coaching.overall)}
+            </div>
 
             {/* Score bars */}
             {SCORE_DIMENSIONS.map(d => {
               const score = coaching.scores[d.key]
               if (score === undefined) return null
               const color = getScoreColor(score)
-              const feedbackText = coaching.feedback[d.key]
               return (
-                <div key={d.key} style={{ marginBottom: 14 }}>
-                  <div className={`flex items-center gap-2 ${isCoaching ? 'animate-pulse' : ''}`} style={{ marginBottom: 4, opacity: isCoaching ? 0.5 : 1, transition: 'opacity 0.3s' }}>
-                    <span style={{ fontSize: 11, color: '#5F5E5A', flex: 1 }}>{d.label}</span>
-                    <div style={{ width: 50, height: 4, background: '#F0EDE6', borderRadius: 2 }}>
-                      <div style={{ width: `${(score / 5) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
-                    </div>
-                    <span style={{ fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'right', color }}>
-                      {score.toFixed(1)}
-                    </span>
+                <div key={d.key} className={`flex items-center gap-2 ${isCoaching ? 'animate-pulse' : ''}`} style={{ marginBottom: 10, opacity: isCoaching ? 0.5 : 1, transition: 'opacity 0.3s' }}>
+                  <span style={{ fontSize: 11, color: '#5F5E5A', flex: 1 }}>{d.label}</span>
+                  <div style={{ width: 50, height: 4, background: '#F0EDE6', borderRadius: 2 }}>
+                    <div style={{ width: `${(score / 5) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
                   </div>
-                  {feedbackText && (
-                    <div style={{ fontSize: 11, color: '#6B6A65', lineHeight: 1.5, paddingLeft: 0 }}>
-                      {feedbackText}
-                    </div>
-                  )}
+                  <span style={{ fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'right', color }}>
+                    {score.toFixed(1)}
+                  </span>
                 </div>
               )
             })}
 
+            {/* Divider */}
+            <div style={{ height: 0.5, background: '#F4F3EF', margin: '10px 0' }} />
+
             {/* Loading overlay on re-coaching */}
             {isCoaching && (
-              <div style={{ fontSize: 10, color: '#9B9A95', marginTop: 8 }}>Updating scores...</div>
+              <div style={{ fontSize: 10, color: '#9B9A95', marginBottom: 8 }}>Updating scores...</div>
             )}
+
+            {/* Feedback cards */}
+            {coaching.feedback.map((fb, i) => (
+              <div
+                key={i}
+                style={{
+                  fontSize: 11,
+                  color: '#5F5E5A',
+                  lineHeight: 1.5,
+                  padding: '8px 10px',
+                  background: '#FAFAF9',
+                  border: '0.5px solid #E8E7E2',
+                  borderLeft: `2px solid ${fb.type === 'issue' ? '#A32D2D' : fb.type === 'positive' ? '#639922' : '#BA7517'}`,
+                  borderRadius: 5,
+                  marginBottom: 8,
+                }}
+              >
+                <div style={{ fontWeight: 600, color: '#111110', marginBottom: 2 }}>{fb.title}</div>
+                {fb.text}
+              </div>
+            ))}
           </>
         )}
       </div>
