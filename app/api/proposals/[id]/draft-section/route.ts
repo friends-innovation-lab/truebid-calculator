@@ -526,20 +526,20 @@ SECTION ARGUMENT:
 ${pass1Outline.sectionArgument}
 
 SUBSECTION HEADINGS:
-Every subsection must have an H2 heading that includes the section number exactly as it appears in the outline. The heading format is:
+Every subsection must have an H2 heading using HTML tags. Include the section number exactly as it appears in the outline. The heading format is:
 
-## [number] [title]
+<h2>[number] [title]</h2>
 
 For example:
-## 1.1 Understanding of Requirements
-## 1.2 CAMP MVP Enhancement Strategy
-## 2.1 Project Management Framework
+<h2>1.1 Understanding of Requirements</h2>
+<h2>1.2 CAMP MVP Enhancement Strategy</h2>
+<h2>2.1 Project Management Framework</h2>
 
-The number comes from the subsection data passed in the outline. Use it exactly. Do not omit it. Do not renumber. Do not use bold text instead of a heading.
+The number comes from the subsection data passed in the outline. Use it exactly. Do not omit it. Do not renumber. Do not use markdown ## syntax. Use HTML <h2> tags.
 
 WRITE EACH PARAGRAPH FROM ITS ROLE:
 ${pass1Outline.paragraphs.map((p, i) => `PARAGRAPH ${i + 1}
-${p.subsection ? `[Under H2 heading: ## ${p.subsectionNumber ? `${p.subsectionNumber} ` : ''}${p.subsection}]` : '[Before first H2 — no heading]'}
+${p.subsection ? `[Under H2 heading: <h2>${p.subsectionNumber ? `${p.subsectionNumber} ` : ''}${p.subsection}</h2>]` : '[Before first H2 — no heading]'}
 Role: ${(p.role || 'development').toUpperCase()}
 
 ${p.role === 'opener' ? `Open with the government's specific operational problem or reality. State what is at stake. Introduce Friends. Establish the argument this section makes. Do not start with "Friends From The City." Start with the problem.` : ''}
