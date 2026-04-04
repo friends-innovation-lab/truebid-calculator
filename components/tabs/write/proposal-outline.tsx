@@ -17,12 +17,23 @@ const STATUS_COLORS: Record<OutlineSectionStatus, string> = {
   not_started: '#C4C3BE',
 }
 
+// Get completion color based on word count percentage
+function getCompletionColor(wordCount: number, targetWordCount: number | null): string {
+  if (!targetWordCount || targetWordCount === 0) return '#C4C3BE' // gray - no target
+  const pct = (wordCount / targetWordCount) * 100
+  if (pct >= 100) return '#639922' // green - complete
+  if (pct >= 50) return '#F5C200' // yellow - in progress
+  if (pct > 0) return '#BA7517' // orange - started
+  return '#C4C3BE' // gray - not started
+}
+
 // ==================== MAIN COMPONENT ====================
 
 export function ProposalOutlinePage() {
   const params = useParams()
   const proposalId = params?.id as string
-  const { outline, setOutline } = useAppContext()
+  const { outline, setOutline, sectionContent, proposalSetup } = useAppContext()
+  const wordsPerPage = proposalSetup?.wordsPerPage || 500
   const [expandedVolumes, setExpandedVolumes] = useState<Set<string>>(new Set(outline?.volumes.map(v => v.id) || []))
   const [isGenerating, setIsGenerating] = useState(false)
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
@@ -302,6 +313,8 @@ export function ProposalOutlinePage() {
               proposalId={proposalId}
               outline={outline!}
               setOutline={setOutline}
+              sectionContent={sectionContent}
+              wordsPerPage={wordsPerPage}
             />
           ))}
         </div>
@@ -322,10 +335,27 @@ export function ProposalOutlinePage() {
 
 // ==================== VOLUME BLOCK ====================
 
-function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutline }: { volume: OutlineVolume; expanded: boolean; onToggle: () => void; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void }) {
+interface SectionContentMap {
+  [sectionId: string]: {
+    wordCount?: number
+    content?: string
+  }
+}
+
+function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutline, sectionContent, wordsPerPage }: { volume: OutlineVolume; expanded: boolean; onToggle: () => void; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void; sectionContent: SectionContentMap; wordsPerPage: number }) {
   const totalSections = volume.sections.length
-  const draftedSections = volume.sections.filter(s => s.status === 'draft' || s.status === 'review').length
-  const progressPct = totalSections > 0 ? Math.round((draftedSections / totalSections) * 100) : 0
+
+  // Calculate progress based on word count completion
+  let completedSections = 0
+  volume.sections.forEach(s => {
+    const content = sectionContent[s.id]
+    const wordCount = content?.wordCount || 0
+    const targetWordCount = s.pageTarget ? s.pageTarget * wordsPerPage : 0
+    if (targetWordCount > 0 && wordCount >= targetWordCount) {
+      completedSections++
+    }
+  })
+  const progressPct = totalSections > 0 ? Math.round((completedSections / totalSections) * 100) : 0
 
   return (
     <div style={{ borderBottom: '0.5px solid #E8E7E2' }}>
@@ -384,7 +414,7 @@ function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutli
       {/* Sections */}
       {expanded && volume.sections.map(section => (
         <div key={section.id}>
-          <SectionRow section={section} proposalId={proposalId} outline={outline!} setOutline={setOutline} />
+          <SectionRow section={section} proposalId={proposalId} outline={outline!} setOutline={setOutline} sectionContent={sectionContent} wordsPerPage={wordsPerPage} />
           {section.subsections.map(sub => (
             <SubsectionRow key={sub.id} subsection={sub} parentSection={section} proposalId={proposalId} />
           ))}
@@ -396,11 +426,22 @@ function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutli
 
 // ==================== SECTION ROW ====================
 
-function SectionRow({ section, proposalId, outline, setOutline }: { section: OutlineSection; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void }) {
+function SectionRow({ section, proposalId, outline, setOutline, sectionContent, wordsPerPage }: { section: OutlineSection; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void; sectionContent: SectionContentMap; wordsPerPage: number }) {
   const router = useRouter()
   const allRefs = [...section.complianceRefs, ...section.requirementRefs]
   const visibleRefs = allRefs.slice(0, 4)
   const moreCount = allRefs.length - visibleRefs.length
+
+  // Get word count from section content
+  const content = sectionContent[section.id]
+  const wordCount = content?.wordCount || 0
+  const targetWordCount = section.pageTarget ? section.pageTarget * wordsPerPage : 0
+  const completionPct = targetWordCount > 0 ? Math.round((wordCount / targetWordCount) * 100) : 0
+
+  // Use completion-based color if there's a target, otherwise use status color
+  const dotColor = targetWordCount > 0
+    ? getCompletionColor(wordCount, targetWordCount)
+    : STATUS_COLORS[section.status]
 
   return (
     <div
@@ -413,12 +454,12 @@ function SectionRow({ section, proposalId, outline, setOutline }: { section: Out
       onMouseEnter={(e) => { e.currentTarget.style.background = '#FAFAF8' }}
       onMouseLeave={(e) => { e.currentTarget.style.background = '' }}
     >
-      {/* Status dot */}
+      {/* Completion dot */}
       <div style={{
         width: 8,
         height: 8,
         borderRadius: '50%',
-        background: STATUS_COLORS[section.status],
+        background: dotColor,
         flexShrink: 0,
         marginTop: 4,
       }} />
@@ -476,7 +517,21 @@ function SectionRow({ section, proposalId, outline, setOutline }: { section: Out
       {/* Right meta */}
       <div className="flex flex-col items-end gap-1" style={{ flexShrink: 0 }}>
         {section.pageTarget && (
-          <span style={{ fontSize: 10, color: '#6B6A65' }}>{section.pageTarget} pages</span>
+          <div className="flex items-center gap-2">
+            {/* Progress bar */}
+            <div style={{ width: 48, height: 4, background: '#F0EDE6', borderRadius: 2 }}>
+              <div style={{
+                width: `${Math.min(completionPct, 100)}%`,
+                height: '100%',
+                background: dotColor,
+                borderRadius: 2,
+                transition: 'width 0.3s',
+              }} />
+            </div>
+            <span style={{ fontSize: 10, color: dotColor, fontWeight: 600, minWidth: 32, textAlign: 'right' }}>
+              {completionPct}%
+            </span>
+          </div>
         )}
         {section.assignee && (
           <div style={{
