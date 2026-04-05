@@ -50,6 +50,11 @@ function computeSubsectionStatuses(
   const headings = Array.from(doc.querySelectorAll('h2'))
 
   return subsections.map(sub => {
+    // If user manually set the status, don't auto-compute
+    if (sub.statusOverride) {
+      return sub
+    }
+
     let wordCount = 0
 
     // Find the H2 that matches this subsection title

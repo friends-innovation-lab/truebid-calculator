@@ -1010,6 +1010,7 @@ export interface OutlineSubsection {
   title: string
   pageTarget: number | null
   status: OutlineSectionStatus
+  statusOverride?: boolean // true if user manually set the status
 }
 
 export interface OutlineSection {

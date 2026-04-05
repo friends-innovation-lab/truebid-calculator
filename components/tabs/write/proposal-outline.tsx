@@ -743,14 +743,14 @@ function SubsectionRow({ subsection, parentSection, proposalId, outline, setOutl
     const currentIndex = statusOrder.indexOf(subsection.status)
     const nextStatus = statusOrder[(currentIndex + 1) % statusOrder.length]
 
-    // Update subsection status
+    // Update subsection status with override flag
     const updated: ProposalOutline = {
       volumes: outline.volumes.map(v => ({
         ...v,
         sections: v.sections.map(s => {
           if (s.id !== parentSection.id) return s
           const updatedSubs = s.subsections.map(sub =>
-            sub.id === subsection.id ? { ...sub, status: nextStatus } : sub
+            sub.id === subsection.id ? { ...sub, status: nextStatus, statusOverride: true } : sub
           )
           // Derive parent status from children
           const parentStatus = updatedSubs.every(sub => sub.status === 'draft')
