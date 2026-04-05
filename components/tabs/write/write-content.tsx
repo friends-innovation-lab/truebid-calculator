@@ -156,6 +156,10 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
   const isCoachingRef = useRef(false)
   const coachTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const skipNextLoadRef = useRef(false) // Prevent load from overwriting fresh coaching
+  const captureBaselineRef = useRef(false) // Flag to capture baseline after next coaching completes
+
+  // Baseline scores for delta tracking (set when AI draft completes)
+  const [baselineScores, setBaselineScores] = useState<CoachingResult['scores'] | null>(null)
 
   // Load existing coaching from DB on mount
   useEffect(() => {
@@ -502,6 +506,12 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
         const { coaching: result } = await res.json()
         skipNextLoadRef.current = true // Prevent load effect from overwriting
         setCoaching(result)
+
+        // Capture baseline scores after AI draft completes
+        if (captureBaselineRef.current && result?.scores) {
+          setBaselineScores({ ...result.scores })
+          captureBaselineRef.current = false
+        }
       } else {
         const errorData = await res.json().catch(() => ({}))
         const errorMsg = errorData.error || `Coaching failed (${res.status})`
@@ -527,6 +537,10 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
   const handleDraftWithAI = useCallback(async () => {
     if (!editor || isStreaming) return
     setIsStreaming(true)
+
+    // Reset baseline when starting a new draft
+    setBaselineScores(null)
+    captureBaselineRef.current = true
 
     try {
       const response = await fetch(`/api/proposals/${proposalId}/draft-section`, {
@@ -777,7 +791,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
         </div>
 
         {/* RIGHT COACHING PANEL */}
-        <CoachingPanel coaching={coaching} isCoaching={isCoaching} coachingError={coachingError} editor={editor} onRescore={runCoaching} />
+        <CoachingPanel coaching={coaching} isCoaching={isCoaching} coachingError={coachingError} editor={editor} onRescore={runCoaching} baselineScores={baselineScores} />
       </div>
     </div>
   )
@@ -1063,7 +1077,21 @@ function getScoreColor(score: number): string {
   return '#A32D2D'
 }
 
-function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore }: { coaching: CoachingResult | null; isCoaching: boolean; coachingError: string | null; editor: Editor | null; onRescore: (html: string) => void }) {
+// Delta scoring helpers
+function getDelta(current: number | undefined, baseline: number | undefined): number | null {
+  if (current === undefined || baseline === undefined) return null
+  return Math.round((current - baseline) * 10) / 10 // Round to 1 decimal
+}
+
+function getDeltaDisplay(delta: number | null): { arrow: string; color: string; text: string } | null {
+  if (delta === null || delta === 0) return null
+  if (delta > 0) {
+    return { arrow: '↑', color: '#639922', text: `+${delta.toFixed(1)}` }
+  }
+  return { arrow: '↓', color: '#A32D2D', text: delta.toFixed(1) }
+}
+
+function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore, baselineScores }: { coaching: CoachingResult | null; isCoaching: boolean; coachingError: string | null; editor: Editor | null; onRescore: (html: string) => void; baselineScores: CoachingResult['scores'] | null }) {
   const handleRegenerate = () => {
     const text = editor?.getText() || ''
     if (text.length > 50) {
@@ -1124,13 +1152,30 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
             Shipley methodology
           </div>
         </div>
-        <div style={{
-          fontSize: '22px',
-          fontWeight: 800,
-          color: '#111110',
-          lineHeight: 1
-        }}>
-          {coaching?.overall ? coaching.overall.toFixed(1) : '--'}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{
+            fontSize: '22px',
+            fontWeight: 800,
+            color: '#111110',
+            lineHeight: 1
+          }}>
+            {coaching?.overall ? coaching.overall.toFixed(1) : '--'}
+          </div>
+          {(() => {
+            // Calculate overall baseline from individual baselines
+            if (!baselineScores || !coaching?.overall) return null
+            const baselineValues = Object.values(baselineScores).filter((v): v is number => v !== undefined)
+            if (baselineValues.length === 0) return null
+            const baselineOverall = baselineValues.reduce((a, b) => a + b, 0) / baselineValues.length
+            const overallDelta = getDelta(coaching.overall, baselineOverall)
+            const deltaDisplay = getDeltaDisplay(overallDelta)
+            if (!deltaDisplay) return null
+            return (
+              <span style={{ fontSize: 12, fontWeight: 600, color: deltaDisplay.color }}>
+                {deltaDisplay.arrow}
+              </span>
+            )
+          })()}
         </div>
         <button
           onClick={handleRegenerate}
@@ -1214,11 +1259,20 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
               {getCoachingLabel(coaching.overall)}
             </div>
 
+            {/* Tracking indicator */}
+            {baselineScores && (
+              <div style={{ fontSize: 10, color: '#9B9A95', marginBottom: 10, fontStyle: 'italic' }}>
+                Tracking changes since last draft
+              </div>
+            )}
+
             {/* Score bars */}
             {SCORE_DIMENSIONS.map(d => {
               const score = coaching.scores[d.key]
               if (score === undefined) return null
               const color = getScoreColor(score)
+              const delta = getDelta(score, baselineScores?.[d.key])
+              const deltaDisplay = getDeltaDisplay(delta)
               return (
                 <div key={d.key} className={`flex items-center gap-2 ${isCoaching ? 'animate-pulse' : ''}`} style={{ marginBottom: 10, opacity: isCoaching ? 0.5 : 1, transition: 'opacity 0.3s' }}>
                   <span style={{ fontSize: 11, color: '#5F5E5A', flex: 1 }}>{d.label}</span>
@@ -1228,6 +1282,11 @@ function CoachingPanel({ coaching, isCoaching, coachingError, editor, onRescore 
                   <span style={{ fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'right', color }}>
                     {score.toFixed(1)}
                   </span>
+                  {deltaDisplay && (
+                    <span style={{ fontSize: 10, color: deltaDisplay.color, fontWeight: 600, minWidth: 32 }}>
+                      {deltaDisplay.arrow} {deltaDisplay.text}
+                    </span>
+                  )}
                 </div>
               )
             })}
