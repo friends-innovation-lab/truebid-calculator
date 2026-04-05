@@ -3,12 +3,15 @@
 import { useState, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import { FileText, Table, FileCheck, Download, Loader2 } from 'lucide-react'
 import { generateBOEDocument, downloadBOE } from '@/lib/boe-export'
 
 // ==================== TYPES ====================
 
-interface ExportCard {
+interface ExportCardData {
   id: string
   title: string
   description: string
@@ -16,17 +19,6 @@ interface ExportCard {
   format: string
   storageKey: string
   onExport: () => Promise<void>
-}
-
-// ==================== COLORS ====================
-
-const COLORS = {
-  canvas: '#FBF9F5',
-  surface: '#fff',
-  border: '#E8E7E2',
-  primary: '#111110',
-  muted: '#6B6A65',
-  accent: '#639922',
 }
 
 // ==================== HELPER FUNCTIONS ====================
@@ -66,107 +58,47 @@ function ExportCardComponent({
   isLoading,
   onExport
 }: {
-  card: ExportCard
+  card: ExportCardData
   isLoading: boolean
   onExport: () => void
 }) {
   const lastExported = getLastExported(card.storageKey)
 
   return (
-    <div style={{
-      background: COLORS.surface,
-      border: `0.5px solid ${COLORS.border}`,
-      borderRadius: 8,
-      padding: 24,
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 16,
-    }}>
+    <Card className="p-6 flex flex-col gap-4">
       {/* Icon and title */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-        <div style={{
-          width: 40,
-          height: 40,
-          borderRadius: 8,
-          background: '#F5F5F3',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}>
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-lg bg-gray-100 flex items-center justify-center shrink-0">
           {card.icon}
         </div>
-        <div style={{ flex: 1 }}>
-          <h3 style={{
-            fontSize: 15,
-            fontWeight: 600,
-            color: COLORS.primary,
-            margin: 0,
-            marginBottom: 4,
-          }}>
-            {card.title}
-          </h3>
-          <span style={{
-            fontSize: 11,
-            color: COLORS.muted,
-            fontWeight: 500,
-            textTransform: 'uppercase',
-            letterSpacing: '0.5px',
-          }}>
+        <div className="flex-1">
+          <h3 className="text-sm font-semibold text-gray-900">{card.title}</h3>
+          <Badge variant="secondary" className="text-xs mt-1">
             {card.format}
-          </span>
+          </Badge>
         </div>
       </div>
 
       {/* Description */}
-      <p style={{
-        fontSize: 13,
-        color: COLORS.muted,
-        margin: 0,
-        lineHeight: 1.5,
-        flex: 1,
-      }}>
+      <p className="text-sm text-muted-foreground flex-1">
         {card.description}
       </p>
 
       {/* Footer: timestamp and button */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: 12,
-        borderTop: `0.5px solid ${COLORS.border}`,
-      }}>
-        <span style={{ fontSize: 11, color: COLORS.muted }}>
+      <div className="flex justify-between items-center pt-3 border-t border-gray-100">
+        <span className="text-xs text-muted-foreground">
           {formatTimestamp(lastExported)}
         </span>
-        <button
-          onClick={onExport}
-          disabled={isLoading}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            fontSize: 12,
-            fontWeight: 500,
-            color: COLORS.surface,
-            background: COLORS.primary,
-            border: 'none',
-            borderRadius: 6,
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-            opacity: isLoading ? 0.6 : 1,
-          }}
-        >
+        <Button size="sm" onClick={onExport} disabled={isLoading}>
           {isLoading ? (
-            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
           ) : (
-            <Download className="w-3.5 h-3.5" />
+            <Download className="w-4 h-4 mr-2" />
           )}
           Download
-        </button>
+        </Button>
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -396,13 +328,13 @@ export function ExportPage() {
 
   // ==================== EXPORT CARDS CONFIG ====================
 
-  const exportCards: ExportCard[] = [
+  const exportCards: ExportCardData[] = [
     {
       id: 'technical-volume',
       title: 'Technical Volume',
       description: 'Complete technical proposal with all sections formatted for submission. Includes headers, page numbers, and styled paragraphs.',
-      icon: <FileText className="w-5 h-5" style={{ color: COLORS.muted }} />,
-      format: 'Word Document (.docx)',
+      icon: <FileText className="w-5 h-5 text-muted-foreground" />,
+      format: '.docx',
       storageKey: 'technical-volume',
       onExport: handleTechnicalVolumeExport,
     },
@@ -410,8 +342,8 @@ export function ExportPage() {
       id: 'pricing-summary',
       title: 'Pricing Summary',
       description: 'Labor categories, quantities, rates, and total pricing. Ready for import into government pricing tools.',
-      icon: <Table className="w-5 h-5" style={{ color: COLORS.muted }} />,
-      format: 'Spreadsheet (.csv)',
+      icon: <Table className="w-5 h-5 text-muted-foreground" />,
+      format: '.csv',
       storageKey: 'pricing-summary',
       onExport: handlePricingSummaryExport,
     },
@@ -419,8 +351,8 @@ export function ExportPage() {
       id: 'boe',
       title: 'Basis of Estimate',
       description: 'Detailed BOE document with WBS breakdown, labor rationale, assumptions, and risk analysis.',
-      icon: <FileText className="w-5 h-5" style={{ color: COLORS.muted }} />,
-      format: 'Word Document (.docx)',
+      icon: <FileText className="w-5 h-5 text-muted-foreground" />,
+      format: '.docx',
       storageKey: 'boe',
       onExport: handleBOEExport,
     },
@@ -428,46 +360,23 @@ export function ExportPage() {
       id: 'compliance-matrix',
       title: 'Compliance Matrix',
       description: 'Requirements traceability matrix showing all RFP requirements and their compliance status.',
-      icon: <FileCheck className="w-5 h-5" style={{ color: COLORS.muted }} />,
-      format: 'Spreadsheet (.csv)',
+      icon: <FileCheck className="w-5 h-5 text-muted-foreground" />,
+      format: '.csv',
       storageKey: 'compliance-matrix',
       onExport: handleComplianceMatrixExport,
     },
   ]
 
   return (
-    <div style={{
-      minHeight: '100%',
-      background: COLORS.canvas,
-      padding: 24,
-    }}>
+    <div className="space-y-6">
       {/* Header */}
-      <div style={{ marginBottom: 24 }}>
-        <h1 style={{
-          fontSize: 20,
-          fontWeight: 700,
-          color: COLORS.primary,
-          margin: 0,
-          marginBottom: 4,
-        }}>
-          Export
-        </h1>
-        <p style={{
-          fontSize: 13,
-          color: COLORS.muted,
-          margin: 0,
-        }}>
-          What do we send?
-        </p>
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900">Export</h2>
+        <p className="text-sm text-muted-foreground mt-1">What do we send?</p>
       </div>
 
       {/* 2x2 Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: 20,
-        maxWidth: 900,
-      }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl">
         {exportCards.map(card => (
           <ExportCardComponent
             key={card.id}

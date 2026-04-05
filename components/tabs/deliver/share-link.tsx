@@ -172,7 +172,7 @@ export function ShareLink() {
       </div>
 
       {!shareLink ? (
-        <Card>
+        <Card className="p-6">
           <div className="text-center py-8">
             <Link2 className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
             <h3 className="text-lg font-medium mb-2">No share link exists</h3>
@@ -200,7 +200,7 @@ export function ShareLink() {
         </Card>
       ) : (
         <>
-          <Card>
+          <Card className="p-6">
             <div className="flex items-center gap-2 mb-4">
               <Link2 className="w-4 h-4 text-muted-foreground" />
               <h3 className="text-sm font-medium">Share Link</h3>
@@ -221,7 +221,7 @@ export function ShareLink() {
             </div>
           </Card>
 
-          <Card>
+          <Card className="p-6">
             <h3 className="text-sm font-medium mb-4">Link Settings</h3>
 
             <div className="space-y-4">
@@ -277,7 +277,7 @@ export function ShareLink() {
             </div>
           </Card>
 
-          <Card>
+          <Card className="p-6">
             <h3 className="text-sm font-medium mb-4">Link Activity</h3>
             <div className="text-sm text-muted-foreground space-y-1">
               <p>Views: {shareLink.viewCount}</p>
@@ -288,7 +288,7 @@ export function ShareLink() {
             </div>
           </Card>
 
-          <Card className="space-y-0">
+          <Card className="p-6">
             <h3 className="text-sm font-medium mb-4">Danger Zone</h3>
             <div className="flex gap-2">
               <Button

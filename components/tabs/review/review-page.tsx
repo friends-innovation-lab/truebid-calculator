@@ -2,6 +2,8 @@
 
 import { useMemo, useState, useCallback } from 'react'
 import { useAppContext } from '@/contexts/app-context'
+import { Card } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { RefreshCw, Check, AlertTriangle, X } from 'lucide-react'
 
 // ==================== TYPES ====================
@@ -20,49 +22,34 @@ interface CheckColumn {
   items: CheckItem[]
 }
 
-// ==================== COLORS ====================
-
-const COLORS = {
-  canvas: '#FBF9F5',
-  surface: '#fff',
-  border: '#E8E7E2',
-  green: '#639922',
-  amber: '#BA7517',
-  red: '#A32D2D',
-  ink: '#111110',
-  muted: '#6B6A65',
-}
-
 // ==================== CHECK ICON COMPONENT ====================
 
 function CheckIcon({ status }: { status: CheckStatus }) {
   if (status === 'pass') {
-    return <Check className="w-4 h-4" style={{ color: COLORS.green }} />
+    return <Check className="w-4 h-4 text-green-600" />
   }
   if (status === 'warning') {
-    return <AlertTriangle className="w-4 h-4" style={{ color: COLORS.amber }} />
+    return <AlertTriangle className="w-4 h-4 text-amber-500" />
   }
-  return <X className="w-4 h-4" style={{ color: COLORS.red }} />
+  return <X className="w-4 h-4 text-red-600" />
 }
 
 // ==================== CHECK ITEM COMPONENT ====================
 
 function CheckItemRow({ item }: { item: CheckItem }) {
-  const messageColor = item.status === 'pass'
-    ? COLORS.green
-    : item.status === 'warning'
-      ? COLORS.amber
-      : COLORS.red
-
   return (
-    <div style={{ display: 'flex', gap: 10, padding: '10px 0', borderBottom: `0.5px solid ${COLORS.border}` }}>
-      <div style={{ flexShrink: 0, paddingTop: 2 }}>
+    <div className="flex gap-3 px-4 py-3">
+      <div className="shrink-0 mt-0.5">
         <CheckIcon status={item.status} />
       </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 13, fontWeight: 500, color: COLORS.ink }}>{item.label}</div>
+      <div className="flex-1">
+        <p className="text-sm font-medium text-gray-900">{item.label}</p>
         {item.message && item.status !== 'pass' && (
-          <div style={{ fontSize: 11, color: messageColor, marginTop: 2 }}>{item.message}</div>
+          <p className={`text-xs mt-0.5 ${
+            item.status === 'warning' ? 'text-amber-600' : 'text-red-600'
+          }`}>
+            {item.message}
+          </p>
         )}
       </div>
     </div>
@@ -76,37 +63,21 @@ function ColumnCard({ title, items }: CheckColumn) {
   const totalCount = items.length
 
   return (
-    <div style={{
-      background: COLORS.surface,
-      border: `0.5px solid ${COLORS.border}`,
-      borderRadius: 8,
-      padding: 20,
-      flex: 1,
-      minWidth: 280,
-    }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-        paddingBottom: 12,
-        borderBottom: `1px solid ${COLORS.border}`,
-      }}>
-        <h3 style={{ fontSize: 14, fontWeight: 600, color: COLORS.ink, margin: 0 }}>{title}</h3>
-        <span style={{
-          fontSize: 11,
-          color: passCount === totalCount ? COLORS.green : COLORS.muted,
-          fontWeight: 500,
-        }}>
+    <Card className="flex-1 min-w-[280px]">
+      <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100">
+        <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
+        <span className={`text-xs font-medium ${
+          passCount === totalCount ? 'text-green-600' : 'text-gray-500'
+        }`}>
           {passCount}/{totalCount} passing
         </span>
       </div>
-      <div>
+      <div className="divide-y divide-gray-100">
         {items.map(item => (
           <CheckItemRow key={item.id} item={item} />
         ))}
       </div>
-    </div>
+    </Card>
   )
 }
 
@@ -118,42 +89,30 @@ function ReadinessBadge({ columns }: { columns: CheckColumn[] }) {
   const warningCount = allItems.filter(i => i.status === 'warning').length
   const allPass = failCount === 0 && warningCount === 0
 
-  let status: 'ready' | 'review' | 'not-ready'
-  let label: string
-  let bgColor: string
-  let textColor: string
-
   if (allPass) {
-    status = 'ready'
-    label = 'Ready to submit'
-    bgColor = '#EAF3DE'
-    textColor = COLORS.green
-  } else if (failCount === 0) {
-    status = 'review'
-    label = 'Review incomplete items'
-    bgColor = '#FEF3C7'
-    textColor = COLORS.amber
-  } else {
-    status = 'not-ready'
-    label = `Not ready — ${failCount} item${failCount === 1 ? '' : 's'} need${failCount === 1 ? 's' : ''} attention`
-    bgColor = '#FEE2E2'
-    textColor = COLORS.red
+    return (
+      <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-200 rounded-lg">
+        <Check className="w-5 h-5 text-green-600" />
+        <span className="text-sm font-semibold text-green-700">Ready to submit</span>
+      </div>
+    )
+  }
+
+  if (failCount === 0) {
+    return (
+      <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+        <AlertTriangle className="w-5 h-5 text-amber-500" />
+        <span className="text-sm font-semibold text-amber-700">Review incomplete items</span>
+      </div>
+    )
   }
 
   return (
-    <div style={{
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: 8,
-      padding: '10px 16px',
-      background: bgColor,
-      borderRadius: 8,
-      marginBottom: 24,
-    }}>
-      {status === 'ready' && <Check className="w-5 h-5" style={{ color: textColor }} />}
-      {status === 'review' && <AlertTriangle className="w-5 h-5" style={{ color: textColor }} />}
-      {status === 'not-ready' && <X className="w-5 h-5" style={{ color: textColor }} />}
-      <span style={{ fontSize: 14, fontWeight: 600, color: textColor }}>{label}</span>
+    <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-200 rounded-lg">
+      <X className="w-5 h-5 text-red-600" />
+      <span className="text-sm font-semibold text-red-700">
+        Not ready — {failCount} item{failCount === 1 ? '' : 's'} need{failCount === 1 ? 's' : ''} attention
+      </span>
     </div>
   )
 }
@@ -388,66 +347,24 @@ export function ReviewPage() {
   ]
 
   return (
-    <div style={{
-      minHeight: '100%',
-      background: COLORS.canvas,
-      padding: 24,
-    }}>
+    <div className="space-y-6">
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 24,
-      }}>
+      <div className="flex justify-between items-start">
         <div>
-          <h1 style={{
-            fontSize: 20,
-            fontWeight: 700,
-            color: COLORS.ink,
-            margin: 0,
-            marginBottom: 4,
-          }}>
-            Review
-          </h1>
-          <p style={{
-            fontSize: 13,
-            color: COLORS.muted,
-            margin: 0,
-          }}>
-            Pre-flight checklist
-          </p>
+          <h2 className="text-xl font-semibold text-gray-900">Review</h2>
+          <p className="text-sm text-muted-foreground mt-1">Pre-flight checklist</p>
         </div>
-        <button
-          onClick={handleRefresh}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '8px 14px',
-            fontSize: 12,
-            fontWeight: 500,
-            color: COLORS.ink,
-            background: COLORS.surface,
-            border: `0.5px solid ${COLORS.border}`,
-            borderRadius: 6,
-            cursor: 'pointer',
-          }}
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
+        <Button variant="outline" size="sm" onClick={handleRefresh}>
+          <RefreshCw className="w-4 h-4 mr-2" />
           Refresh
-        </button>
+        </Button>
       </div>
 
       {/* Readiness Badge */}
       <ReadinessBadge columns={columns} />
 
       {/* Three Column Layout */}
-      <div style={{
-        display: 'flex',
-        gap: 20,
-        flexWrap: 'wrap',
-      }}>
+      <div className="flex gap-4 flex-wrap">
         {columns.map(col => (
           <ColumnCard key={col.title} {...col} />
         ))}
