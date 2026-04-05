@@ -8,6 +8,7 @@ import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import { sectionsApi } from '@/lib/api'
+import { SaveStatus } from '@/components/ui/save-status'
 
 // ==================== TYPES ====================
 
@@ -142,9 +143,8 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
 
   // State
   const existing = sectionContent[sectionId]
-  const [lastSaved, setLastSaved] = useState(existing?.lastSaved || '')
   const [isStreaming, setIsStreaming] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const [isCopied, setIsCopied] = useState(false)
   const [wordCount, setWordCount] = useState(existing?.wordCount || 0)
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -255,13 +255,14 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
       // Debounced save to DB and context
       if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       saveTimeoutRef.current = setTimeout(async () => {
-        setIsSaving(true)
+        setSaveStatus('saving')
         const now = new Date().toISOString()
         const text = ed.getText()
         const newStatus = text.trim() ? 'in_progress' as const : 'not_started' as const
 
         // Save to DB if this is a proposal_sections UUID, or update outline if it's an outline section ID
         const isOutlineSection = sectionId.startsWith('sec-')
+        let saveError = false
         if (!isOutlineSection) {
           try {
             await sectionsApi.update(proposalId, sectionId, {
@@ -271,6 +272,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
             })
           } catch (err) {
             console.error('[WriteContent] Failed to save to DB:', err)
+            saveError = true
           }
         } else {
           // For outline sections, compute subsection statuses and save to working_data.outline
@@ -285,7 +287,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
             : (text.trim() ? 'in_progress' as const : 'not_started' as const)
 
           try {
-            await fetch(`/api/proposals/${proposalId}`, {
+            const res = await fetch(`/api/proposals/${proposalId}`, {
               method: 'PUT',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -310,11 +312,13 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
                 },
               }),
             })
+            if (!res.ok) saveError = true
           } catch (err) {
             console.error('[WriteContent] Failed to save outline section:', err)
+            saveError = true
           }
         }
-        setIsSaving(false)
+        setSaveStatus(saveError ? 'error' : 'saved')
 
         // Update context
         setSectionContent(prev => ({
@@ -327,7 +331,6 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
             status: prev[sectionId]?.status === 'draft' ? 'draft' : newStatus,
           },
         }))
-        setLastSaved(now)
         // Update outline section and subsection statuses
         setOutline(prev => {
           if (!prev) return prev
@@ -412,20 +415,6 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
       }
     }, 100)
   }, [anchor, editor, isLoadingSection, outlineSection])
-
-  // Time since last save
-  const [timeSinceSave, setTimeSinceSave] = useState('')
-  useEffect(() => {
-    if (!lastSaved) return
-    const update = () => {
-      const diff = Date.now() - new Date(lastSaved).getTime()
-      const mins = Math.floor(diff / 60000)
-      setTimeSinceSave(mins < 1 ? 'just now' : `${mins}m ago`)
-    }
-    update()
-    const interval = setInterval(update, 30000)
-    return () => clearInterval(interval)
-  }, [lastSaved])
 
   // Copy content to clipboard
   const handleCopy = useCallback(async () => {
@@ -622,7 +611,6 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
           })),
         }
       })
-      setLastSaved(now)
       setWordCount(words)
       // Trigger coaching on the draft
       runCoaching(editor.getHTML())
@@ -681,10 +669,8 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
           </span>
         </div>
 
-        {/* Right: Auto-save */}
-        <span style={{ fontSize: 10, color: isSaving ? '#9B9A95' : '#6B6A65' }}>
-          {isSaving ? 'Saving...' : lastSaved ? `Auto-saved ${timeSinceSave}` : 'Not saved yet'}
-        </span>
+        {/* Right: Save status */}
+        <SaveStatus status={saveStatus} />
       </div>
 
       {/* THREE PANEL LAYOUT */}
