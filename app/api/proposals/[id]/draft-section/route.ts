@@ -204,9 +204,20 @@ export async function POST(
   // Use outline pageTarget, or DB target_word_count (which might be in words, not pages), or default to 2 pages
   const pageTarget = sectionData?.pageTarget || 2
   const subsections = sectionData?.subsections || []
-  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 500
+  const wordsPerPage = (proposalSetup.wordsPerPage as number) || 392
   // If DB has target_word_count, use it directly; otherwise calculate from pages
   const targetWordCount = dbSection?.target_word_count || (pageTarget * wordsPerPage)
+  // Minimum words per subsection to ensure each one gets substantial content
+  const minWordsPerSubsection = subsections.length > 0 ? Math.floor(targetWordCount / subsections.length) : targetWordCount
+
+  console.log('[draft-section] Word count calculation:', {
+    pageTarget,
+    wordsPerPage,
+    targetWordCount,
+    subsectionsCount: subsections.length,
+    minWordsPerSubsection,
+    subsectionNumbers: subsections.map(s => s.number).join(', ')
+  })
 
   const systemPrompt = `You are writing a proposal section on behalf of Friends From The City.
 
@@ -360,8 +371,10 @@ Current draft word count will be shown to the user. If the draft is under ${targ
 Write until you reach ${targetWordCount} words. Do not stop early.
 
 SUBSECTION DEPTH REQUIREMENT:
-${subsections.length > 0 ? `This section has ${subsections.length} subsections. Each subsection is an H2 heading. Each subsection requires a MINIMUM of ${Math.floor(targetWordCount / subsections.length)} words of substantive content.
-Do not write a single paragraph per subsection. Write multiple paragraphs that fully develop the topic with specific methodology, tools, outcomes, and connection to this agency's needs.` : `Write multiple paragraphs that fully develop each aspect of this topic. Minimum 4 paragraphs of substantive content.`}
+${subsections.length > 0 ? `This section has ${subsections.length} subsections: ${subsections.map(s => s.number).join(', ')}
+Each subsection is an H2 heading. Each subsection requires a MINIMUM of ${minWordsPerSubsection} words of substantive content.
+You MUST write content for ALL ${subsections.length} subsections. Do not skip any.
+Do not write a single paragraph per subsection. Write multiple paragraphs (3-5 per subsection) that fully develop the topic with specific methodology, tools, outcomes, and connection to this agency's needs.` : `Write multiple paragraphs that fully develop each aspect of this topic. Minimum 4 paragraphs of substantive content.`}
 
 Write the complete section now. Do not include the section title as a heading. Start with the first paragraph of content. Use H2 headings only for subsections.`
 
@@ -470,6 +483,12 @@ Return this JSON structure:
 
 CRITICAL: Include the subsection number in every outline entry under subsectionNumber. Copy the EXACT number from the subsections list — do not simplify or renumber. If the subsection is "L.3.1 Understanding", use "L.3.1" exactly. If it's "4.2.1 Approach", use "4.2.1" exactly.
 
+CRITICAL REQUIREMENTS:
+- You MUST create paragraphs for ALL ${subsections.length} subsections: ${subsections.map(s => s.number).join(', ')}
+- Do NOT skip any subsection
+- Target word count: ${targetWordCount} words (${pageTarget} pages)
+- Minimum ${minWordsPerSubsection} words per subsection
+
 ROLE DISTRIBUTION FOR THIS SECTION:
 This section has ${subsections.length} subsections and needs approximately ${totalParagraphs} paragraphs total.
 
@@ -487,7 +506,7 @@ The section should read as ONE connected argument, not ${subsections.length || 1
     try {
       const pass1Response = await anthropic.messages.create({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
+        max_tokens: 4000,
         system: pass1SystemPrompt,
         messages: [{ role: 'user', content: pass1UserPrompt }],
       })
@@ -501,12 +520,31 @@ The section should read as ONE connected argument, not ${subsections.length || 1
       const jsonMatch = pass1Text.match(/\{[\s\S]*\}/)
       if (jsonMatch) {
         pass1Outline = JSON.parse(jsonMatch[0]) as Pass1Outline
+
+        // Check which subsections are covered
+        const coveredSubsections = new Set(
+          pass1Outline.paragraphs
+            .filter(p => p.subsectionNumber)
+            .map(p => p.subsectionNumber)
+        )
+        const missingSubsections = subsections
+          .filter(s => !coveredSubsections.has(s.number))
+          .map(s => s.number)
+
         console.log('[draft-section] Pass 1 outline generated:', JSON.stringify({
           paragraphCount: pass1Outline.paragraphs.length,
           sectionArgument: pass1Outline.sectionArgument?.slice(0, 100),
           roles: pass1Outline.paragraphs.map(p => p.role).join(', '),
-          targetWordCount
+          targetWordCount,
+          coveredSubsections: Array.from(coveredSubsections),
+          missingSubsections
         }))
+
+        // If subsections are missing, fall back to direct generation
+        if (missingSubsections.length > 0) {
+          console.log('[draft-section] Pass 1 missing subsections, falling back to direct generation')
+          pass1Outline = null
+        }
       }
     } catch (pass1Error) {
       console.log('[draft-section] Pass 1 failed, falling back to single pass:', pass1Error instanceof Error ? pass1Error.message : 'Unknown error')
@@ -586,7 +624,15 @@ Use H2 headings for each subsection. Write prose paragraphs under each heading. 
 IDENTITY:
 "Friends From The City" on first reference. "Friends" thereafter. Never "FFTC."
 
-TOTAL TARGET: ${targetWordCount} words. Fill the target completely.`
+CRITICAL WORD COUNT REQUIREMENTS:
+- Total section target: ${targetWordCount} words MINIMUM
+- This section has ${subsections.length} subsections
+- Each subsection must have AT LEAST ${minWordsPerSubsection} words
+- You MUST write content for ALL ${subsections.length} subsections: ${subsections.map(s => s.number).join(', ')}
+- Do NOT stop before reaching ${targetWordCount} words total
+- If you run out of outline paragraphs, continue adding development content to reach the target
+
+The user will see the word count. A draft under ${targetWordCount} words is incomplete.`
     } else {
       // Fall back to original user prompt if Pass 1 failed
       pass2UserPrompt = userPrompt
