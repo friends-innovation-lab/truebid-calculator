@@ -347,6 +347,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
       attributes: {
         class: 'focus:outline-none min-h-[400px]',
         style: 'font-family: Inter, sans-serif; font-size: 15px; line-height: 1.85; color: #111110; max-width: 680px; margin: 0 auto;',
+        spellcheck: 'true',
       },
     },
   })
