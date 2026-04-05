@@ -88,12 +88,14 @@ interface WriteContentProps {
   sectionId: string
   sectionTitle: string
   onBack: () => void
+  anchor?: string // Subsection ID to scroll to
 }
 
-export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentProps) {
+export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteContentProps) {
   const params = useParams()
   const proposalId = params?.id as string
   const { sectionContent, setSectionContent, outline, setOutline, extractedRequirements, estimateWbsElements, proposalSetup } = useAppContext()
+  const editorContainerRef = useRef<HTMLDivElement>(null)
 
   // Load win themes from proposal strategy (not in AppContext)
   const [winThemes, setWinThemes] = useState<string[]>([])
@@ -354,6 +356,36 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
       setWordCount(words)
     }
   }, [editor, dbSection, isLoadingSection])
+
+  // Scroll to anchor (subsection) when provided
+  useEffect(() => {
+    if (!anchor || !editor || isLoadingSection || !editorContainerRef.current) return
+
+    // Find the subsection title from the outline
+    const subsection = outlineSection?.subsections?.find(sub => sub.id === anchor)
+    if (!subsection) return
+
+    // Wait a tick for the DOM to update
+    setTimeout(() => {
+      const container = editorContainerRef.current
+      if (!container) return
+
+      // Find the h2 that matches this subsection
+      const headings = container.querySelectorAll('h2')
+      for (const h2 of headings) {
+        if (h2.textContent?.includes(subsection.title) || h2.textContent?.includes(subsection.number)) {
+          h2.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          // Add a brief highlight effect
+          h2.style.backgroundColor = '#FEF3C7'
+          setTimeout(() => {
+            h2.style.transition = 'background-color 1s ease-out'
+            h2.style.backgroundColor = ''
+          }, 500)
+          break
+        }
+      }
+    }, 100)
+  }, [anchor, editor, isLoadingSection, outlineSection])
 
   // Time since last save
   const [timeSinceSave, setTimeSinceSave] = useState('')
@@ -719,6 +751,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack }: WriteContentPr
 
           {/* Editor canvas */}
           <div
+            ref={editorContainerRef}
             className="flex-1 overflow-y-auto"
             style={{
               padding: '40px 60px',

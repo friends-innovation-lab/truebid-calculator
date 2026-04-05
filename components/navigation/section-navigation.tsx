@@ -230,6 +230,7 @@ export function SectionNavigation() {
               sectionId={searchParams.get('sectionId')!}
               sectionTitle={decodeURIComponent(searchParams.get('sectionTitle') || 'Untitled Section')}
               onBack={() => handleViewChange('outline')}
+              anchor={searchParams.get('anchor') || undefined}
             />
           ) : (
             <div className="flex-1 overflow-y-auto p-6">
