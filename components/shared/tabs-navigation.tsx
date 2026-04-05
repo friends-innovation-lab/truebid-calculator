@@ -27,6 +27,7 @@ import {
   Save,
   RotateCcw,
   Trash2,
+  ClipboardCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -71,6 +72,10 @@ const ExportTab = dynamic(
   () => import('@/components/tabs/export-tab').then(mod => ({ default: mod.ExportTab })),
   { loading: () => <TabSkeleton /> }
 )
+const ReviewPage = dynamic(
+  () => import('@/components/tabs/review/review-page').then(mod => ({ default: mod.ReviewPage })),
+  { loading: () => <TabSkeleton /> }
+)
 
 // ==================== CONSTANTS ====================
 
@@ -110,6 +115,7 @@ type TabType =
   | 'roles'
   | 'teaming-partners'
   | 'write'
+  | 'review'
   | 'export'
 
 // Tab configuration with accessibility metadata
@@ -159,7 +165,7 @@ export function TabsNavigation() {
   const searchParams = useSearchParams()
   useEffect(() => {
     const tabParam = searchParams.get('tab')
-    if (tabParam && ['upload', 'estimate', 'roles', 'teaming-partners', 'write', 'export'].includes(tabParam)) {
+    if (tabParam && ['upload', 'estimate', 'roles', 'teaming-partners', 'write', 'review', 'export'].includes(tabParam)) {
       setActiveMainTab(tabParam as TabType)
     }
   }, [searchParams, setActiveMainTab])
@@ -196,6 +202,12 @@ export function TabsNavigation() {
       label: 'Write',
       icon: PenLine,
       description: 'Structure and write your technical volume content'
+    },
+    {
+      id: 'review',
+      label: 'Review',
+      icon: ClipboardCheck,
+      description: 'Pre-flight checklist before submission'
     },
     {
       id: 'export',
@@ -820,6 +832,7 @@ export function TabsNavigation() {
             {activeTab === 'roles' && <RolesAndPricingTab />}
             {activeTab === 'teaming-partners' && <TeamingPartnersTab />}
             {activeTab === 'write' && <Outline />}
+            {activeTab === 'review' && <ReviewPage />}
             {activeTab === 'export' && <ExportTab />}
           </div>
         )}

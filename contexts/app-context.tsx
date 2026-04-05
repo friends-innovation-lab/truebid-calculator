@@ -1121,6 +1121,7 @@ export type MainTabId =
   | 'teaming-partners'
   | 'rate-justification'
   | 'write'  // Technical Volume Outline
+  | 'review'  // Pre-flight checklist
   | 'export';
 
   // Utility tool type - accessed via Tools menu in header
