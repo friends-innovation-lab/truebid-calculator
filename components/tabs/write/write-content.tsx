@@ -188,11 +188,18 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
   // State for section loaded from DB
   const [dbSection, setDbSection] = useState<{ content?: string | object; contentText?: string } | null>(null)
   const [isLoadingSection, setIsLoadingSection] = useState(true)
+  const hasLoadedRef = useRef(false) // Prevent re-loading on context updates
+  const isInitialLoadRef = useRef(true) // Skip coaching on initial load
 
-  // Load section content from DB or outline
+  // Load section content from DB or outline (only on mount or section change)
   useEffect(() => {
     if (!proposalId || !sectionId) return
+
+    // Only load once per section - don't reload when context updates from saves
+    if (hasLoadedRef.current) return
+
     setIsLoadingSection(true)
+    isInitialLoadRef.current = true
 
     const isOutlineSection = sectionId.startsWith('sec-')
 
@@ -218,6 +225,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
             setDbSection(section)
           }
         }
+        hasLoadedRef.current = true
       } catch (err) {
         console.error('[WriteContent] Failed to load section:', err)
       } finally {
@@ -226,6 +234,11 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
     }
     loadSection()
   }, [proposalId, sectionId, sectionContent, outlineSection])
+
+  // Reset load flag when section changes
+  useEffect(() => {
+    hasLoadedRef.current = false
+  }, [sectionId])
 
   // TipTap editor
   const editor = useEditor({
@@ -239,6 +252,9 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
       const html = ed.getHTML()
       const words = ed.getText().split(/\s+/).filter(Boolean).length
       setWordCount(words)
+
+      // Skip coaching on initial content load
+      if (isInitialLoadRef.current) return
       scheduleCoaching(html)
 
       // Debounced save to DB and context
@@ -364,6 +380,11 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
       // Update word count from loaded content
       const words = editor.getText().split(/\s+/).filter(Boolean).length
       setWordCount(words)
+
+      // Allow coaching after a short delay (so the setContent onUpdate is skipped)
+      setTimeout(() => {
+        isInitialLoadRef.current = false
+      }, 100)
     }
   }, [editor, dbSection, isLoadingSection])
 
