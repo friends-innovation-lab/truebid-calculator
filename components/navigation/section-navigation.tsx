@@ -22,6 +22,7 @@ import { Team } from '@/components/tabs/staff/team'
 import { LaborLoading } from '@/components/tabs/staff/labor-loading'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { ExportTab } from '@/components/tabs/export-tab'
+import { ExportPage } from '@/components/tabs/export/export-page'
 import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
 import { ShareLink } from '@/components/tabs/deliver/share-link'
 import { Strategy } from '@/components/tabs/scope/strategy'
@@ -259,7 +260,7 @@ export function SectionNavigation() {
         {activeView === 'export-documents' && activeSection === 'deliver' && (
           <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-5xl mx-auto">
-              <ExportTab />
+              <ExportPage />
             </div>
           </div>
         )}
