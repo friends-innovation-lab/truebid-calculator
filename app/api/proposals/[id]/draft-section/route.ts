@@ -348,8 +348,10 @@ OUTCOMES:
 ${relatedWbs.length > 0 ? `RELATED WORK PACKAGES:
 ${relatedWbs.map(w => `${w.ref || ''}: ${w.title}`).join('\n')}
 ` : ''}
-${subsections.length > 0 ? `SUBSECTION STRUCTURE — Use these as H2 headings and write substantive content under each one. Do not skip any subsection:
-${subsections.map(s => `${s.number} ${s.title}`).join('\n')}
+${subsections.length > 0 ? `SUBSECTION STRUCTURE — Use these EXACT headings as H2 tags. Do not change the numbers. Do not skip any subsection:
+${subsections.map(s => `<h2>${s.number} ${s.title}</h2>`).join('\n')}
+
+Write substantive content under EACH heading. The numbers shown above (${subsections.map(s => s.number).join(', ')}) must appear exactly as written in your output.
 ` : ''}
 WORD COUNT FOR THIS SPECIFIC SECTION:
 This section has a page target of ${pageTarget} pages.
@@ -466,7 +468,7 @@ Return this JSON structure:
   ]
 }
 
-Include the subsection number in every outline entry under subsectionNumber. Use the exact number from the subsections list (e.g., "1.1", "1.2", "2.1").
+CRITICAL: Include the subsection number in every outline entry under subsectionNumber. Copy the EXACT number from the subsections list — do not simplify or renumber. If the subsection is "L.3.1 Understanding", use "L.3.1" exactly. If it's "4.2.1 Approach", use "4.2.1" exactly.
 
 ROLE DISTRIBUTION FOR THIS SECTION:
 This section has ${subsections.length} subsections and needs approximately ${totalParagraphs} paragraphs total.
@@ -526,16 +528,16 @@ SECTION ARGUMENT:
 ${pass1Outline.sectionArgument}
 
 SUBSECTION HEADINGS:
-Every subsection must have an H2 heading using HTML tags. Include the section number exactly as it appears in the outline. The heading format is:
+Every subsection must have an H2 heading using HTML tags. Include the section number EXACTLY as provided — do not change, simplify, or renumber. The heading format is:
 
-<h2>[number] [title]</h2>
+<h2>[exact number from outline] [title]</h2>
 
-For example:
-<h2>1.1 Understanding of Requirements</h2>
-<h2>1.2 CAMP MVP Enhancement Strategy</h2>
-<h2>2.1 Project Management Framework</h2>
+${subsections.length > 0 ? `YOUR EXACT SUBSECTION HEADINGS FOR THIS SECTION (use these verbatim):
+${subsections.map(s => `<h2>${s.number} ${s.title}</h2>`).join('\n')}
 
-The number comes from the subsection data passed in the outline. Use it exactly. Do not omit it. Do not renumber. Do not use markdown ## syntax. Use HTML <h2> tags.
+CRITICAL: Use these exact numbers. If the outline says "L.3.1" use "L.3.1". If it says "4.2.1" use "4.2.1". Do not convert to "1.1", "1.2" format.` : ''}
+
+Do not use markdown ## syntax. Use HTML <h2> tags only.
 
 WRITE EACH PARAGRAPH FROM ITS ROLE:
 ${pass1Outline.paragraphs.map((p, i) => `PARAGRAPH ${i + 1}
@@ -592,7 +594,7 @@ TOTAL TARGET: ${targetWordCount} words. Fill the target completely.`
 
     const stream = anthropic.messages.stream({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
+      max_tokens: 8192,
       system: systemPrompt,
       messages: [{ role: 'user', content: pass2UserPrompt }],
     })
