@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useParams } from 'next/navigation'
-import { useAppContext, type OutlineSection, type OutlineSubsection, type OutlineVolume, type OutlineSectionStatus, type ProposalOutline } from '@/contexts/app-context'
+import { useAppContext, type OutlineSection, type OutlineSubsection, type OutlineVolume, type OutlineSectionStatus, type ProposalOutline, type SectionContent } from '@/contexts/app-context'
 import { FileDown, Sparkles, ChevronDown, ChevronRight, FileText, Plus } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { toast } from 'sonner'
@@ -32,11 +32,12 @@ function getCompletionColor(wordCount: number, targetWordCount: number | null): 
 export function ProposalOutlinePage() {
   const params = useParams()
   const proposalId = params?.id as string
-  const { outline, setOutline, sectionContent, proposalSetup } = useAppContext()
+  const { outline, setOutline, sectionContent, setSectionContent, proposalSetup } = useAppContext()
   const wordsPerPage = proposalSetup?.wordsPerPage || 500
   const [expandedVolumes, setExpandedVolumes] = useState<Set<string>>(new Set(outline?.volumes.map(v => v.id) || []))
   const [isGenerating, setIsGenerating] = useState(false)
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
+  const [draftingSubsection, setDraftingSubsection] = useState<string | null>(null)
 
   // Calculate stats from outline
   const allSections: OutlineSection[] = []
@@ -314,7 +315,10 @@ export function ProposalOutlinePage() {
               outline={outline!}
               setOutline={setOutline}
               sectionContent={sectionContent}
+              setSectionContent={setSectionContent}
               wordsPerPage={wordsPerPage}
+              draftingSubsection={draftingSubsection}
+              setDraftingSubsection={setDraftingSubsection}
             />
           ))}
         </div>
@@ -342,7 +346,7 @@ interface SectionContentMap {
   }
 }
 
-function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutline, sectionContent, wordsPerPage }: { volume: OutlineVolume; expanded: boolean; onToggle: () => void; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void; sectionContent: SectionContentMap; wordsPerPage: number }) {
+function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutline, sectionContent, setSectionContent, wordsPerPage, draftingSubsection, setDraftingSubsection }: { volume: OutlineVolume; expanded: boolean; onToggle: () => void; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void; sectionContent: SectionContentMap; setSectionContent: React.Dispatch<React.SetStateAction<Record<string, SectionContent>>>; wordsPerPage: number; draftingSubsection: string | null; setDraftingSubsection: (id: string | null) => void }) {
   const totalSections = volume.sections.length
 
   // Calculate progress based on word count completion
@@ -416,7 +420,7 @@ function VolumeBlock({ volume, expanded, onToggle, proposalId, outline, setOutli
         <div key={section.id}>
           <SectionRow section={section} proposalId={proposalId} outline={outline!} setOutline={setOutline} sectionContent={sectionContent} wordsPerPage={wordsPerPage} />
           {section.subsections.map(sub => (
-            <SubsectionRow key={sub.id} subsection={sub} parentSection={section} proposalId={proposalId} outline={outline} setOutline={setOutline} />
+            <SubsectionRow key={sub.id} subsection={sub} parentSection={section} proposalId={proposalId} outline={outline} setOutline={setOutline} sectionContent={sectionContent} setSectionContent={setSectionContent} draftingSubsection={draftingSubsection} setDraftingSubsection={setDraftingSubsection} />
           ))}
         </div>
       ))}
@@ -594,8 +598,143 @@ function SectionRow({ section, proposalId, outline, setOutline, sectionContent, 
 
 // ==================== SUBSECTION ROW ====================
 
-function SubsectionRow({ subsection, parentSection, proposalId, outline, setOutline }: { subsection: OutlineSubsection; parentSection: OutlineSection; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void }) {
+function SubsectionRow({ subsection, parentSection, proposalId, outline, setOutline, sectionContent, setSectionContent, draftingSubsection, setDraftingSubsection }: { subsection: OutlineSubsection; parentSection: OutlineSection; proposalId: string; outline: ProposalOutline; setOutline: (o: ProposalOutline | null) => void; sectionContent: SectionContentMap; setSectionContent: React.Dispatch<React.SetStateAction<Record<string, SectionContent>>>; draftingSubsection: string | null; setDraftingSubsection: (id: string | null) => void }) {
   const router = useRouter()
+
+  // Merge new subsection content into existing section content
+  const mergeSubsectionContent = (existingHtml: string, newSubsectionHtml: string, subsectionNumber: string, subsectionTitle: string): string => {
+    // Parse existing content to find the H2 for this subsection
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(existingHtml || '<div></div>', 'text/html')
+    const headings = Array.from(doc.querySelectorAll('h2'))
+
+    // Find if this subsection already exists
+    const existingH2 = headings.find(h2 =>
+      h2.textContent?.includes(subsectionNumber) || h2.textContent?.includes(subsectionTitle)
+    )
+
+    if (existingH2) {
+      // Replace content from this H2 to the next H2 (or end)
+      const newDoc = parser.parseFromString(newSubsectionHtml, 'text/html')
+      const newContent = newDoc.body.innerHTML
+
+      // Find next H2 sibling
+      let nextH2: Element | null = null
+      let sibling = existingH2.nextElementSibling
+      while (sibling) {
+        if (sibling.tagName === 'H2') {
+          nextH2 = sibling
+          break
+        }
+        sibling = sibling.nextElementSibling
+      }
+
+      // Remove content between existing H2 and next H2
+      sibling = existingH2.nextElementSibling
+      while (sibling && sibling !== nextH2) {
+        const toRemove = sibling
+        sibling = sibling.nextElementSibling
+        toRemove.remove()
+      }
+
+      // Insert new content after the H2
+      existingH2.outerHTML = newContent
+
+      return doc.body.innerHTML
+    } else {
+      // Subsection doesn't exist yet — append at end
+      return (existingHtml || '') + newSubsectionHtml
+    }
+  }
+
+  // Handle drafting individual subsection
+  const handleDraftSubsection = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setDraftingSubsection(subsection.id)
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/draft-subsection`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sectionId: parentSection.id,
+          sectionTitle: parentSection.title,
+          subsectionId: subsection.id,
+          subsectionNumber: subsection.number,
+          subsectionTitle: subsection.title,
+          pageTarget: subsection.pageTarget || 1,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        toast.error(err.error || 'Draft failed')
+        return
+      }
+
+      // Read streamed response
+      const reader = res.body?.getReader()
+      if (!reader) return
+
+      const decoder = new TextDecoder()
+      let newContent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const chunk = decoder.decode(value, { stream: true })
+        const lines = chunk.split('\n')
+        for (const line of lines) {
+          if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+            try {
+              const data = JSON.parse(line.slice(6))
+              if (data.type === 'content_block_delta' && data.delta?.text) {
+                newContent += data.delta.text
+              }
+            } catch { /* skip malformed chunks */ }
+          }
+        }
+      }
+
+      // Merge new content with existing section content
+      const existingContent = sectionContent[parentSection.id]?.content || ''
+      const mergedContent = mergeSubsectionContent(existingContent, newContent, subsection.number, subsection.title)
+      const wordCount = mergedContent.replace(/<[^>]*>/g, '').split(/\s+/).filter(Boolean).length
+      const now = new Date().toISOString()
+
+      // Save merged content
+      setSectionContent(prev => ({
+        ...prev,
+        [parentSection.id]: {
+          sectionId: parentSection.id,
+          content: mergedContent,
+          lastSaved: now,
+          wordCount,
+          status: 'in_progress' as const,
+        },
+      }))
+
+      // Also save to DB
+      await fetch(`/api/proposals/${proposalId}/sections`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sectionId: parentSection.id,
+          content: mergedContent,
+        }),
+      })
+
+      // Navigate to Write page with this subsection
+      toast.success('Subsection drafted')
+      router.push(`/${proposalId}?tab=write&view=technical-editor&sectionId=${parentSection.id}&sectionTitle=${encodeURIComponent(parentSection.title)}&anchor=${subsection.id}`)
+
+    } catch (err) {
+      console.error('[SubsectionRow] Draft failed:', err)
+      toast.error('Draft failed — try again')
+    } finally {
+      setDraftingSubsection(null)
+    }
+  }
 
   // Cycle through statuses on click
   const cycleStatus = (e: React.MouseEvent) => {
@@ -633,9 +772,11 @@ function SubsectionRow({ subsection, parentSection, proposalId, outline, setOutl
     }).catch(err => console.error('[SubsectionRow] Failed to save status:', err))
   }
 
+  const isDrafting = draftingSubsection === subsection.id
+
   return (
     <div
-      className="flex items-center gap-3"
+      className="group flex items-center gap-3"
       style={{
         padding: '9px 20px 9px 56px',
         borderBottom: '0.5px solid #F4F3EF',
@@ -682,10 +823,32 @@ function SubsectionRow({ subsection, parentSection, proposalId, outline, setOutl
 
       {/* Page target */}
       {subsection.pageTarget && (
-        <span style={{ fontSize: 10, color: '#C4C3BE', whiteSpace: 'nowrap' }}>
-          {subsection.pageTarget} pages
+        <span style={{ fontSize: 10, color: '#C4C3BE', whiteSpace: 'nowrap', marginRight: 8 }}>
+          {subsection.pageTarget}p
         </span>
       )}
+
+      {/* Draft button - visible on hover */}
+      <button
+        onClick={handleDraftSubsection}
+        disabled={isDrafting || draftingSubsection !== null}
+        className="opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{
+          fontSize: 11,
+          fontWeight: 600,
+          color: isDrafting ? '#9B9A95' : '#5F5E5A',
+          padding: '3px 8px',
+          border: '0.5px solid #E8E7E2',
+          borderRadius: 4,
+          background: '#fff',
+          cursor: isDrafting || draftingSubsection !== null ? 'not-allowed' : 'pointer',
+          whiteSpace: 'nowrap',
+          flexShrink: 0,
+          opacity: isDrafting ? 1 : undefined,
+        }}
+      >
+        {isDrafting ? 'Drafting...' : 'Draft →'}
+      </button>
     </div>
   )
 }
