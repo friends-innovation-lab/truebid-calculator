@@ -68,8 +68,8 @@ const Outline = dynamic(
   () => import('@/components/tabs/write/outline').then(mod => ({ default: mod.Outline })),
   { loading: () => <TabSkeleton /> }
 )
-const ExportTab = dynamic(
-  () => import('@/components/tabs/export-tab').then(mod => ({ default: mod.ExportTab })),
+const ExportPage = dynamic(
+  () => import('@/components/tabs/export/export-page').then(mod => ({ default: mod.ExportPage })),
   { loading: () => <TabSkeleton /> }
 )
 const ReviewPage = dynamic(
@@ -833,7 +833,7 @@ export function TabsNavigation() {
             {activeTab === 'teaming-partners' && <TeamingPartnersTab />}
             {activeTab === 'write' && <Outline />}
             {activeTab === 'review' && <ReviewPage />}
-            {activeTab === 'export' && <ExportTab />}
+            {activeTab === 'export' && <ExportPage />}
           </div>
         )}
       </main>
