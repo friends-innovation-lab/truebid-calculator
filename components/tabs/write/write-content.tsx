@@ -188,7 +188,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
   // State for section loaded from DB
   const [dbSection, setDbSection] = useState<{ content?: string | object; contentText?: string } | null>(null)
   const [isLoadingSection, setIsLoadingSection] = useState(true)
-  const hasLoadedRef = useRef(false) // Prevent re-loading on context updates
+  const loadedSectionIdRef = useRef<string | null>(null) // Track which section we've loaded
   const isInitialLoadRef = useRef(true) // Skip coaching on initial load
 
   // Load section content from DB or outline (only on mount or section change)
@@ -196,7 +196,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
     if (!proposalId || !sectionId) return
 
     // Only load once per section - don't reload when context updates from saves
-    if (hasLoadedRef.current) return
+    if (loadedSectionIdRef.current === sectionId) return
 
     setIsLoadingSection(true)
     isInitialLoadRef.current = true
@@ -225,7 +225,7 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
             setDbSection(section)
           }
         }
-        hasLoadedRef.current = true
+        loadedSectionIdRef.current = sectionId
       } catch (err) {
         console.error('[WriteContent] Failed to load section:', err)
       } finally {
@@ -234,11 +234,6 @@ export function WriteContent({ sectionId, sectionTitle, onBack, anchor }: WriteC
     }
     loadSection()
   }, [proposalId, sectionId, sectionContent, outlineSection])
-
-  // Reset load flag when section changes
-  useEffect(() => {
-    hasLoadedRef.current = false
-  }, [sectionId])
 
   // TipTap editor
   const editor = useEditor({
