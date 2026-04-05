@@ -1,10 +1,10 @@
 import * as Sentry from '@sentry/nextjs'
 
 Sentry.init({
-  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,
+  dsn: process.env.NEXT_PUBLIC_SENTRY_DSN || process.env.SENTRY_DSN,
 
-  // Only enable in production, or when explicitly enabled
-  enabled: process.env.NODE_ENV === 'production' || process.env.SENTRY_ENABLED === 'true',
+  // Enable in production, or in development when SENTRY_DEBUG is set
+  enabled: process.env.NODE_ENV === 'production' || !!process.env.NEXT_PUBLIC_SENTRY_DSN,
 
   // Performance monitoring sample rate (0.0 to 1.0)
   // Adjust based on traffic - lower for high-traffic sites
@@ -13,14 +13,6 @@ Sentry.init({
   // Session replay for debugging user issues
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
-
-  // Don't send errors in development unless explicitly enabled
-  beforeSend(event) {
-    if (process.env.NODE_ENV === 'development' && process.env.SENTRY_ENABLED !== 'true') {
-      return null
-    }
-    return event
-  },
 
   integrations: [
     Sentry.replayIntegration({
