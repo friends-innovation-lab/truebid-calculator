@@ -47,11 +47,18 @@ export async function POST(
   // Get win themes
   const winThemes = (strategy.winThemes as string[]) || []
 
-  // Find section requirements
-  interface OutlineSec { id: string; requirementRefs?: string[]; complianceRefs?: string[] }
+  // Find section requirements and subsections
+  interface OutlineSubsec { id: string; number: string; title: string }
+  interface OutlineSec { id: string; number?: string; title?: string; requirementRefs?: string[]; complianceRefs?: string[]; subsections?: OutlineSubsec[] }
   const outline = (workingData.outline || {}) as { volumes?: { sections?: OutlineSec[] }[] }
   const allSections = (outline.volumes || []).flatMap(v => v.sections || [])
   const sectionData = allSections.find(s => s.id === sectionId) || null
+
+  // Get subsection structure for referencing in feedback
+  const subsections = sectionData?.subsections || []
+  const subsectionList = subsections.length > 0
+    ? subsections.map(s => `${s.number} ${s.title}`).join('\n')
+    : ''
 
   const reqRefs = sectionData?.requirementRefs || []
   const extractedRequirements = (workingData.extractedRequirements || []) as { id: string; text?: string; description?: string; title: string; reference_number?: string }[]
@@ -75,6 +82,7 @@ export async function POST(
 5. Compliance: Does it address the stated requirements?
 6. Writing style: Does it follow the company writing guide? Are banned words avoided?
 
+${subsectionList ? `SUBSECTIONS IN THIS SECTION:\n${subsectionList}\n` : ''}
 ${winThemes.filter(t => t?.trim()).length > 0 ? `Win themes for this proposal:\n${winThemes.filter(t => t?.trim()).join('\n')}` : 'No win themes defined yet.'}
 
 ${relatedReqs.length > 0 ? `Requirements this section must address:\n${relatedReqs.map(r => r.text || r.description || r.title).join('\n')}` : 'No specific requirements linked to this section.'}
@@ -85,6 +93,8 @@ ${writingGuidePrompt ? `COMPANY WRITING GUIDE:\n${writingGuidePrompt}` : ''}
 
 SECTION CONTENT:
 ${truncatedContent}
+
+IMPORTANT: When giving feedback, ALWAYS reference the specific subsection number (e.g., "In L.3.1..." or "Section 2.1.1 should...") so the writer knows exactly where to make changes.
 
 Return ONLY valid JSON, no other text:
 {
@@ -101,7 +111,7 @@ Return ONLY valid JSON, no other text:
     {
       "type": "issue",
       "title": "Short title",
-      "text": "Specific actionable feedback."
+      "text": "In [subsection number], specific actionable feedback referencing the exact location."
     }
   ]
 }`
