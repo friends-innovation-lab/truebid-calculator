@@ -33,7 +33,7 @@ export async function GET(
   // Fetch proposal with working_data
   const { data: proposal, error: proposalError } = await supabase
     .from('proposals')
-    .select('id, title, agency, contract_type, solicitation_number, working_data, total_value')
+    .select('id, title, agency, contract_type, solicitation_number, working_data, total_value, period_of_performance')
     .eq('id', shareLink.proposal_id)
     .single()
 
@@ -75,6 +75,12 @@ export async function GET(
     id: string
     name: string
     rate?: number
+    hourlyRate?: number
+    baseSalary?: number
+    laborCategory?: string
+    icLevel?: string
+    hoursByYear?: Record<string, number>
+    years?: Record<string, boolean>
   }[]
 
   // Extract indirect rates if present
@@ -82,6 +88,11 @@ export async function GET(
     fringe?: number
     overhead?: number
     ga?: number
+  } | undefined
+
+  // Extract proposalSetup for option years
+  const proposalSetup = workingData.proposalSetup as {
+    optionYears?: number
   } | undefined
 
   // Build BOE summary
@@ -92,6 +103,7 @@ export async function GET(
       contractType: proposal.contract_type,
       solicitationNumber: proposal.solicitation_number,
       totalValue: proposal.total_value,
+      optionYears: proposalSetup?.optionYears || 0,
     },
     wbsElements: wbsElements.map(el => ({
       id: el.id,
@@ -102,11 +114,19 @@ export async function GET(
       totalHours: el.totalHours || 0,
       totalCost: el.totalCost || 0,
     })),
-    roles: selectedRoles,
+    roles: selectedRoles.map(r => ({
+      id: r.id,
+      name: r.name,
+      rate: r.hourlyRate || r.baseSalary || r.rate || 0,
+      laborCategory: r.laborCategory || r.icLevel || '',
+      hoursByYear: r.hoursByYear || {},
+      years: r.years || {},
+    })),
     indirectRates: indirectRates || null,
     linkInfo: {
       expiresAt: shareLink.expires_at,
       viewCount: (shareLink.view_count || 0) + 1,
+      approvalStatus: shareLink.approval_status || null,
     },
   }
 

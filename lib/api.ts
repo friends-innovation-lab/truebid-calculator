@@ -324,7 +324,7 @@ export const shareLinksApi = {
   get: (proposalId: string) =>
     fetchWithRetry(`${API_BASE}/proposals/${proposalId}/share-link`).then(handleResponse),
 
-  create: (proposalId: string, data?: { expiresInDays?: number }) =>
+  create: (proposalId: string, data?: { expiresInDays?: number; reviewerEmail?: string; label?: string; linkType?: string }) =>
     fetchWithRetry(`${API_BASE}/proposals/${proposalId}/share-link`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

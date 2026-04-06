@@ -21,9 +21,7 @@ import { RolesPricing } from '@/components/tabs/staff/roles-pricing'
 import { Team } from '@/components/tabs/staff/team'
 import { LaborLoading } from '@/components/tabs/staff/labor-loading'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
-import { ExportPage } from '@/components/tabs/export/export-page'
-import { ProposalStatus } from '@/components/tabs/deliver/proposal-status'
-import { ShareLink } from '@/components/tabs/deliver/share-link'
+import { DeliverHub } from '@/components/tabs/deliver/deliver-hub'
 import { Strategy } from '@/components/tabs/scope/strategy'
 import { Solicitation } from '@/components/tabs/scope/solicitation'
 import { Requirements } from '@/components/tabs/scope/requirements'
@@ -47,10 +45,7 @@ type ViewId =
   | 'outline'
   | 'technical-editor'
   // Deliver
-  | 'proposal-status'
-  | 'boe-preview'
-  | 'export-documents'
-  | 'share-link'
+  | 'deliver-hub'
 
 // Map old tab IDs to new view IDs for URL compatibility
 const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
@@ -60,7 +55,7 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
   'roles': { section: 'staff', view: 'roles-pricing' },
   'teaming-partners': { section: 'staff', view: 'team' },
   'write': { section: 'write', view: 'outline' },
-  'export': { section: 'deliver', view: 'export-documents' },
+  'export': { section: 'deliver', view: 'deliver-hub' },
 }
 
 // ==================== MAIN COMPONENT ====================
@@ -131,10 +126,7 @@ export function SectionNavigation() {
       'roles-pricing': 'roles',
       'team': 'teaming-partners',
       'labor-loading': 'estimate',
-      'boe-preview': 'export',
-      'export-documents': 'export',
-      'proposal-status': 'export',
-      'share-link': 'export',
+      'deliver-hub': 'export',
     }
     if (viewToTab[typedViewId]) {
       setActiveMainTab(viewToTab[typedViewId] as MainTabId)
@@ -241,34 +233,9 @@ export function SectionNavigation() {
           )
         )}
 
-        {/* DELIVER views - scrollable with padding */}
-        {activeView === 'proposal-status' && activeSection === 'deliver' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <ProposalStatus />
-            </div>
-          </div>
-        )}
-        {activeView === 'boe-preview' && activeSection === 'deliver' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <ExportPage />
-            </div>
-          </div>
-        )}
-        {activeView === 'export-documents' && activeSection === 'deliver' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <ExportPage />
-            </div>
-          </div>
-        )}
-        {activeView === 'share-link' && activeSection === 'deliver' && (
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="max-w-5xl mx-auto">
-              <ShareLink />
-            </div>
-          </div>
+        {/* DELIVER — single-page hub */}
+        {activeView === 'deliver-hub' && activeSection === 'deliver' && (
+          <DeliverHub />
         )}
       </ProposalLayout>
 

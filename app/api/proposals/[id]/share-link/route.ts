@@ -60,6 +60,12 @@ export async function GET(
       viewCount: shareLink.view_count,
       lastViewedAt: shareLink.last_viewed_at,
       createdAt: shareLink.created_at,
+      approvalStatus: shareLink.approval_status || null,
+      accountantNote: shareLink.accountant_note || null,
+      approvedAt: shareLink.approved_at || null,
+      reviewerEmail: shareLink.reviewer_email || null,
+      label: shareLink.label || null,
+      linkType: shareLink.link_type || null,
     } : null,
   })
 }
@@ -97,31 +103,25 @@ export async function POST(
     return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
   }
 
-  // Check if a share link already exists
-  const { data: existingLink } = await supabase
-    .from('boe_share_links')
-    .select('id')
-    .eq('proposal_id', proposalId)
-    .single()
-
-  if (existingLink) {
-    return NextResponse.json({ error: 'Share link already exists for this proposal' }, { status: 409 })
-  }
-
   // Calculate expiration date
   const expiresInDays = parsed.data.expiresInDays || 7
   const expiresAt = new Date()
   expiresAt.setDate(expiresAt.getDate() + expiresInDays)
 
   // Create share link
+  const insertData: Record<string, unknown> = {
+    proposal_id: proposalId,
+    token: generateToken(),
+    is_active: true,
+    expires_at: expiresAt.toISOString(),
+  }
+  if (parsed.data.reviewerEmail) insertData.reviewer_email = parsed.data.reviewerEmail
+  if (parsed.data.label) insertData.label = parsed.data.label
+  if (parsed.data.linkType) insertData.link_type = parsed.data.linkType
+
   const { data: shareLink, error } = await supabase
     .from('boe_share_links')
-    .insert({
-      proposal_id: proposalId,
-      token: generateToken(),
-      is_active: true,
-      expires_at: expiresAt.toISOString(),
-    })
+    .insert(insertData)
     .select()
     .single()
 
@@ -139,6 +139,12 @@ export async function POST(
       viewCount: shareLink.view_count,
       lastViewedAt: shareLink.last_viewed_at,
       createdAt: shareLink.created_at,
+      approvalStatus: shareLink.approval_status || null,
+      accountantNote: shareLink.accountant_note || null,
+      approvedAt: shareLink.approved_at || null,
+      reviewerEmail: shareLink.reviewer_email || null,
+      label: shareLink.label || null,
+      linkType: shareLink.link_type || null,
     },
   })
 }
@@ -213,6 +219,12 @@ export async function PUT(
       viewCount: shareLink.view_count,
       lastViewedAt: shareLink.last_viewed_at,
       createdAt: shareLink.created_at,
+      approvalStatus: shareLink.approval_status || null,
+      accountantNote: shareLink.accountant_note || null,
+      approvedAt: shareLink.approved_at || null,
+      reviewerEmail: shareLink.reviewer_email || null,
+      label: shareLink.label || null,
+      linkType: shareLink.link_type || null,
     },
   })
 }

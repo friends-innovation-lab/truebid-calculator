@@ -15,10 +15,8 @@ import {
   Users,
   Building2,
   FileDown,
-  Link2,
   PenLine,
   Target,
-  Eye,
 } from 'lucide-react'
 
 // Icon rail items for each section
@@ -63,17 +61,9 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
   ],
   deliver: [
     {
-      label: 'Review',
+      label: 'Deliver',
       items: [
-        { id: 'proposal-status', label: 'Proposal Status', icon: Eye },
-        { id: 'boe-preview', label: 'BOE Preview', icon: FileText },
-      ],
-    },
-    {
-      label: 'Export',
-      items: [
-        { id: 'export-documents', label: 'Export Documents', icon: FileDown },
-        { id: 'share-link', label: 'Shareable BOE Link', icon: Link2 },
+        { id: 'deliver-hub', label: 'Deliver', icon: FileDown },
       ],
     },
   ],
@@ -84,7 +74,7 @@ const SECTION_DEFAULT_VIEWS: Record<SectionId, string> = {
   scope: 'solicitation',
   staff: 'wbs-elements',
   write: 'outline',
-  deliver: 'proposal-status',
+  deliver: 'deliver-hub',
 }
 
 interface ProposalLayoutProps {
