@@ -52,18 +52,48 @@ export async function POST(
 
   const { id: proposalId, sectionId } = await params
 
-  // 1. Fetch section content_text
-  const { data: section, error: sectionError } = await supabase
-    .from('proposal_sections')
-    .select('id, title, content_text, compliance_item_ids')
-    .eq('id', sectionId)
-    .single()
-
-  if (sectionError || !section) {
-    return NextResponse.json({ error: 'Section not found' }, { status: 404 })
+  // Check for optional content in request body (used by collaborate page)
+  let bodyContent: string | null = null
+  let bodyTitle: string | null = null
+  try {
+    const body = await request.json()
+    bodyContent = body.content || null
+    bodyTitle = body.title || null
+  } catch {
+    // No body or invalid JSON, will read from database
   }
 
-  if (!section.content_text || section.content_text.trim().length === 0) {
+  // 1. Fetch section from DB or use body content
+  let sectionTitle = bodyTitle || 'Section'
+  let contentText = bodyContent
+  let complianceItemIds: string[] = []
+
+  if (!contentText) {
+    // Read from database
+    const { data: section, error: sectionError } = await supabase
+      .from('proposal_sections')
+      .select('id, title, content_text, compliance_item_ids')
+      .eq('id', sectionId)
+      .single()
+
+    if (sectionError || !section) {
+      return NextResponse.json({ error: 'Section not found' }, { status: 404 })
+    }
+
+    if (!section.content_text || section.content_text.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Write some content first' },
+        { status: 400 }
+      )
+    }
+
+    sectionTitle = section.title
+    contentText = section.content_text
+    complianceItemIds = section.compliance_item_ids || []
+  }
+
+  // Validate we have content
+  if (!contentText || contentText.trim().length === 0) {
     return NextResponse.json(
       { error: 'Write some content first' },
       { status: 400 }
@@ -91,12 +121,11 @@ export async function POST(
 
   // 3. Fetch compliance items this section addresses
   let complianceContext = ''
-  const complianceIds = section.compliance_item_ids || []
-  if (complianceIds.length > 0) {
+  if (complianceItemIds.length > 0) {
     const { data: complianceItems } = await supabase
       .from('compliance_items')
       .select('reference_number, requirement_type, text')
-      .in('id', complianceIds)
+      .in('id', complianceItemIds)
 
     if (complianceItems && complianceItems.length > 0) {
       complianceContext = complianceItems
@@ -160,7 +189,7 @@ ${wordsToAvoidList ? `Flag any use of these forbidden words: ${wordsToAvoidList}
     }
 
     // Save mock coaching result
-    const contentHash = hashContent(section.content_text)
+    const contentHash = hashContent(contentText)
     await supabase.from('section_coaching').insert({
       section_id: sectionId,
       proposal_id: proposalId,
@@ -176,10 +205,10 @@ ${wordsToAvoidList ? `Flag any use of these forbidden words: ${wordsToAvoidList}
   // Build the prompt
   const coachingPrompt = `You are a red team reviewer evaluating a government proposal section against Shipley methodology.
 
-Section title: ${section.title}
+Section title: ${sectionTitle}
 Section content:
 ---
-${section.content_text}
+${contentText}
 ---
 
 Win themes this section should reinforce:
@@ -286,7 +315,7 @@ Return only valid JSON. No preamble.`
     }
 
     // Save coaching result to database
-    const contentHash = hashContent(section.content_text)
+    const contentHash = hashContent(contentText)
     const { data: coaching, error: insertError } = await supabase
       .from('section_coaching')
       .insert({

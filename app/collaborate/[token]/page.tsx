@@ -3,6 +3,7 @@
 import { use, useState, useEffect, useCallback, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
+import Underline from '@tiptap/extension-underline'
 import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { Button } from '@/components/ui/button'
@@ -28,6 +29,14 @@ import {
   Target,
   BookOpen,
   Save,
+  Bold,
+  Italic,
+  Underline as UnderlineIcon,
+  Heading2,
+  Heading3,
+  List,
+  ListOrdered,
+  AlertCircle,
 } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
@@ -152,6 +161,7 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
   const editor = useEditor({
     extensions: [
       StarterKit.configure({ heading: { levels: [2, 3] } }),
+      Underline,
       Placeholder.configure({
         placeholder: 'Start writing your content...',
       }),
@@ -334,6 +344,19 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
         <aside className="w-[280px] border-r border-gray-200 overflow-y-auto bg-gray-50 shrink-0">
           <div className="p-4 space-y-6">
 
+            {/* Words to Avoid - Always visible at top */}
+            {writingGuide?.words_to_avoid && writingGuide.words_to_avoid.length > 0 && (
+              <div className="bg-red-50 border border-red-100 rounded-lg p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-600" />
+                  <span className="text-xs font-semibold text-red-700 uppercase tracking-wide">Words to Avoid</span>
+                </div>
+                <p className="text-xs text-red-700 leading-relaxed">
+                  {writingGuide.words_to_avoid.join(', ')}
+                </p>
+              </div>
+            )}
+
             {/* Your Sections */}
             <ContextSection title="Your Sections" icon={FileText} defaultOpen>
               <div className="space-y-1">
@@ -384,38 +407,28 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
                 </p>
                 <div className="space-y-2">
                   {winThemes.map((theme, i) => (
-                    <Badge
-                      key={i}
-                      variant="secondary"
-                      className="block w-full text-left text-xs py-1.5 px-2 whitespace-normal"
-                      title={theme}
-                    >
+                    <p key={i} className="text-xs text-gray-700 leading-relaxed pl-2 border-l-2 border-gray-200">
                       {theme}
-                    </Badge>
+                    </p>
                   ))}
                 </div>
               </ContextSection>
             )}
 
             {/* Writing Guide */}
-            {writingGuide && (
+            {writingGuide && writingGuide.example_sentences && (
               <ContextSection title="Writing Guide" icon={BookOpen}>
-                {writingGuide.example_sentences && (
-                  <div className="space-y-2 mb-3">
-                    <p className="text-xs font-medium text-gray-700">Write like this</p>
-                    {writingGuide.example_sentences.split('\n').filter(Boolean).slice(0, 3).map((sentence, i) => (
-                      <blockquote
-                        key={i}
-                        className="text-xs text-gray-600 border-l-2 border-gray-300 pl-2 italic"
-                      >
-                        {sentence}
-                      </blockquote>
-                    ))}
-                  </div>
-                )}
-                {writingGuide.words_to_avoid && writingGuide.words_to_avoid.length > 0 && (
-                  <CollapsibleWordsToAvoid words={writingGuide.words_to_avoid} />
-                )}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-gray-700">Write like this</p>
+                  {writingGuide.example_sentences.split('\n').filter(Boolean).slice(0, 3).map((sentence, i) => (
+                    <blockquote
+                      key={i}
+                      className="text-xs text-gray-600 border-l-2 border-gray-300 pl-2 italic"
+                    >
+                      {sentence}
+                    </blockquote>
+                  ))}
+                </div>
               </ContextSection>
             )}
           </div>
@@ -423,6 +436,62 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
 
         {/* CENTER EDITOR */}
         <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          {/* Toolbar */}
+          <div className="px-8 py-2 border-b border-gray-100 bg-white shrink-0">
+            <div className="max-w-3xl mx-auto flex items-center gap-1">
+              <button
+                onClick={() => editor?.chain().focus().toggleBold().run()}
+                className={`p-1.5 rounded hover:bg-gray-100 ${editor?.isActive('bold') ? 'bg-gray-100 text-gray-900' : 'text-gray-500'}`}
+                title="Bold"
+              >
+                <Bold className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => editor?.chain().focus().toggleItalic().run()}
+                className={`p-1.5 rounded hover:bg-gray-100 ${editor?.isActive('italic') ? 'bg-gray-100 text-gray-900' : 'text-gray-500'}`}
+                title="Italic"
+              >
+                <Italic className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => editor?.chain().focus().toggleUnderline().run()}
+                className={`p-1.5 rounded hover:bg-gray-100 ${editor?.isActive('underline') ? 'bg-gray-100 text-gray-900' : 'text-gray-500'}`}
+                title="Underline"
+              >
+                <UnderlineIcon className="w-4 h-4" />
+              </button>
+              <div className="w-px h-5 bg-gray-200 mx-1" />
+              <button
+                onClick={() => editor?.chain().focus().toggleHeading({ level: 2 }).run()}
+                className={`p-1.5 rounded hover:bg-gray-100 ${editor?.isActive('heading', { level: 2 }) ? 'bg-gray-100 text-gray-900' : 'text-gray-500'}`}
+                title="Heading 2"
+              >
+                <Heading2 className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => editor?.chain().focus().toggleHeading({ level: 3 }).run()}
+                className={`p-1.5 rounded hover:bg-gray-100 ${editor?.isActive('heading', { level: 3 }) ? 'bg-gray-100 text-gray-900' : 'text-gray-500'}`}
+                title="Heading 3"
+              >
+                <Heading3 className="w-4 h-4" />
+              </button>
+              <div className="w-px h-5 bg-gray-200 mx-1" />
+              <button
+                onClick={() => editor?.chain().focus().toggleBulletList().run()}
+                className={`p-1.5 rounded hover:bg-gray-100 ${editor?.isActive('bulletList') ? 'bg-gray-100 text-gray-900' : 'text-gray-500'}`}
+                title="Bullet List"
+              >
+                <List className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => editor?.chain().focus().toggleOrderedList().run()}
+                className={`p-1.5 rounded hover:bg-gray-100 ${editor?.isActive('orderedList') ? 'bg-gray-100 text-gray-900' : 'text-gray-500'}`}
+                title="Numbered List"
+              >
+                <ListOrdered className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
           <div className="flex-1 overflow-y-auto px-8 py-6">
             <div className="max-w-3xl mx-auto">
               <style jsx global>{`
@@ -549,33 +618,6 @@ function ContextSection({
   )
 }
 
-// ===== COLLAPSIBLE WORDS TO AVOID =====
-
-function CollapsibleWordsToAvoid({ words }: { words: string[] }) {
-  const [open, setOpen] = useState(false)
-
-  return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className="text-xs text-muted-foreground hover:text-gray-700 flex items-center gap-1"
-      >
-        {open ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-        Words to avoid ({words.length})
-      </button>
-      {open && (
-        <div className="flex flex-wrap gap-1 mt-2">
-          {words.map((w, i) => (
-            <span key={i} className="text-[10px] px-1.5 py-0.5 bg-red-50 text-red-600 rounded">
-              {w}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
 // ===== COACHING PANEL LITE (simplified for collaborators) =====
 
 function CoachingPanelLite({
@@ -618,17 +660,23 @@ function CoachingPanelLite({
   }, [editorContent, wordCount])
 
   const sectionId = sections[0]?.id
+  const sectionTitle = sections[0]?.title || 'Section'
   const runCoaching = async () => {
-    if (!sectionId || isCoaching) return
+    if (!sectionId || isCoaching || !editorContent.trim()) return
     setIsCoaching(true)
     setCoachingError(null)
     try {
       const res = await fetch(`/api/proposals/${proposalId}/sections/${sectionId}/coach`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: editorContent,
+          title: sectionTitle,
+        }),
       })
       if (!res.ok) throw new Error('Coaching failed')
       const data = await res.json()
-      setCoaching(data.result || data)
+      setCoaching(data.coaching || data.result || data)
     } catch {
       setCoachingError('Coaching unavailable')
     } finally {

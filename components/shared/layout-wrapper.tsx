@@ -21,7 +21,8 @@ export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   // BOE and collab pages have their own layouts
   const isSpecialPage =
     pathname?.startsWith('/boe/') ||
-    pathname?.startsWith('/collab/')
+    pathname?.startsWith('/collab/') ||
+    pathname?.startsWith('/collaborate/')
 
   // Account pages also use their own layout with account-specific nav
   const isAccountPage = pathname?.startsWith('/account')

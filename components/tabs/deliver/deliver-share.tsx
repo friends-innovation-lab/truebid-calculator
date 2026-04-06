@@ -195,7 +195,7 @@ export function DeliverShare() {
 
   useEffect(() => { loadCollabLinks() }, [loadCollabLinks])
 
-  // Build sections from outline for multi-select
+  // Build sections from outline for multi-select (include subsections)
   useEffect(() => {
     if (!outline?.volumes) {
       setSections([])
@@ -206,12 +206,24 @@ export function DeliverShare() {
     let sortOrder = 0
     outline.volumes.forEach((volume) => {
       volume.sections.forEach((section) => {
+        // Add the parent section
         sectionList.push({
           id: section.id,
           title: section.title,
           sectionNumber: section.number || null,
           sortOrder: sortOrder++,
         })
+        // Add subsections (H2-level items for assignment)
+        if (section.subsections && section.subsections.length > 0) {
+          section.subsections.forEach((sub) => {
+            sectionList.push({
+              id: sub.id,
+              title: sub.title,
+              sectionNumber: sub.number || null,
+              sortOrder: sortOrder++,
+            })
+          })
+        }
       })
     })
 
