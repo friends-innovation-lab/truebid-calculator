@@ -641,21 +641,28 @@ function ContextSection({
   )
 }
 
-// ===== COACHING PANEL (matches internal styling) =====
+// ===== COACHING PANEL (exact match of internal write-content styling) =====
 
-const SCORE_LABELS: Record<string, string> = {
-  customer_focus: 'Customer focus',
-  win_themes: 'Win themes',
-  discriminators: 'Discriminators',
-  proof_points: 'Proof points',
-  compliance: 'Compliance',
-  writing_style: 'Writing style',
-  // Fallback labels for other keys
-  understanding: 'Understanding',
-  approach: 'Approach',
-  proof: 'Proof',
-  risk_mitigation: 'Risk Mitigation',
-  win_theme_alignment: 'Win Theme Alignment',
+const SCORE_DIMENSIONS: { key: string; label: string }[] = [
+  { key: 'customer_focus', label: 'Customer focus' },
+  { key: 'win_themes', label: 'Win themes' },
+  { key: 'discriminators', label: 'Discriminators' },
+  { key: 'proof_points', label: 'Proof points' },
+  { key: 'compliance', label: 'Compliance' },
+  { key: 'writing_style', label: 'Writing style' },
+]
+
+function getCoachingLabel(overall: number): string {
+  if (overall >= 4.0) return 'Strong section'
+  if (overall >= 3.5) return 'Good foundation'
+  if (overall >= 2.5) return 'Getting there'
+  return 'Needs work'
+}
+
+function getScoreColor(score: number): string {
+  if (score >= 4.0) return '#639922'
+  if (score >= 3.0) return '#BA7517'
+  return '#A32D2D'
 }
 
 function CoachingPanelLite({
@@ -672,7 +679,7 @@ function CoachingPanelLite({
   const [coaching, setCoaching] = useState<{
     scores: Record<string, number>
     overall_assessment: string
-    feedback: { category: string; severity: 'critical' | 'important' | 'suggestion'; issue: string; recommendation: string }[]
+    feedback: { category: string; severity: 'critical' | 'important' | 'suggestion'; issue: string; recommendation: string; title?: string }[]
   } | null>(null)
   const [isCoaching, setIsCoaching] = useState(false)
   const [coachingError, setCoachingError] = useState<string | null>(null)
@@ -728,13 +735,6 @@ function CoachingPanelLite({
     ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
     : 0
 
-  // Get score color
-  const getScoreColor = (score: number) => {
-    if (score <= 2) return 'bg-red-500'
-    if (score === 3) return 'bg-amber-500'
-    return 'bg-green-500'
-  }
-
   // Sort feedback by severity
   const sortedFeedback = coaching?.feedback
     ? [...coaching.feedback].sort((a, b) => {
@@ -744,145 +744,177 @@ function CoachingPanelLite({
     : []
 
   return (
-    <div className="space-y-4">
-      {/* Morgan header with score */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/morgan-ellis.jpg" alt="Morgan Ellis" className="w-full h-full object-cover" />
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      {/* Header with Morgan - exact match of internal */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: 10,
+        padding: '12px 16px',
+        borderBottom: '0.5px solid #E8E7E2'
+      }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/images/morgan-ellis.jpg"
+          alt="Morgan Ellis"
+          style={{
+            width: 36,
+            height: 36,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            flexShrink: 0
+          }}
+        />
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#111110', lineHeight: 1.2 }}>
+            Morgan Ellis
           </div>
-          <div>
-            <p className="text-sm font-semibold text-gray-900">Morgan Ellis</p>
-            <p className="text-xs text-gray-500">Red Team Lead</p>
-            <p className="text-xs text-gray-400">Shipley methodology</p>
+          <div style={{ fontSize: 11, color: '#5F5E5A', lineHeight: 1.2 }}>
+            Red Team Lead
+          </div>
+          <div style={{ fontSize: 10, color: '#9B9A96', lineHeight: 1.2, marginTop: 1 }}>
+            Shipley methodology
           </div>
         </div>
-        {coaching && !isCoaching && (
-          <div className="text-right">
-            <span className="text-2xl font-bold text-gray-900">{averageScore.toFixed(1)}</span>
-          </div>
-        )}
+        <div style={{ fontSize: 22, fontWeight: 800, color: '#111110', lineHeight: 1 }}>
+          {coaching ? averageScore.toFixed(1) : '--'}
+        </div>
+        <button
+          onClick={runCoaching}
+          disabled={isCoaching || wordCount < 50}
+          title="Re-score"
+          style={{
+            width: 24,
+            height: 24,
+            borderRadius: 4,
+            border: '0.5px solid #E8E7E2',
+            background: '#fff',
+            cursor: isCoaching || wordCount < 50 ? 'not-allowed' : 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            opacity: isCoaching || wordCount < 50 ? 0.5 : 1,
+            flexShrink: 0
+          }}
+        >
+          <svg
+            width="12"
+            height="12"
+            viewBox="0 0 12 12"
+            fill="none"
+            style={{ animation: isCoaching ? 'spin 1s linear infinite' : 'none' }}
+          >
+            <path d="M10 6A4 4 0 1 1 6 2" stroke="#5F5E5A" strokeWidth="1.5" strokeLinecap="round" />
+            <path d="M6 2L8 4M6 2L4 4" stroke="#5F5E5A" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
-      {/* Loading state */}
-      {isCoaching && (
-        <div className="space-y-4">
-          <div className="flex flex-col items-center py-6 text-center">
-            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center mb-3">
-              <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
-            </div>
-            <p className="text-sm font-medium text-gray-900">
-              Analyzing your section...
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              This may take 15-30 seconds
-            </p>
+      {/* Body - scrollable */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+        {/* Empty state */}
+        {!coaching && !isCoaching && !coachingError && (
+          <div style={{ fontSize: 11, color: '#C4C3BE', lineHeight: 1.5 }}>
+            Start writing to get Morgan&apos;s feedback. Analysis runs automatically after you pause.
           </div>
-          <div className="space-y-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
-            ))}
+        )}
+
+        {/* Error state */}
+        {coachingError && !isCoaching && (
+          <div style={{ fontSize: 11, color: '#DC2626', lineHeight: 1.5, padding: '8px 10px', background: '#FEF2F2', borderRadius: 6 }}>
+            <strong>Error:</strong> {coachingError}
+            <button
+              onClick={runCoaching}
+              style={{ display: 'block', marginTop: 6, fontSize: 10, color: '#2563EB', textDecoration: 'underline', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+            >
+              Try again
+            </button>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Error state */}
-      {coachingError && (
-        <Card className="p-4 border-red-200 bg-red-50">
-          <p className="text-sm text-red-700">{coachingError}</p>
-          <Button size="sm" variant="outline" onClick={runCoaching} className="mt-2">
-            Try Again
-          </Button>
-        </Card>
-      )}
-
-      {/* Empty state */}
-      {!coaching && !isCoaching && !coachingError && (
-        <div className="text-center py-6 space-y-3">
-          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
-            <Target className="w-5 h-5 text-gray-400" />
-          </div>
-          <div>
-            <p className="text-sm font-medium text-gray-900">Get section feedback</p>
-            <p className="text-xs text-gray-500 mt-1">
-              The coaching engine evaluates your writing against Shipley methodology and win themes.
-            </p>
-          </div>
-          {wordCount >= 50 ? (
-            <Button size="sm" onClick={runCoaching}>
-              Analyze Section
-            </Button>
-          ) : (
-            <p className="text-xs text-gray-400">
-              Write at least 50 words to enable analysis
-            </p>
-          )}
-        </div>
-      )}
-
-      {/* Results */}
-      {coaching && !isCoaching && (
-        <div className="space-y-4">
-          {/* Assessment Summary */}
-          {coaching.overall_assessment && (
-            <p className={`text-sm font-medium ${averageScore >= 3.5 ? 'text-green-600' : averageScore >= 2.5 ? 'text-amber-600' : 'text-red-600'}`}>
-              {averageScore >= 3.5 ? 'Good foundation' : averageScore >= 2.5 ? 'Needs improvement' : 'Major revisions needed'}
-            </p>
-          )}
-
-          {/* Score Bars (no card wrapper) */}
-          <div className="space-y-2.5">
-            {Object.entries(scores).map(([key, score]) => (
-              <div key={key} className="flex items-center gap-3">
-                <span className="text-sm text-gray-600 w-28 shrink-0">{SCORE_LABELS[key] || key}</span>
-                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full transition-all ${getScoreColor(score)}`}
-                    style={{ width: `${(score / 5) * 100}%` }}
-                  />
-                </div>
-                <span className={`text-sm font-medium tabular-nums w-6 text-right ${score < 3 ? 'text-red-600' : 'text-gray-900'}`}>
-                  {score.toFixed(1)}
-                </span>
+        {/* Loading state */}
+        {isCoaching && !coaching && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ fontSize: 11, color: '#BA7517', marginBottom: 4 }}>Morgan is reviewing...</div>
+            {SCORE_DIMENSIONS.map(d => (
+              <div key={d.key} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 11, color: '#C4C3BE', flex: 1 }}>{d.label}</span>
+                <div style={{ width: 50, height: 4, background: '#F0EDE6', borderRadius: 2, animation: 'pulse 1.5s ease-in-out infinite' }} />
               </div>
             ))}
           </div>
+        )}
 
-          {/* Feedback Items with left border */}
-          {sortedFeedback.length > 0 && (
-            <div className="space-y-2 pt-2">
-              {sortedFeedback.map((item, idx) => (
-                <div
-                  key={idx}
-                  className={`pl-3 border-l-2 ${
-                    item.severity === 'critical' ? 'border-red-400' :
-                    item.severity === 'important' ? 'border-amber-400' :
-                    'border-blue-400'
-                  }`}
-                >
-                  <p className="text-sm font-medium text-gray-900">
-                    {item.issue}
-                  </p>
-                  <p className="text-sm text-gray-600 mt-1 leading-relaxed">
-                    {item.recommendation}
-                  </p>
-                </div>
-              ))}
+        {/* Results */}
+        {coaching && (
+          <>
+            {/* Overall label */}
+            <div style={{ fontSize: 11, fontWeight: 600, color: getScoreColor(averageScore), marginBottom: 12 }}>
+              {getCoachingLabel(averageScore)}
             </div>
-          )}
 
-          {/* Run Again Button */}
-          <Button
-            variant="outline"
-            onClick={runCoaching}
-            className="w-full"
-            size="sm"
-          >
-            Run Again
-          </Button>
-        </div>
-      )}
+            {/* Score bars */}
+            {SCORE_DIMENSIONS.map(d => {
+              const score = scores[d.key]
+              if (score === undefined) return null
+              const color = getScoreColor(score)
+              return (
+                <div
+                  key={d.key}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    marginBottom: 10,
+                    opacity: isCoaching ? 0.5 : 1,
+                    transition: 'opacity 0.3s'
+                  }}
+                >
+                  <span style={{ fontSize: 11, color: '#5F5E5A', flex: 1 }}>{d.label}</span>
+                  <div style={{ width: 50, height: 4, background: '#F0EDE6', borderRadius: 2 }}>
+                    <div style={{ width: `${(score / 5) * 100}%`, height: '100%', background: color, borderRadius: 2, transition: 'width 0.3s' }} />
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, minWidth: 24, textAlign: 'right', color }}>
+                    {score.toFixed(1)}
+                  </span>
+                </div>
+              )
+            })}
+
+            {/* Divider */}
+            <div style={{ height: 0.5, background: '#F4F3EF', margin: '10px 0' }} />
+
+            {/* Feedback cards */}
+            {sortedFeedback.map((fb, i) => (
+              <div
+                key={i}
+                style={{
+                  fontSize: 11,
+                  color: '#5F5E5A',
+                  lineHeight: 1.5,
+                  padding: '8px 10px',
+                  background: '#FAFAF9',
+                  border: '0.5px solid #E8E7E2',
+                  borderLeft: `2px solid ${fb.severity === 'critical' ? '#A32D2D' : fb.severity === 'suggestion' ? '#639922' : '#BA7517'}`,
+                  borderRadius: 5,
+                  marginBottom: 8,
+                }}
+              >
+                <div style={{ fontWeight: 600, color: '#111110', marginBottom: 2 }}>
+                  {fb.title || fb.issue}
+                </div>
+                {fb.recommendation}
+              </div>
+            ))}
+          </>
+        )}
+      </div>
+
+      {/* Spin animation keyframes */}
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+      `}</style>
     </div>
   )
 }
