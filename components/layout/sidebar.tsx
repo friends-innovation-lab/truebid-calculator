@@ -8,6 +8,7 @@ export interface SidebarItem {
   label: string
   icon: React.ComponentType<{ className?: string }>
   isPanel?: boolean // Opens as side panel instead of replacing main content
+  badge?: number // Optional notification badge count
 }
 
 export interface SidebarGroup {
@@ -93,7 +94,15 @@ export function Sidebar({
                         backgroundColor: isActive ? 'var(--surface-2)' : undefined,
                       }}
                     >
-                      <span className="truncate">{item.label}</span>
+                      <span className="truncate flex-1">{item.label}</span>
+                      {item.badge && item.badge > 0 ? (
+                        <span
+                          className="ml-auto shrink-0 inline-flex items-center justify-center w-5 h-5 text-[10px] font-medium rounded-full"
+                          style={{ backgroundColor: 'rgba(217,119,6,0.15)', color: '#92400e' }}
+                        >
+                          {item.badge}
+                        </span>
+                      ) : null}
                     </button>
                   </li>
                 )

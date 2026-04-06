@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useRouter, useParams } from 'next/navigation'
-import { LogOut, Settings, LayoutDashboard, Sun, Moon, Monitor } from 'lucide-react'
+import { LogOut, Settings, LayoutDashboard, Sun, Moon, Monitor, Bell } from 'lucide-react'
 import { Wordmark } from '@/components/ui/wordmark'
 import { useAuth } from '@/contexts/auth-context'
 import { useAppContext } from '@/contexts/app-context'
@@ -211,7 +211,7 @@ export function TopBar({
           </nav>
         )}
 
-        {/* Right: Avatar Menu */}
+        {/* Right: Notifications + Avatar Menu */}
         <div className="flex items-center gap-3">
           <Link
             href="/tools"
@@ -219,6 +219,7 @@ export function TopBar({
           >
             Tools
           </Link>
+          <NotificationBell />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -402,7 +403,7 @@ function DueDateChip({
   }
 
   return (
-    <div className="relative">
+    <div style={{ position: 'relative' }}>
       <span
         onClick={() => { setDateValue(proposalDueDate || ''); setShowPopover(!showPopover) }}
         style={{
@@ -458,6 +459,179 @@ function DueDateChip({
               >
                 Save
               </button>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+// ==================== NOTIFICATION BELL ====================
+
+interface NotificationItem {
+  id: string
+  type: string
+  title: string
+  body: string | null
+  link: string | null
+  read: boolean
+  created_at: string
+}
+
+function NotificationBell() {
+  const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [open, setOpen] = useState(false)
+  const router = useRouter()
+
+  useEffect(() => {
+    const load = async () => {
+      const supabase = createClient()
+      const { data } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('read', false)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (data) setNotifications(data)
+    }
+    load()
+  }, [])
+
+  const unreadCount = notifications.filter(n => !n.read).length
+
+  const handleClick = async (notification: NotificationItem) => {
+    // Mark as read
+    const supabase = createClient()
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .eq('id', notification.id)
+
+    setNotifications(prev => prev.filter(n => n.id !== notification.id))
+    setOpen(false)
+
+    if (notification.link) {
+      router.push(notification.link)
+    }
+  }
+
+  const handleMarkAllRead = async () => {
+    const supabase = createClient()
+    const ids = notifications.map(n => n.id)
+    if (ids.length === 0) return
+    await supabase
+      .from('notifications')
+      .update({ read: true })
+      .in('id', ids)
+    setNotifications([])
+  }
+
+  const relativeTime = (isoString: string): string => {
+    const diff = Date.now() - new Date(isoString).getTime()
+    const mins = Math.floor(diff / 60000)
+    if (mins < 60) return `${mins}m ago`
+    const hours = Math.floor(mins / 60)
+    if (hours < 24) return `${hours}h ago`
+    const days = Math.floor(hours / 24)
+    return `${days}d ago`
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(!open)}
+        className="focus-ring rounded-sm p-1"
+        style={{ position: 'relative' }}
+        aria-label="Notifications"
+      >
+        <Bell className="w-5 h-5" style={{ color: '#5F5E5A' }} />
+        {unreadCount > 0 && (
+          <span
+            style={{
+              position: 'absolute',
+              top: -4,
+              right: -4,
+              width: 16,
+              height: 16,
+              borderRadius: '50%',
+              background: '#A32D2D',
+              color: '#fff',
+              fontSize: 10,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div
+            className="absolute right-0 top-full mt-2 z-50 overflow-hidden"
+            style={{
+              background: '#FFFFFF',
+              border: '0.5px solid #E8E7E2',
+              borderRadius: 8,
+              boxShadow: '0 4px 16px rgba(0,0,0,0.1)',
+              width: 340,
+              maxHeight: 400,
+            }}
+          >
+            {/* Header */}
+            <div
+              className="flex items-center justify-between px-4 py-3"
+              style={{ borderBottom: '0.5px solid #E8E7E2' }}
+            >
+              <span style={{ fontSize: 13, fontWeight: 600, color: '#111110' }}>Notifications</span>
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllRead}
+                  style={{ fontSize: 11, color: '#5F5E5A', background: 'none', border: 'none', cursor: 'pointer' }}
+                >
+                  Mark all read
+                </button>
+              )}
+            </div>
+
+            {/* List */}
+            <div className="overflow-y-auto" style={{ maxHeight: 340 }}>
+              {notifications.length === 0 ? (
+                <div className="flex items-center justify-center py-8">
+                  <span style={{ fontSize: 12, color: '#9B9A95' }}>No new notifications</span>
+                </div>
+              ) : (
+                notifications.map((n) => (
+                  <button
+                    key={n.id}
+                    onClick={() => handleClick(n)}
+                    className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors"
+                    style={{ borderBottom: '0.5px solid #F4F3EF' }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="w-2 h-2 rounded-full mt-1.5 shrink-0"
+                        style={{
+                          background: n.type === 'collab_submitted' ? '#F5C200' :
+                            n.type === 'boe_approved' ? '#16a34a' : '#d97706',
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p style={{ fontSize: 13, fontWeight: 500, color: '#111110' }}>{n.title}</p>
+                        {n.body && (
+                          <p style={{ fontSize: 12, color: '#5F5E5A', marginTop: 2 }}>{n.body}</p>
+                        )}
+                        <p style={{ fontSize: 10, color: '#9B9A95', marginTop: 4 }}>{relativeTime(n.created_at)}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </>

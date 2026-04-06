@@ -52,5 +52,31 @@ export async function PATCH(
     return NextResponse.json({ error: updateError.message }, { status: 500 })
   }
 
+  // Create in-app notification
+  if (link.company_id) {
+    // Get section names for the notification body
+    let sectionNames = 'sections'
+    if (link.section_ids?.length) {
+      const { data: sections } = await supabase
+        .from('proposal_sections')
+        .select('title')
+        .in('id', link.section_ids)
+      if (sections?.length) {
+        sectionNames = sections.map((s: { title: string }) => s.title).join(', ')
+      }
+    }
+
+    const contributor = link.reviewer_email || link.label || 'A collaborator'
+    await supabase
+      .from('notifications')
+      .insert({
+        company_id: link.company_id,
+        type: 'collab_submitted',
+        title: 'New section submission',
+        body: `${contributor} submitted ${sectionNames}.`,
+        link: `/${link.proposal_id}?view=deliver-share&tab2=submissions`,
+      })
+  }
+
   return NextResponse.json({ success: true, message: 'Submission received' })
 }

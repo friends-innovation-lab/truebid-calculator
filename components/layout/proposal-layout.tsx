@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useMemo, ReactNode } from 'react'
+import { useState, useEffect, useMemo, ReactNode } from 'react'
 import { useParams } from 'next/navigation'
 import { TopBar, SectionId } from './top-bar'
 import { IconRail, IconRailItem } from './icon-rail'
 import { Sidebar, SidebarGroup } from './sidebar'
 import { useAppContext } from '@/contexts/app-context'
 import { SetupPanel } from '@/components/proposals/setup-panel'
+import { createClient } from '@/lib/supabase/client'
 import {
   FileText,
   Search,
@@ -99,6 +100,7 @@ export function ProposalLayout({
 }: ProposalLayoutProps) {
   const { solicitation, updateSolicitation } = useAppContext()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [unreadShareBadge, setUnreadShareBadge] = useState(0)
 
   // Calculate days until due
   const daysUntilDue = useMemo(() => {
@@ -109,8 +111,35 @@ export function ProposalLayout({
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
   }, [solicitation])
 
-  // Get sidebar groups for current section
-  const currentGroups = SECTION_GROUPS[activeSection]
+  // Load unread collab_submitted notifications for badge
+  useEffect(() => {
+    async function loadBadge() {
+      try {
+        const supabase = createClient()
+        const { count } = await supabase
+          .from('notifications')
+          .select('id', { count: 'exact', head: true })
+          .eq('type', 'collab_submitted')
+          .eq('read', false)
+        setUnreadShareBadge(count || 0)
+      } catch {
+        // Silently fail
+      }
+    }
+    loadBadge()
+  }, [])
+
+  // Inject badge into deliver sidebar groups
+  const currentGroups = useMemo(() => {
+    const groups = SECTION_GROUPS[activeSection]
+    if (activeSection !== 'deliver' || unreadShareBadge === 0) return groups
+    return groups.map(group => ({
+      ...group,
+      items: group.items.map(item =>
+        item.id === 'deliver-share' ? { ...item, badge: unreadShareBadge } : item
+      ),
+    }))
+  }, [activeSection, unreadShareBadge])
 
   // Handle section change - also switch to default view
   const handleSectionChange = (section: SectionId) => {
