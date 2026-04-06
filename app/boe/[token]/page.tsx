@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorAlert } from '@/components/ui/error-alert'
-import { CheckCircle2, Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2, X } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 
 // ===== TYPES =====
@@ -60,6 +60,18 @@ interface BOEData {
   }
 }
 
+interface RoleRow {
+  name: string
+  laborCategory: string
+  hoursByYear: number[]
+  baseRate: number
+  fringe: number
+  overhead: number
+  ga: number
+  loadedRate: number
+  totalCost: number
+}
+
 // ===== CONSTANTS =====
 
 const FRINGE_RATE = 0.2116
@@ -80,6 +92,9 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
   const [correctionNote, setCorrectionNote] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState<'approved' | 'corrections' | null>(null)
+
+  // Detail drawer state
+  const [selectedRole, setSelectedRole] = useState<RoleRow | null>(null)
 
   const loadData = useCallback(async () => {
     try {
@@ -185,7 +200,7 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
   for (let i = 1; i <= optionYears; i++) yearLabels.push(`Year ${i}`)
 
   // Build role rows for the summary table
-  const roleRows = roles.map(role => {
+  const roleRows: RoleRow[] = roles.map(role => {
     const baseRate = role.rate || 0
     const fringe = baseRate * FRINGE_RATE
     const overhead = baseRate * OVERHEAD_RATE
@@ -228,10 +243,26 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
 
   return (
     <div className="h-screen flex flex-col bg-white overflow-hidden">
-      {/* ===== HEADER (56px) ===== */}
-      <header className="h-14 shrink-0 flex items-center justify-between px-6 border-b border-[#E8E7E2]">
-        <h1 className="text-lg font-semibold text-gray-900">Basis of Estimate</h1>
-        <span className="text-sm text-gray-500 truncate max-w-md">{proposal.title}</span>
+      {/* ===== HEADER ===== */}
+      <header className="h-14 shrink-0 flex items-center justify-between px-6 border-b border-[#E8E7E2] bg-white">
+        <div className="flex items-center gap-4">
+          <div className="flex flex-col leading-none">
+            <span className="font-extrabold text-[20px] tracking-[-0.5px] text-gray-900">
+              TrueBid
+            </span>
+            <span
+              className="wordmark-cursive text-[11px] leading-[1.3] -mt-[1px]"
+              style={{ color: 'var(--signal, #F5C200)' }}
+            >
+              by Friends
+            </span>
+          </div>
+          <div className="h-6 w-px bg-gray-200" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-900 truncate">{proposal.title}</p>
+            <p className="text-xs text-muted-foreground truncate">Basis of Estimate</p>
+          </div>
+        </div>
       </header>
 
       {/* ===== TAB BAR (44px) ===== */}
@@ -259,102 +290,194 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
       </div>
 
       {/* ===== TABLE AREA (flex-1, scrolls independently) ===== */}
-      <div className="flex-1 overflow-hidden">
-        {activeTab === 'summary' ? (
-          <div className="h-full overflow-auto">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
-                <tr>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider w-48">
-                    Role
-                  </th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider w-40">
-                    Labor Category
-                  </th>
-                  {yearLabels.map(label => (
-                    <th key={label} className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider whitespace-nowrap">
-                      {label}
+      <div className="flex-1 overflow-hidden flex">
+        <div className="flex-1 overflow-hidden">
+          {activeTab === 'summary' ? (
+            <div className="h-full overflow-auto">
+              <table className="w-full text-sm">
+                <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider w-48">
+                      Role
                     </th>
-                  ))}
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
-                    Base Rate
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
-                    Fringe
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
-                    Overhead
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
-                    G&A
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
-                    Loaded Rate
-                  </th>
-                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
-                    Total
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {roleRows.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 font-medium text-gray-900">{row.name}</td>
-                    <td className="px-4 py-3 text-gray-500">{row.laborCategory}</td>
-                    {row.hoursByYear.map((hours, yIdx) => (
-                      <td key={yIdx} className="px-4 py-3 text-right text-gray-600 tabular-nums">
-                        {hours > 0 ? hours.toLocaleString() : '—'}
-                      </td>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider w-40">
+                      Labor Category
+                    </th>
+                    {yearLabels.map(label => (
+                      <th key={label} className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider whitespace-nowrap">
+                        {label}
+                      </th>
                     ))}
-                    <td className="px-4 py-3 text-right tabular-nums">{fmt(row.baseRate)}</td>
-                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.fringe)}</td>
-                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.overhead)}</td>
-                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.ga)}</td>
-                    <td className="px-4 py-3 text-right font-medium tabular-nums">{fmt(row.loadedRate)}</td>
-                    <td className="px-4 py-3 text-right font-medium tabular-nums">{fmt(row.totalCost, 0)}</td>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                      Base Rate
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                      Fringe
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                      Overhead
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                      G&A
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                      Loaded Rate
+                    </th>
+                    <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                      Total
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-              <tfoot className="sticky bottom-0 bg-gray-50 border-t-2 border-gray-200">
-                <tr>
-                  <td colSpan={2 + yearLabels.length + 5} className="px-4 py-3 font-semibold text-right text-sm">
-                    Total
-                  </td>
-                  <td className="px-4 py-3 font-semibold text-sm text-right tabular-nums">
-                    {fmt(grandTotal, 0)}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        ) : (
-          <div className="h-full overflow-auto p-6">
-            {/* Rate Cards */}
-            <div className="grid grid-cols-3 gap-6 max-w-2xl">
-              <Card className="p-6 text-center">
-                <p className="text-sm text-gray-500 mb-2">Fringe</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {fmtPct(indirectRates?.fringe || FRINGE_RATE)}
-                </p>
-              </Card>
-              <Card className="p-6 text-center">
-                <p className="text-sm text-gray-500 mb-2">Overhead</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {fmtPct(indirectRates?.overhead || OVERHEAD_RATE)}
-                </p>
-              </Card>
-              <Card className="p-6 text-center">
-                <p className="text-sm text-gray-500 mb-2">G&A</p>
-                <p className="text-2xl font-semibold text-gray-900">
-                  {fmtPct(indirectRates?.ga || GA_RATE)}
-                </p>
-              </Card>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {roleRows.map((row, idx) => (
+                    <tr
+                      key={idx}
+                      onClick={() => setSelectedRole(row)}
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-900">{row.name}</td>
+                      <td className="px-4 py-3 text-gray-500">{row.laborCategory}</td>
+                      {row.hoursByYear.map((hours, yIdx) => (
+                        <td key={yIdx} className="px-4 py-3 text-right text-gray-600 tabular-nums">
+                          {hours > 0 ? hours.toLocaleString() : '—'}
+                        </td>
+                      ))}
+                      <td className="px-4 py-3 text-right tabular-nums">{fmt(row.baseRate)}</td>
+                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.fringe)}</td>
+                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.overhead)}</td>
+                      <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.ga)}</td>
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">{fmt(row.loadedRate)}</td>
+                      <td className="px-4 py-3 text-right font-medium tabular-nums">{fmt(row.totalCost, 0)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="sticky bottom-0 bg-gray-50 border-t-2 border-gray-200">
+                  <tr>
+                    <td colSpan={2 + yearLabels.length + 5} className="px-4 py-3 font-semibold text-right text-sm">
+                      Total
+                    </td>
+                    <td className="px-4 py-3 font-semibold text-sm text-right tabular-nums">
+                      {fmt(grandTotal, 0)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
+          ) : (
+            <div className="h-full overflow-auto p-6">
+              {/* Rate Cards */}
+              <div className="grid grid-cols-3 gap-6 max-w-2xl">
+                <Card className="p-6 text-center">
+                  <p className="text-sm text-gray-500 mb-2">Fringe</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {fmtPct(indirectRates?.fringe || FRINGE_RATE)}
+                  </p>
+                </Card>
+                <Card className="p-6 text-center">
+                  <p className="text-sm text-gray-500 mb-2">Overhead</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {fmtPct(indirectRates?.overhead || OVERHEAD_RATE)}
+                  </p>
+                </Card>
+                <Card className="p-6 text-center">
+                  <p className="text-sm text-gray-500 mb-2">G&A</p>
+                  <p className="text-2xl font-semibold text-gray-900">
+                    {fmtPct(indirectRates?.ga || GA_RATE)}
+                  </p>
+                </Card>
+              </div>
 
-            {/* Rate Basis Notes */}
-            <div className="mt-6 text-sm text-gray-500 space-y-1">
-              <p>Rate basis: 2,080 hours/year</p>
-              <p>Calculated per FAR 31.2 cost principles</p>
+              {/* Rate Basis Notes */}
+              <div className="mt-6 text-sm text-gray-500 space-y-1">
+                <p>Rate basis: 2,080 hours/year</p>
+                <p>Calculated per FAR 31.2 cost principles</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ===== DETAIL DRAWER ===== */}
+        {selectedRole && (
+          <div className="w-80 border-l border-gray-200 bg-gray-50 overflow-y-auto shrink-0">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">Cost Breakdown</h3>
+                <button
+                  onClick={() => setSelectedRole(null)}
+                  className="p-1 text-gray-400 hover:text-gray-600 rounded"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                {/* Role Info */}
+                <div>
+                  <p className="text-sm font-medium text-gray-900">{selectedRole.name}</p>
+                  {selectedRole.laborCategory && (
+                    <p className="text-xs text-gray-500">{selectedRole.laborCategory}</p>
+                  )}
+                </div>
+
+                {/* Hours by Year */}
+                <Card className="p-3">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Hours</p>
+                  <div className="space-y-1.5">
+                    {yearLabels.map((label, idx) => (
+                      <div key={label} className="flex justify-between text-sm">
+                        <span className="text-gray-600">{label}</span>
+                        <span className="tabular-nums font-medium">
+                          {selectedRole.hoursByYear[idx] > 0 ? selectedRole.hoursByYear[idx].toLocaleString() : '—'}
+                        </span>
+                      </div>
+                    ))}
+                    <div className="flex justify-between text-sm pt-1.5 border-t border-gray-200">
+                      <span className="font-medium text-gray-900">Total Hours</span>
+                      <span className="tabular-nums font-semibold">
+                        {selectedRole.hoursByYear.reduce((a, b) => a + b, 0).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Rate Breakdown */}
+                <Card className="p-3">
+                  <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Rate Build-up</p>
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Base Rate</span>
+                      <span className="tabular-nums">{fmt(selectedRole.baseRate)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">+ Fringe ({fmtPct(FRINGE_RATE)})</span>
+                      <span className="tabular-nums text-gray-500">{fmt(selectedRole.fringe)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">+ Overhead ({fmtPct(OVERHEAD_RATE)})</span>
+                      <span className="tabular-nums text-gray-500">{fmt(selectedRole.overhead)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">+ G&A ({fmtPct(GA_RATE)})</span>
+                      <span className="tabular-nums text-gray-500">{fmt(selectedRole.ga)}</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-1.5 border-t border-gray-200">
+                      <span className="font-medium text-gray-900">Loaded Rate</span>
+                      <span className="tabular-nums font-semibold">{fmt(selectedRole.loadedRate)}</span>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Total Cost */}
+                <Card className="p-3 bg-gray-900 text-white">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm font-medium">Total Cost</span>
+                    <span className="text-lg font-semibold tabular-nums">{fmt(selectedRole.totalCost, 0)}</span>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">
+                    {selectedRole.hoursByYear.reduce((a, b) => a + b, 0).toLocaleString()} hrs × {fmt(selectedRole.loadedRate)}/hr
+                  </p>
+                </Card>
+              </div>
             </div>
           </div>
         )}
