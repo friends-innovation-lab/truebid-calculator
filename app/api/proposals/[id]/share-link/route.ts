@@ -38,35 +38,40 @@ export async function GET(
     return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
   }
 
-  // Get existing share link
-  const { data: shareLink, error } = await supabase
+  // Get all share links for this proposal
+  const { data: shareLinks, error } = await supabase
     .from('boe_share_links')
     .select('*')
     .eq('proposal_id', proposalId)
-    .single()
+    .order('created_at', { ascending: false })
 
-  if (error && error.code !== 'PGRST116') {
-    // PGRST116 = no rows returned, which is fine
+  if (error) {
     console.error('[GET /api/proposals/[id]/share-link] Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  const mapLink = (link: typeof shareLinks[number]) => ({
+    id: link.id,
+    token: link.token,
+    isActive: link.is_active,
+    expiresAt: link.expires_at,
+    viewCount: link.view_count,
+    lastViewedAt: link.last_viewed_at,
+    createdAt: link.created_at,
+    approvalStatus: link.approval_status || null,
+    accountantNote: link.accountant_note || null,
+    approvedAt: link.approved_at || null,
+    reviewerEmail: link.reviewer_email || null,
+    label: link.label || null,
+    linkType: link.link_type || null,
+  })
+
+  const allLinks = (shareLinks || []).map(mapLink)
+  const primaryLink = allLinks[0] || null
+
   return NextResponse.json({
-    shareLink: shareLink ? {
-      id: shareLink.id,
-      token: shareLink.token,
-      isActive: shareLink.is_active,
-      expiresAt: shareLink.expires_at,
-      viewCount: shareLink.view_count,
-      lastViewedAt: shareLink.last_viewed_at,
-      createdAt: shareLink.created_at,
-      approvalStatus: shareLink.approval_status || null,
-      accountantNote: shareLink.accountant_note || null,
-      approvedAt: shareLink.approved_at || null,
-      reviewerEmail: shareLink.reviewer_email || null,
-      label: shareLink.label || null,
-      linkType: shareLink.link_type || null,
-    } : null,
+    shareLink: primaryLink,
+    allLinks,
   })
 }
 
