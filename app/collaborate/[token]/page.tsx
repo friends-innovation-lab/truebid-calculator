@@ -627,7 +627,21 @@ function ContextSection({
   )
 }
 
-// ===== COACHING PANEL LITE (simplified for collaborators) =====
+// ===== COACHING PANEL (matches internal styling) =====
+
+const SCORE_LABELS: Record<string, string> = {
+  understanding: 'Understanding',
+  approach: 'Approach',
+  proof: 'Proof',
+  risk_mitigation: 'Risk Mitigation',
+  win_theme_alignment: 'Win Theme Alignment',
+}
+
+const SEVERITY_CONFIG = {
+  critical: { label: 'Critical', color: 'bg-red-100 text-red-700 border-red-200' },
+  important: { label: 'Important', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  suggestion: { label: 'Suggestion', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+} as const
 
 function CoachingPanelLite({
   token,
@@ -643,7 +657,7 @@ function CoachingPanelLite({
   const [coaching, setCoaching] = useState<{
     scores: Record<string, number>
     overall_assessment: string
-    feedback: { category: string; severity: string; issue: string; recommendation: string }[]
+    feedback: { category: string; severity: 'critical' | 'important' | 'suggestion'; issue: string; recommendation: string }[]
   } | null>(null)
   const [isCoaching, setIsCoaching] = useState(false)
   const [coachingError, setCoachingError] = useState<string | null>(null)
@@ -674,7 +688,6 @@ function CoachingPanelLite({
     setIsCoaching(true)
     setCoachingError(null)
     try {
-      // Use the token-based public coaching endpoint
       const res = await fetch(`/api/collaborate/${token}/coach`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -693,117 +706,187 @@ function CoachingPanelLite({
     }
   }
 
-  const scoreLabels: Record<string, string> = {
-    understanding: 'Understanding',
-    approach: 'Approach',
-    proof: 'Proof',
-    risk_mitigation: 'Risk Mitigation',
-    win_theme_alignment: 'Win Themes',
-  }
-
   // Overall score
   const scores = coaching?.scores || {}
   const scoreValues = Object.values(scores).filter((v) => typeof v === 'number')
-  const overallScore = scoreValues.length > 0
-    ? (scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length).toFixed(1)
-    : null
+  const averageScore = scoreValues.length > 0
+    ? scoreValues.reduce((a, b) => a + b, 0) / scoreValues.length
+    : 0
+
+  // Get score color
+  const getScoreColor = (score: number) => {
+    if (score <= 2) return 'bg-red-500'
+    if (score === 3) return 'bg-amber-500'
+    return 'bg-green-500'
+  }
+
+  // Sort feedback by severity
+  const sortedFeedback = coaching?.feedback
+    ? [...coaching.feedback].sort((a, b) => {
+        const order = { critical: 0, important: 1, suggestion: 2 }
+        return order[a.severity] - order[b.severity]
+      })
+    : []
 
   return (
     <div className="space-y-4">
       {/* Morgan header */}
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-gray-200 overflow-hidden shrink-0">
+        <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden shrink-0">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/images/morgan-ellis.jpg" alt="Morgan Ellis" className="w-full h-full object-cover" />
         </div>
         <div>
-          <p className="text-sm font-medium text-gray-900">Morgan Ellis</p>
-          <p className="text-xs text-muted-foreground">Red Team Lead &middot; Shipley methodology</p>
+          <p className="text-sm font-semibold text-gray-900">Morgan Ellis</p>
+          <p className="text-xs text-gray-500">Red Team Lead · Shipley methodology</p>
         </div>
       </div>
 
-      {/* Score display */}
-      {overallScore && (
-        <Card className="p-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-medium text-gray-700">Overall Score</span>
-            <span className="text-lg font-bold text-gray-900">{overallScore}<span className="text-xs text-muted-foreground font-normal">/5</span></span>
+      {/* Loading state */}
+      {isCoaching && (
+        <div className="space-y-4">
+          <div className="flex flex-col items-center py-6 text-center">
+            <div className="w-10 h-10 rounded-full bg-purple-50 flex items-center justify-center mb-3">
+              <Loader2 className="w-5 h-5 text-purple-600 animate-spin" />
+            </div>
+            <p className="text-sm font-medium text-gray-900">
+              Analyzing your section...
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              This may take 15-30 seconds
+            </p>
           </div>
           <div className="space-y-2">
-            {Object.entries(scores).map(([key, value]) => (
-              <div key={key} className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-28 shrink-0">{scoreLabels[key] || key}</span>
-                <div className="flex-1 bg-gray-100 rounded-full h-1.5">
-                  <div
-                    className={`h-1.5 rounded-full transition-all ${
-                      value >= 4 ? 'bg-green-500' : value >= 3 ? 'bg-amber-500' : 'bg-red-500'
-                    }`}
-                    style={{ width: `${(value / 5) * 100}%` }}
-                  />
-                </div>
-                <span className="text-xs font-medium w-6 text-right">{value}</span>
-              </div>
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-10 bg-gray-100 rounded animate-pulse" />
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Error state */}
+      {coachingError && (
+        <Card className="p-4 border-red-200 bg-red-50">
+          <p className="text-sm text-red-700">{coachingError}</p>
+          <Button size="sm" variant="outline" onClick={runCoaching} className="mt-2">
+            Try Again
+          </Button>
         </Card>
       )}
 
-      {/* Feedback */}
-      {coaching?.feedback && coaching.feedback.length > 0 && (
-        <div className="space-y-2">
-          <span className="text-xs font-medium text-gray-700">Feedback</span>
-          {coaching.feedback.map((item, i) => (
-            <Card key={i} className="p-3">
-              <div className="flex items-start gap-2">
-                <Badge
-                  variant="secondary"
-                  className={`text-[10px] shrink-0 ${
-                    item.severity === 'critical' ? 'bg-red-100 text-red-700' :
-                    item.severity === 'important' ? 'bg-amber-100 text-amber-700' :
-                    'bg-blue-100 text-blue-700'
-                  }`}
-                >
-                  {item.severity}
-                </Badge>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium text-gray-900">{item.issue}</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{item.recommendation}</p>
-                </div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* Assessment */}
-      {coaching?.overall_assessment && (
-        <div className="text-xs text-gray-600 bg-gray-100 rounded p-3 leading-relaxed">
-          {coaching.overall_assessment}
-        </div>
-      )}
-
-      {/* Loading / empty states */}
-      {isCoaching && (
-        <div className="flex items-center justify-center py-6">
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          <span className="text-xs text-muted-foreground ml-2">Analyzing...</span>
-        </div>
-      )}
-
-      {coachingError && (
-        <p className="text-xs text-muted-foreground text-center py-4">{coachingError}</p>
-      )}
-
+      {/* Empty state */}
       {!coaching && !isCoaching && !coachingError && (
-        <div className="text-center py-8 space-y-2">
-          <p className="text-xs text-muted-foreground">
-            Start writing and Morgan will provide real-time feedback on your draft.
-          </p>
-          {wordCount >= 50 && (
-            <Button variant="outline" size="sm" onClick={runCoaching}>
-              Run Analysis
+        <div className="text-center py-6 space-y-3">
+          <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto">
+            <Target className="w-5 h-5 text-gray-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-gray-900">Get section feedback</p>
+            <p className="text-xs text-gray-500 mt-1">
+              The coaching engine evaluates your writing against Shipley methodology and win themes.
+            </p>
+          </div>
+          {wordCount >= 50 ? (
+            <Button size="sm" onClick={runCoaching}>
+              Analyze Section
             </Button>
+          ) : (
+            <p className="text-xs text-gray-400">
+              Write at least 50 words to enable analysis
+            </p>
           )}
+        </div>
+      )}
+
+      {/* Results */}
+      {coaching && !isCoaching && (
+        <div className="space-y-4">
+          {/* Score Card */}
+          <Card className="p-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-gray-900">Overall Score</h3>
+              <div className="flex items-center gap-1">
+                <span className="text-2xl font-bold text-gray-900">
+                  {averageScore.toFixed(1)}
+                </span>
+                <span className="text-xs text-gray-500">/5</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {Object.entries(scores).map(([key, score]) => (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-gray-600">{SCORE_LABELS[key] || key}</span>
+                    <span className="font-medium text-gray-900">{score}</span>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${getScoreColor(score)}`}
+                      style={{ width: `${(score / 5) * 100}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Feedback Items */}
+          {sortedFeedback.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900">
+                Feedback ({sortedFeedback.length})
+              </h3>
+
+              {sortedFeedback.map((item, idx) => (
+                <Card key={idx} className="p-3 space-y-2">
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] ${SEVERITY_CONFIG[item.severity]?.color || 'bg-gray-100 text-gray-700'}`}
+                    >
+                      {SEVERITY_CONFIG[item.severity]?.label || item.severity}
+                    </Badge>
+                    {item.category && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        {item.category}
+                      </Badge>
+                    )}
+                  </div>
+
+                  <p className="text-sm font-medium text-gray-900">
+                    {item.issue}
+                  </p>
+
+                  <p className="text-xs text-gray-600">
+                    {item.recommendation}
+                  </p>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          {/* Overall Assessment */}
+          {coaching.overall_assessment && (
+            <Card className="p-4">
+              <h3 className="text-sm font-semibold text-gray-900 mb-2">
+                Overall Assessment
+              </h3>
+              <p className="text-sm text-gray-600 leading-relaxed">
+                {coaching.overall_assessment}
+              </p>
+            </Card>
+          )}
+
+          {/* Run Again Button */}
+          <Button
+            variant="outline"
+            onClick={runCoaching}
+            className="w-full"
+            size="sm"
+          >
+            Run Again
+          </Button>
         </div>
       )}
     </div>
