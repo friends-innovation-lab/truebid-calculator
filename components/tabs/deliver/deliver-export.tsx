@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
-import { complianceApi, sectionsApi } from '@/lib/api'
+import { complianceApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -113,6 +113,9 @@ export function DeliverExport() {
     extractedRequirements,
     solicitation,
     proposalSetup,
+    outline,
+    sectionContent,
+    setSectionContent,
   } = useAppContext()
 
   // Compliance items for export
@@ -148,30 +151,30 @@ export function DeliverExport() {
     loadCompliance()
   }, [proposalId])
 
-  // Load proposal sections for voice transform
+  // Build proposal sections from outline + sectionContent
   useEffect(() => {
-    if (!proposalId) return
-    async function loadSections() {
-      try {
-        const response = await sectionsApi.list(proposalId) as {
-          sections: { id: string; title: string; content: string; sectionNumber: string | null }[]
-        }
-        setProposalSections(
-          (response.sections || [])
-            .filter((s) => s.content && s.content.trim().length > 0)
-            .map((s) => ({
-              id: s.id,
-              title: s.title,
-              content: s.content,
-              sectionNumber: s.sectionNumber,
-            }))
-        )
-      } catch {
-        // Silently fail
-      }
+    if (!outline?.volumes) {
+      setProposalSections([])
+      return
     }
-    loadSections()
-  }, [proposalId])
+
+    const sections: ProposalSection[] = []
+    outline.volumes.forEach((volume) => {
+      volume.sections.forEach((section) => {
+        const content = sectionContent[section.id]?.content
+        if (content && content.trim().length > 0) {
+          sections.push({
+            id: section.id,
+            title: section.title,
+            content: content,
+            sectionNumber: section.number || null,
+          })
+        }
+      })
+    })
+
+    setProposalSections(sections)
+  }, [outline, sectionContent])
 
   // ==================== VOICE TRANSFORM HANDLER ====================
 
@@ -251,45 +254,33 @@ export function DeliverExport() {
     )
   }
 
-  const handleApplyApproved = useCallback(async () => {
+  const handleApplyApproved = useCallback(() => {
     const approved = transformResults.filter((r) => r.approved)
     if (approved.length === 0) {
       toast.error('No sections approved. Approve at least one section to apply changes.')
       return
     }
 
-    try {
+    // Update sectionContent in app context
+    setSectionContent((prev) => {
+      const updated = { ...prev }
       for (const result of approved) {
-        await fetch(`/api/proposals/${proposalId}/sections/${result.sectionId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ content: result.transformed }),
-        })
+        if (updated[result.sectionId]) {
+          updated[result.sectionId] = {
+            ...updated[result.sectionId],
+            content: result.transformed,
+            wordCount: result.transformed.replace(/<[^>]*>/g, '').split(/\s+/).filter(Boolean).length,
+            lastSaved: new Date().toISOString(),
+          }
+        }
       }
+      return updated
+    })
 
-      toast.success(`Applied voice changes to ${approved.length} section${approved.length === 1 ? '' : 's'}`)
-      setShowReviewModal(false)
-      setTransformResults([])
-
-      // Reload sections
-      const response = await sectionsApi.list(proposalId) as {
-        sections: { id: string; title: string; content: string; sectionNumber: string | null }[]
-      }
-      setProposalSections(
-        (response.sections || [])
-          .filter((s) => s.content && s.content.trim().length > 0)
-          .map((s) => ({
-            id: s.id,
-            title: s.title,
-            content: s.content,
-            sectionNumber: s.sectionNumber,
-          }))
-      )
-    } catch (error) {
-      console.error('Failed to apply changes:', error)
-      toast.error('Failed to apply changes')
-    }
-  }, [proposalId, transformResults])
+    toast.success(`Applied voice changes to ${approved.length} section${approved.length === 1 ? '' : 's'}`)
+    setShowReviewModal(false)
+    setTransformResults([])
+  }, [transformResults, setSectionContent])
 
   // ==================== EXPORT HANDLERS ====================
 
