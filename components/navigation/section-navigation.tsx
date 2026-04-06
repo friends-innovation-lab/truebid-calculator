@@ -22,6 +22,9 @@ import { Team } from '@/components/tabs/staff/team'
 import { LaborLoading } from '@/components/tabs/staff/labor-loading'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
 import { DeliverHub } from '@/components/tabs/deliver/deliver-hub'
+import { DeliverReview } from '@/components/tabs/deliver/deliver-review'
+import { DeliverExport } from '@/components/tabs/deliver/deliver-export'
+import { DeliverShare } from '@/components/tabs/deliver/deliver-share'
 import { Strategy } from '@/components/tabs/scope/strategy'
 import { Solicitation } from '@/components/tabs/scope/solicitation'
 import { Requirements } from '@/components/tabs/scope/requirements'
@@ -46,6 +49,9 @@ type ViewId =
   | 'technical-editor'
   // Deliver
   | 'deliver-hub'
+  | 'deliver-review'
+  | 'deliver-export'
+  | 'deliver-share'
 
 // Map old tab IDs to new view IDs for URL compatibility
 const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
@@ -127,6 +133,9 @@ export function SectionNavigation() {
       'team': 'teaming-partners',
       'labor-loading': 'estimate',
       'deliver-hub': 'export',
+      'deliver-review': 'export',
+      'deliver-export': 'export',
+      'deliver-share': 'export',
     }
     if (viewToTab[typedViewId]) {
       setActiveMainTab(viewToTab[typedViewId] as MainTabId)
@@ -233,9 +242,18 @@ export function SectionNavigation() {
           )
         )}
 
-        {/* DELIVER — single-page hub */}
+        {/* DELIVER views */}
         {activeView === 'deliver-hub' && activeSection === 'deliver' && (
-          <DeliverHub />
+          <DeliverHub onNavigate={handleViewChange} />
+        )}
+        {activeView === 'deliver-review' && activeSection === 'deliver' && (
+          <DeliverReview />
+        )}
+        {activeView === 'deliver-export' && activeSection === 'deliver' && (
+          <DeliverExport />
+        )}
+        {activeView === 'deliver-share' && activeSection === 'deliver' && (
+          <DeliverShare />
         )}
       </ProposalLayout>
 

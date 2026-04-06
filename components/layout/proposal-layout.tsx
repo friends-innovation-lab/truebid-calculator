@@ -17,6 +17,9 @@ import {
   FileDown,
   PenLine,
   Target,
+  ClipboardCheck,
+  Download,
+  Share2,
 } from 'lucide-react'
 
 // Icon rail items for each section
@@ -64,6 +67,9 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
       label: 'Deliver',
       items: [
         { id: 'deliver-hub', label: 'Deliver', icon: FileDown },
+        { id: 'deliver-review', label: 'Review', icon: ClipboardCheck },
+        { id: 'deliver-export', label: 'Export', icon: Download },
+        { id: 'deliver-share', label: 'Share', icon: Share2 },
       ],
     },
   ],
