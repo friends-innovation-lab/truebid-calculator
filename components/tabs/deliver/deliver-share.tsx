@@ -147,6 +147,7 @@ export function DeliverShare() {
 
   // Revoke confirmation
   const [revokeId, setRevokeId] = useState<string | null>(null)
+  const [revokeCollabId, setRevokeCollabId] = useState<string | null>(null)
 
   // Review drawer
   const [reviewLink, setReviewLink] = useState<CollabLink | null>(null)
@@ -356,6 +357,20 @@ export function DeliverShare() {
       toast.success('Link revoked')
     } catch {
       toast.error('Failed to revoke link')
+    }
+  }
+
+  const handleRevokeCollabLink = async (linkId: string) => {
+    try {
+      const res = await fetch(`/api/proposals/${proposalId}/collab-links/${linkId}`, {
+        method: 'DELETE',
+      })
+      if (!res.ok) throw new Error('Failed to delete')
+      setCollabLinks((prev) => prev.filter((l) => l.id !== linkId))
+      setRevokeCollabId(null)
+      toast.success('Contributor link deleted')
+    } catch {
+      toast.error('Failed to delete link')
     }
   }
 
@@ -626,6 +641,16 @@ export function DeliverShare() {
                         <button onClick={() => handleCopyLink(link.token, link.id, true)} className="p-1.5 text-gray-400 hover:text-gray-600 rounded" title="Copy link">
                           {copiedId === link.id ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                         </button>
+                        {revokeCollabId === link.id ? (
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="destructive" className="h-7 text-xs" onClick={() => handleRevokeCollabLink(link.id)}>Confirm</Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setRevokeCollabId(null)}>Cancel</Button>
+                          </div>
+                        ) : (
+                          <button onClick={() => setRevokeCollabId(link.id)} className="p-1.5 text-gray-400 hover:text-red-600 rounded" title="Delete">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

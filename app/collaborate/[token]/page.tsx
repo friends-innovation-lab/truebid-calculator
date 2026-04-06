@@ -109,6 +109,7 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [wordCount, setWordCount] = useState(0)
   const saveTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const loadData = useCallback(async () => {
@@ -175,6 +176,10 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
       },
     },
     immediatelyRender: false,
+    onUpdate: ({ editor }) => {
+      // Update word count reactively on every change
+      setWordCount(editor.storage.characterCount?.words() || 0)
+    },
   })
 
   // Set content once data loads
@@ -213,8 +218,12 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
     return () => clearInterval(interval)
   }, [editor, token, submitted])
 
-  // Word count
-  const wordCount = editor?.storage.characterCount?.words() || 0
+  // Initialize word count when editor loads with content
+  useEffect(() => {
+    if (editor) {
+      setWordCount(editor.storage.characterCount?.words() || 0)
+    }
+  }, [editor])
 
   // Submit handler
   const handleSubmit = async () => {
@@ -551,7 +560,7 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
         <aside className="w-[320px] border-l border-gray-200 overflow-y-auto bg-gray-50 shrink-0">
           <div className="p-4">
             <CoachingPanelLite
-              proposalId={proposal.id}
+              token={token}
               sections={sections}
               editorContent={editor?.getText() || ''}
               wordCount={wordCount}
@@ -621,12 +630,12 @@ function ContextSection({
 // ===== COACHING PANEL LITE (simplified for collaborators) =====
 
 function CoachingPanelLite({
-  proposalId,
+  token,
   sections,
   editorContent,
   wordCount,
 }: {
-  proposalId: string
+  token: string
   sections: SectionInfo[]
   editorContent: string
   wordCount: number
@@ -659,14 +668,14 @@ function CoachingPanelLite({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editorContent, wordCount])
 
-  const sectionId = sections[0]?.id
   const sectionTitle = sections[0]?.title || 'Section'
   const runCoaching = async () => {
-    if (!sectionId || isCoaching || !editorContent.trim()) return
+    if (isCoaching || !editorContent.trim()) return
     setIsCoaching(true)
     setCoachingError(null)
     try {
-      const res = await fetch(`/api/proposals/${proposalId}/sections/${sectionId}/coach`, {
+      // Use the token-based public coaching endpoint
+      const res = await fetch(`/api/collaborate/${token}/coach`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
