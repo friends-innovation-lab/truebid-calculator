@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
-import { shareLinksApi, sectionsApi } from '@/lib/api'
+import { useAppContext } from '@/contexts/app-context'
+import { shareLinksApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -108,6 +109,7 @@ function relativeTime(isoString: string): string {
 export function DeliverShare() {
   const params = useParams()
   const proposalId = params?.id as string
+  const { outline } = useAppContext()
 
   // Tab state
   const [activeTab, setActiveTab] = useState<'links' | 'submissions'>('links')
@@ -193,26 +195,28 @@ export function DeliverShare() {
 
   useEffect(() => { loadCollabLinks() }, [loadCollabLinks])
 
-  // Load sections for multi-select
+  // Build sections from outline for multi-select
   useEffect(() => {
-    if (!proposalId) return
-    async function loadSections() {
-      try {
-        const data = await sectionsApi.list(proposalId) as {
-          sections: { id: string; title: string; sectionNumber: string | null; sortOrder: number }[]
-        }
-        setSections((data.sections || []).map(s => ({
-          id: s.id,
-          title: s.title,
-          sectionNumber: s.sectionNumber,
-          sortOrder: s.sortOrder,
-        })))
-      } catch {
-        // Silently fail
-      }
+    if (!outline?.volumes) {
+      setSections([])
+      return
     }
-    loadSections()
-  }, [proposalId])
+
+    const sectionList: SectionInfo[] = []
+    let sortOrder = 0
+    outline.volumes.forEach((volume) => {
+      volume.sections.forEach((section) => {
+        sectionList.push({
+          id: section.id,
+          title: section.title,
+          sectionNumber: section.number || null,
+          sortOrder: sortOrder++,
+        })
+      })
+    })
+
+    setSections(sectionList)
+  }, [outline])
 
   // Find accountant link
   const accountantLink = allLinks.find(
