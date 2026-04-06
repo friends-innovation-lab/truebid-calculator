@@ -145,6 +145,7 @@ export async function GET(
       submissionStatus: link.submission_status,
       submissionContent: link.submission_content,
       sectionIds: link.section_ids,
+      reviewerNote: link.reviewer_note,
     },
     proposal: {
       id: proposal.id,

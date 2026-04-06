@@ -421,16 +421,16 @@ export function DeliverShare() {
     if (!reviewLink) return
     setIsSendingBack(true)
     try {
-      const res = await fetch(`/api/collaborate/${reviewLink.token}/save`, {
-        method: 'PATCH',
+      const res = await fetch(`/api/collaborate/${reviewLink.token}/send-back`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ content: reviewLink.submission_content }),
+        body: JSON.stringify({ note: sendBackNote.trim() || undefined }),
       })
       if (!res.ok) throw new Error('Send back failed')
-      // Also update status back to pending via a dedicated call
-      // For now, use the save endpoint pattern
-      toast.success('Sent back for revision')
+      toast.success('Sent back for revision — contributor will see your feedback when they revisit')
       setReviewLink(null)
+      setSendBackNote('')
+      setShowSendBack(false)
       loadCollabLinks()
     } catch {
       toast.error('Failed to send back')
@@ -864,34 +864,45 @@ export function DeliverShare() {
                 </div>
               </div>
 
-              {/* Bottom actions */}
-              <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0">
-                <div>
-                  {showSendBack ? (
-                    <div className="flex items-center gap-2">
-                      <Input
-                        placeholder="Note for the collaborator..."
+              {/* Bottom actions - expanded feedback area */}
+              <div className="border-t border-gray-200 bg-gray-50 shrink-0">
+                {showSendBack ? (
+                  <div className="p-6 space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Feedback for contributor
+                      </label>
+                      <Textarea
+                        placeholder="Describe what changes are needed. The contributor will see this when they revisit their link..."
                         value={sendBackNote}
                         onChange={(e) => setSendBackNote(e.target.value)}
-                        className="w-64 text-sm"
+                        className="w-full text-sm min-h-[100px]"
+                        rows={4}
                       />
-                      <Button size="sm" variant="outline" onClick={handleSendBack} disabled={isSendingBack}>
-                        {isSendingBack && <Loader2 className="w-4 h-4 mr-1 animate-spin" />}
-                        Send
-                      </Button>
-                      <Button size="sm" variant="ghost" onClick={() => setShowSendBack(false)}>Cancel</Button>
                     </div>
-                  ) : (
-                    <Button size="sm" variant="outline" onClick={() => setShowSendBack(true)}>
-                      <RotateCcw className="w-4 h-4 mr-1" />
-                      Send back
+                    <div className="flex items-center justify-between">
+                      <Button variant="ghost" onClick={() => setShowSendBack(false)}>
+                        Cancel
+                      </Button>
+                      <Button onClick={handleSendBack} disabled={isSendingBack || !sendBackNote.trim()}>
+                        {isSendingBack && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                        <RotateCcw className="w-4 h-4 mr-2" />
+                        Send Back for Revision
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between px-6 py-4">
+                    <Button variant="outline" onClick={() => setShowSendBack(true)}>
+                      <RotateCcw className="w-4 h-4 mr-2" />
+                      Send back for revision
                     </Button>
-                  )}
-                </div>
-                <Button size="sm" onClick={handleApprove} disabled={isApproving || !transformedHtml}>
-                  {isApproving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
-                  Approve and merge
-                </Button>
+                    <Button onClick={handleApprove} disabled={isApproving || !transformedHtml} className="bg-green-600 hover:bg-green-700">
+                      {isApproving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+                      Approve and merge
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
           </>

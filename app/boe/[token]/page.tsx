@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorAlert } from '@/components/ui/error-alert'
-import { CheckCircle2, Loader2, X } from 'lucide-react'
+import { CheckCircle2, Loader2, X, MessageSquare } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 
 // ===== TYPES =====
@@ -57,6 +57,7 @@ interface BOEData {
     expiresAt: string | null
     viewCount: number
     approvalStatus?: string | null
+    accountantNote?: string | null
   }
 }
 
@@ -298,6 +299,19 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
           Indirect Rates
         </button>
       </div>
+
+      {/* ===== CORRECTIONS FEEDBACK BANNER ===== */}
+      {data.linkInfo.accountantNote && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 shrink-0">
+          <div className="flex items-start gap-3">
+            <MessageSquare className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-800">Corrections requested</p>
+              <p className="text-sm text-amber-700 mt-1">{data.linkInfo.accountantNote}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== TABLE AREA (flex-1, scrolls independently) ===== */}
       <div className="flex-1 overflow-hidden flex">

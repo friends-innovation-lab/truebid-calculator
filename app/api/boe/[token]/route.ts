@@ -127,6 +127,7 @@ export async function GET(
       expiresAt: shareLink.expires_at,
       viewCount: (shareLink.view_count || 0) + 1,
       approvalStatus: shareLink.approval_status || null,
+      accountantNote: shareLink.accountant_note || null,
     },
   }
 

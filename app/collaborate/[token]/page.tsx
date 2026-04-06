@@ -36,6 +36,7 @@ import {
   List,
   ListOrdered,
   AlertCircle,
+  MessageSquare,
 } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
 import { toast } from 'sonner'
@@ -80,6 +81,7 @@ interface CollaborateData {
     submissionStatus: string
     submissionContent: unknown | null
     sectionIds: string[]
+    reviewerNote: string | null
   }
   proposal: {
     id: string
@@ -294,7 +296,7 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
 
   if (!data) return null
 
-  const { proposal, sections, complianceItems, winThemes, writingGuide } = data
+  const { link, proposal, sections, complianceItems, winThemes, writingGuide } = data
 
   // Current section name for header
   const sectionTitle = sections.length === 1
@@ -344,6 +346,19 @@ export default function CollaboratePage({ params }: { params: Promise<{ token: s
           </Button>
         </div>
       </header>
+
+      {/* ===== FEEDBACK BANNER ===== */}
+      {link.reviewerNote && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3 shrink-0">
+          <div className="flex items-start gap-3">
+            <MessageSquare className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-800">Feedback from reviewer</p>
+              <p className="text-sm text-amber-700 mt-1">{link.reviewerNote}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ===== THREE-PANEL LAYOUT ===== */}
       <div className="flex flex-1 min-h-0 overflow-hidden">
