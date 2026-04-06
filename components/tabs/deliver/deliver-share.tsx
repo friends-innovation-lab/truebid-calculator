@@ -80,7 +80,6 @@ export function DeliverShare() {
 
   // Create link dialog
   const [showCreateDialog, setShowCreateDialog] = useState(false)
-  const [createLinkType, setCreateLinkType] = useState('accountant')
   const [createLabel, setCreateLabel] = useState('')
   const [createEmail, setCreateEmail] = useState('')
   const [createExpiry, setCreateExpiry] = useState('30')
@@ -152,7 +151,7 @@ export function DeliverShare() {
         expiresInDays: expiryDays,
         reviewerEmail: createEmail.trim(),
         label: createLabel.trim() || undefined,
-        linkType: createLinkType,
+        linkType: 'accountant',
       }) as { shareLink: ShareLinkData }
       setAllLinks((prev) => [...prev, data.shareLink])
       setShowCreateDialog(false)
@@ -328,7 +327,7 @@ export function DeliverShare() {
             <EmptyState
               icon={Link2}
               title="No links created yet"
-              description="Create a shareable link to let others view your proposal documents."
+              description="Create a link to share the BOE with your accountant for review."
             />
           ) : (
             <Card className="p-0 divide-y divide-gray-100">
@@ -345,11 +344,7 @@ export function DeliverShare() {
               {allLinks.map((link) => (
                 <div key={link.id} className="grid grid-cols-6 gap-4 px-4 py-3 items-center text-sm">
                   <span>
-                    {link.linkType === 'director' ? (
-                      <span className="bg-blue-50 text-blue-700 text-xs font-medium px-2 py-0.5 rounded">Director</span>
-                    ) : (
-                      <span className="bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5 rounded">Accountant</span>
-                    )}
+                    <span className="bg-amber-50 text-amber-700 text-xs font-medium px-2 py-0.5 rounded">Accountant</span>
                   </span>
                   <span className="text-gray-700 truncate">{link.label || '—'}</span>
                   <span className="text-gray-700 truncate">{link.reviewerEmail || '—'}</span>
@@ -396,22 +391,10 @@ export function DeliverShare() {
             <DialogHeader>
               <DialogTitle>Create Link</DialogTitle>
               <DialogDescription>
-                Create a shareable link for external reviewers.
+                Create a link to share the BOE with your accountant for review.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Link Type</label>
-                <Select value={createLinkType} onValueChange={setCreateLinkType}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="director">Director</SelectItem>
-                    <SelectItem value="accountant">Accountant</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Label</label>
                 <Input
