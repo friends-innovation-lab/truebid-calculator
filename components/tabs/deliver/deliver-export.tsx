@@ -3,12 +3,30 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
-import { complianceApi } from '@/lib/api'
+import { complianceApi, sectionsApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Download, Loader2 } from 'lucide-react'
+import { Textarea } from '@/components/ui/textarea'
+import { Download, Loader2, Sparkles, Check, Minus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { generateBOEDocument, downloadBOE } from '@/lib/boe-export'
+
+// ==================== TYPES ====================
+
+interface ProposalSection {
+  id: string
+  title: string
+  content: string
+  sectionNumber: string | null
+}
+
+interface TransformResult {
+  sectionId: string
+  title: string
+  original: string
+  transformed: string
+  approved: boolean
+}
 
 // ==================== HELPERS ====================
 
@@ -104,6 +122,16 @@ export function DeliverExport() {
 
   const [loadingExport, setLoadingExport] = useState<string | null>(null)
 
+  // Proposal sections for voice transform
+  const [proposalSections, setProposalSections] = useState<ProposalSection[]>([])
+
+  // Voice transform state
+  const [isTransforming, setIsTransforming] = useState(false)
+  const [transformProgress, setTransformProgress] = useState('')
+  const [transformPct, setTransformPct] = useState(0)
+  const [transformResults, setTransformResults] = useState<TransformResult[]>([])
+  const [showReviewModal, setShowReviewModal] = useState(false)
+
   // Load compliance data
   useEffect(() => {
     if (!proposalId) return
@@ -119,6 +147,149 @@ export function DeliverExport() {
     }
     loadCompliance()
   }, [proposalId])
+
+  // Load proposal sections for voice transform
+  useEffect(() => {
+    if (!proposalId) return
+    async function loadSections() {
+      try {
+        const response = await sectionsApi.list(proposalId) as {
+          sections: { id: string; title: string; content: string; sectionNumber: string | null }[]
+        }
+        setProposalSections(
+          (response.sections || [])
+            .filter((s) => s.content && s.content.trim().length > 0)
+            .map((s) => ({
+              id: s.id,
+              title: s.title,
+              content: s.content,
+              sectionNumber: s.sectionNumber,
+            }))
+        )
+      } catch {
+        // Silently fail
+      }
+    }
+    loadSections()
+  }, [proposalId])
+
+  // ==================== VOICE TRANSFORM HANDLER ====================
+
+  const handlePreflightTransform = useCallback(async () => {
+    if (proposalSections.length === 0) {
+      toast.error('No sections to transform. Create content in Write → Proposal Outline first.')
+      return
+    }
+
+    setIsTransforming(true)
+    setTransformResults([])
+    setTransformPct(0)
+
+    const results: TransformResult[] = []
+
+    for (let i = 0; i < proposalSections.length; i++) {
+      const section = proposalSections[i]
+      setTransformProgress(`Transforming ${section.title} (${i + 1} of ${proposalSections.length})`)
+      setTransformPct(((i + 1) / proposalSections.length) * 100)
+
+      try {
+        const res = await fetch(`/api/proposals/${proposalId}/transform-section`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sectionId: section.id,
+            content: section.content,
+          }),
+        })
+
+        if (res.ok) {
+          const { transformed } = await res.json()
+          results.push({
+            sectionId: section.id,
+            title: section.title,
+            original: section.content,
+            transformed,
+            approved: false,
+          })
+        } else {
+          // If transform fails, include original as both
+          results.push({
+            sectionId: section.id,
+            title: section.title,
+            original: section.content,
+            transformed: section.content,
+            approved: false,
+          })
+        }
+      } catch {
+        // On error, include original
+        results.push({
+          sectionId: section.id,
+          title: section.title,
+          original: section.content,
+          transformed: section.content,
+          approved: false,
+        })
+      }
+    }
+
+    setTransformResults(results)
+    setIsTransforming(false)
+    setTransformProgress('')
+    setShowReviewModal(true)
+  }, [proposalId, proposalSections])
+
+  const handleToggleApproval = (sectionId: string) => {
+    setTransformResults((prev) =>
+      prev.map((r) => (r.sectionId === sectionId ? { ...r, approved: !r.approved } : r))
+    )
+  }
+
+  const handleUpdateTransformed = (sectionId: string, newContent: string) => {
+    setTransformResults((prev) =>
+      prev.map((r) => (r.sectionId === sectionId ? { ...r, transformed: newContent } : r))
+    )
+  }
+
+  const handleApplyApproved = useCallback(async () => {
+    const approved = transformResults.filter((r) => r.approved)
+    if (approved.length === 0) {
+      toast.error('No sections approved. Approve at least one section to apply changes.')
+      return
+    }
+
+    try {
+      for (const result of approved) {
+        await fetch(`/api/proposals/${proposalId}/sections/${result.sectionId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: result.transformed }),
+        })
+      }
+
+      toast.success(`Applied voice changes to ${approved.length} section${approved.length === 1 ? '' : 's'}`)
+      setShowReviewModal(false)
+      setTransformResults([])
+
+      // Reload sections
+      const response = await sectionsApi.list(proposalId) as {
+        sections: { id: string; title: string; content: string; sectionNumber: string | null }[]
+      }
+      setProposalSections(
+        (response.sections || [])
+          .filter((s) => s.content && s.content.trim().length > 0)
+          .map((s) => ({
+            id: s.id,
+            title: s.title,
+            content: s.content,
+            sectionNumber: s.sectionNumber,
+          }))
+      )
+    } catch (error) {
+      console.error('Failed to apply changes:', error)
+      toast.error('Failed to apply changes')
+    }
+  }, [proposalId, transformResults])
 
   // ==================== EXPORT HANDLERS ====================
 
@@ -396,6 +567,8 @@ export function DeliverExport() {
 
   // ==================== RENDER ====================
 
+  const approvedCount = transformResults.filter((r) => r.approved).length
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-5xl mx-auto space-y-6">
@@ -404,6 +577,51 @@ export function DeliverExport() {
           <h2 className="text-xl font-semibold text-gray-900">Export</h2>
           <p className="text-sm text-muted-foreground mt-1">Download your proposal package</p>
         </div>
+
+        {/* Pre-flight Voice Check Banner */}
+        <Card className="p-4 border-amber-200 bg-amber-50">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-amber-900">Pre-flight voice check</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Transform all sections to FFTC voice before exporting. Review and approve per section.
+              </p>
+            </div>
+            <Button
+              onClick={handlePreflightTransform}
+              disabled={isTransforming || proposalSections.length === 0}
+              className="bg-amber-600 hover:bg-amber-700 text-white shrink-0 ml-4"
+            >
+              {isTransforming ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Transforming...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="w-4 h-4 mr-2" />
+                  Run voice check
+                </>
+              )}
+            </Button>
+          </div>
+          {transformProgress && (
+            <div className="mt-3">
+              <div className="text-xs text-amber-700 mb-1">{transformProgress}</div>
+              <div className="w-full h-1 bg-amber-200 rounded">
+                <div
+                  className="h-1 bg-amber-600 rounded transition-all"
+                  style={{ width: `${transformPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+          {proposalSections.length === 0 && (
+            <p className="text-xs text-amber-600 mt-2">
+              No sections with content found. Create content in Write → Proposal Outline first.
+            </p>
+          )}
+        </Card>
 
         {/* 2x2 Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -441,6 +659,105 @@ export function DeliverExport() {
           />
         </div>
       </div>
+
+      {/* Voice Transform Review Modal */}
+      {showReviewModal && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/50 z-40"
+            onClick={() => setShowReviewModal(false)}
+          />
+          <div className="fixed inset-4 bg-white z-50 flex flex-col rounded-lg shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 shrink-0">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Review Voice Transforms</h3>
+                <p className="text-sm text-muted-foreground">
+                  Compare original and transformed content. Approve sections to apply changes.
+                </p>
+              </div>
+              <Button variant="ghost" size="icon" onClick={() => setShowReviewModal(false)}>
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            {/* Modal Body - Scrollable */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {transformResults.map((result) => (
+                <Card key={result.sectionId} className="p-0 overflow-hidden">
+                  {/* Section Header */}
+                  <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+                    <h4 className="text-sm font-semibold text-gray-900">{result.title}</h4>
+                    <div className="flex items-center gap-2">
+                      {result.approved ? (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-1 rounded">
+                          <Check className="w-3 h-3" />
+                          Approved
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                          <Minus className="w-3 h-3" />
+                          Skipped
+                        </span>
+                      )}
+                      <Button
+                        size="sm"
+                        variant={result.approved ? 'outline' : 'default'}
+                        onClick={() => handleToggleApproval(result.sectionId)}
+                        className="h-7 text-xs"
+                      >
+                        {result.approved ? 'Skip' : 'Approve'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Side-by-side Content */}
+                  <div className="grid grid-cols-2 divide-x divide-gray-100">
+                    {/* Original */}
+                    <div className="p-4">
+                      <p className="text-xs font-medium text-muted-foreground mb-2">Original</p>
+                      <div
+                        className="prose prose-sm max-w-none text-gray-700 max-h-64 overflow-y-auto"
+                        dangerouslySetInnerHTML={{ __html: result.original }}
+                      />
+                    </div>
+
+                    {/* Transformed */}
+                    <div className="p-4 bg-amber-50/30">
+                      <p className="text-xs font-medium text-amber-700 mb-2">FFTC Voice</p>
+                      <Textarea
+                        value={result.transformed}
+                        onChange={(e) => handleUpdateTransformed(result.sectionId, e.target.value)}
+                        className="min-h-[200px] max-h-64 text-sm bg-white"
+                      />
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 shrink-0">
+              <p className="text-sm text-muted-foreground">
+                {approvedCount} of {transformResults.length} section{transformResults.length === 1 ? '' : 's'} approved
+              </p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setShowReviewModal(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleApplyApproved}
+                  disabled={approvedCount === 0}
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <Check className="w-4 h-4 mr-2" />
+                  Apply {approvedCount} approved change{approvedCount === 1 ? '' : 's'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
