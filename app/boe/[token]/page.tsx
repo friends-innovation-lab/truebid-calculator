@@ -64,7 +64,8 @@ interface RoleRow {
   name: string
   laborCategory: string
   hoursByYear: number[]
-  baseRate: number
+  annualSalary: number
+  baseRate: number // Hourly direct rate (annual / 2080)
   fringe: number
   overhead: number
   ga: number
@@ -77,6 +78,7 @@ interface RoleRow {
 const FRINGE_RATE = 0.2116
 const OVERHEAD_RATE = 0.3426
 const GA_RATE = 0.1983
+const STANDARD_HOURS = 2080 // Hours per work year
 
 // ===== MAIN PAGE =====
 
@@ -200,12 +202,19 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
   for (let i = 1; i <= optionYears; i++) yearLabels.push(`Year ${i}`)
 
   // Build role rows for the summary table
+  // The rate from API is annual baseSalary - convert to hourly first
   const roleRows: RoleRow[] = roles.map(role => {
-    const baseRate = role.rate || 0
-    const fringe = baseRate * FRINGE_RATE
-    const overhead = baseRate * OVERHEAD_RATE
-    const ga = baseRate * GA_RATE
-    const loadedRate = baseRate + fringe + overhead + ga
+    const annualSalary = role.rate || 0
+    // Convert annual salary to hourly rate (same as internal roles-and-pricing-tab)
+    const directRate = annualSalary / STANDARD_HOURS
+
+    // Apply indirect rates to the HOURLY rate (not annual)
+    const fringe = directRate * FRINGE_RATE
+    const withFringe = directRate + fringe
+    const overhead = withFringe * OVERHEAD_RATE
+    const withOverhead = withFringe + overhead
+    const ga = withOverhead * GA_RATE
+    const loadedRate = withOverhead + ga
 
     // Hours per year
     const hoursByYear: number[] = yearLabels.map((_, idx) => {
@@ -223,7 +232,8 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
       name: role.name,
       laborCategory: role.laborCategory || '',
       hoursByYear,
-      baseRate,
+      annualSalary,
+      baseRate: directRate, // Hourly rate (annual / 2080)
       fringe,
       overhead,
       ga,
@@ -445,10 +455,14 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
                   <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Rate Build-up</p>
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Base Rate</span>
-                      <span className="tabular-nums">{fmt(selectedRole.baseRate)}</span>
+                      <span className="text-gray-600">Annual Salary</span>
+                      <span className="tabular-nums">{fmt(selectedRole.annualSalary, 0)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">÷ {STANDARD_HOURS.toLocaleString()} hrs</span>
+                      <span className="tabular-nums text-gray-500">{fmt(selectedRole.baseRate)}/hr</span>
+                    </div>
+                    <div className="flex justify-between text-sm pt-1.5 border-t border-gray-100">
                       <span className="text-gray-600">+ Fringe ({fmtPct(FRINGE_RATE)})</span>
                       <span className="tabular-nums text-gray-500">{fmt(selectedRole.fringe)}</span>
                     </div>
@@ -462,7 +476,7 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
                     </div>
                     <div className="flex justify-between text-sm pt-1.5 border-t border-gray-200">
                       <span className="font-medium text-gray-900">Loaded Rate</span>
-                      <span className="tabular-nums font-semibold">{fmt(selectedRole.loadedRate)}</span>
+                      <span className="tabular-nums font-semibold">{fmt(selectedRole.loadedRate)}/hr</span>
                     </div>
                   </div>
                 </Card>
