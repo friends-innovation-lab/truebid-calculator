@@ -8,7 +8,6 @@ import Placeholder from '@tiptap/extension-placeholder'
 import CharacterCount from '@tiptap/extension-character-count'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorAlert } from '@/components/ui/error-alert'
 import {
@@ -630,18 +629,19 @@ function ContextSection({
 // ===== COACHING PANEL (matches internal styling) =====
 
 const SCORE_LABELS: Record<string, string> = {
+  customer_focus: 'Customer focus',
+  win_themes: 'Win themes',
+  discriminators: 'Discriminators',
+  proof_points: 'Proof points',
+  compliance: 'Compliance',
+  writing_style: 'Writing style',
+  // Fallback labels for other keys
   understanding: 'Understanding',
   approach: 'Approach',
   proof: 'Proof',
   risk_mitigation: 'Risk Mitigation',
   win_theme_alignment: 'Win Theme Alignment',
 }
-
-const SEVERITY_CONFIG = {
-  critical: { label: 'Critical', color: 'bg-red-100 text-red-700 border-red-200' },
-  important: { label: 'Important', color: 'bg-amber-100 text-amber-700 border-amber-200' },
-  suggestion: { label: 'Suggestion', color: 'bg-blue-100 text-blue-700 border-blue-200' },
-} as const
 
 function CoachingPanelLite({
   token,
@@ -730,16 +730,24 @@ function CoachingPanelLite({
 
   return (
     <div className="space-y-4">
-      {/* Morgan header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden shrink-0">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/morgan-ellis.jpg" alt="Morgan Ellis" className="w-full h-full object-cover" />
+      {/* Morgan header with score */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gray-200 overflow-hidden shrink-0">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/images/morgan-ellis.jpg" alt="Morgan Ellis" className="w-full h-full object-cover" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-gray-900">Morgan Ellis</p>
+            <p className="text-xs text-gray-500">Red Team Lead</p>
+            <p className="text-xs text-gray-400">Shipley methodology</p>
+          </div>
         </div>
-        <div>
-          <p className="text-sm font-semibold text-gray-900">Morgan Ellis</p>
-          <p className="text-xs text-gray-500">Red Team Lead · Shipley methodology</p>
-        </div>
+        {coaching && !isCoaching && (
+          <div className="text-right">
+            <span className="text-2xl font-bold text-gray-900">{averageScore.toFixed(1)}</span>
+          </div>
+        )}
       </div>
 
       {/* Loading state */}
@@ -801,81 +809,52 @@ function CoachingPanelLite({
       {/* Results */}
       {coaching && !isCoaching && (
         <div className="space-y-4">
-          {/* Score Card */}
-          <Card className="p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-gray-900">Overall Score</h3>
-              <div className="flex items-center gap-1">
-                <span className="text-2xl font-bold text-gray-900">
-                  {averageScore.toFixed(1)}
-                </span>
-                <span className="text-xs text-gray-500">/5</span>
-              </div>
-            </div>
+          {/* Assessment Summary */}
+          {coaching.overall_assessment && (
+            <p className={`text-sm font-medium ${averageScore >= 3.5 ? 'text-green-600' : averageScore >= 2.5 ? 'text-amber-600' : 'text-red-600'}`}>
+              {averageScore >= 3.5 ? 'Good foundation' : averageScore >= 2.5 ? 'Needs improvement' : 'Major revisions needed'}
+            </p>
+          )}
 
-            <div className="space-y-3">
-              {Object.entries(scores).map(([key, score]) => (
-                <div key={key} className="space-y-1">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-gray-600">{SCORE_LABELS[key] || key}</span>
-                    <span className="font-medium text-gray-900">{score}</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all ${getScoreColor(score)}`}
-                      style={{ width: `${(score / 5) * 100}%` }}
-                    />
-                  </div>
+          {/* Score Bars (no card wrapper) */}
+          <div className="space-y-2.5">
+            {Object.entries(scores).map(([key, score]) => (
+              <div key={key} className="flex items-center gap-3">
+                <span className="text-sm text-gray-600 w-28 shrink-0">{SCORE_LABELS[key] || key}</span>
+                <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${getScoreColor(score)}`}
+                    style={{ width: `${(score / 5) * 100}%` }}
+                  />
                 </div>
-              ))}
-            </div>
-          </Card>
+                <span className={`text-sm font-medium tabular-nums w-6 text-right ${score < 3 ? 'text-red-600' : 'text-gray-900'}`}>
+                  {score.toFixed(1)}
+                </span>
+              </div>
+            ))}
+          </div>
 
-          {/* Feedback Items */}
+          {/* Feedback Items with left border */}
           {sortedFeedback.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-semibold text-gray-900">
-                Feedback ({sortedFeedback.length})
-              </h3>
-
+            <div className="space-y-2 pt-2">
               {sortedFeedback.map((item, idx) => (
-                <Card key={idx} className="p-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] ${SEVERITY_CONFIG[item.severity]?.color || 'bg-gray-100 text-gray-700'}`}
-                    >
-                      {SEVERITY_CONFIG[item.severity]?.label || item.severity}
-                    </Badge>
-                    {item.category && (
-                      <Badge variant="secondary" className="text-[10px]">
-                        {item.category}
-                      </Badge>
-                    )}
-                  </div>
-
+                <div
+                  key={idx}
+                  className={`pl-3 border-l-2 ${
+                    item.severity === 'critical' ? 'border-red-400' :
+                    item.severity === 'important' ? 'border-amber-400' :
+                    'border-blue-400'
+                  }`}
+                >
                   <p className="text-sm font-medium text-gray-900">
                     {item.issue}
                   </p>
-
-                  <p className="text-xs text-gray-600">
+                  <p className="text-sm text-gray-600 mt-1 leading-relaxed">
                     {item.recommendation}
                   </p>
-                </Card>
+                </div>
               ))}
             </div>
-          )}
-
-          {/* Overall Assessment */}
-          {coaching.overall_assessment && (
-            <Card className="p-4">
-              <h3 className="text-sm font-semibold text-gray-900 mb-2">
-                Overall Assessment
-              </h3>
-              <p className="text-sm text-gray-600 leading-relaxed">
-                {coaching.overall_assessment}
-              </p>
-            </Card>
           )}
 
           {/* Run Again Button */}
