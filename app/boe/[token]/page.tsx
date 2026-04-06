@@ -3,15 +3,12 @@
 import { use, useState, useEffect, useCallback } from 'react'
 import { publicBoeApi } from '@/lib/api'
 import { Card } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorAlert } from '@/components/ui/error-alert'
-import { Clock, CheckCircle2, Loader2 } from 'lucide-react'
+import { CheckCircle2, Loader2 } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
-import { contractTypeLabels } from '@/lib/solicitation-type'
-import { formatCurrency } from '@/lib/utils'
 
 // ===== TYPES =====
 
@@ -144,21 +141,32 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
     }
   }
 
+  // ===== LOADING STATE =====
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="max-w-5xl mx-auto py-12 px-6 space-y-6">
-          <Skeleton className="h-16 w-full rounded-lg" />
-          <Skeleton className="h-8 w-64 rounded-lg" />
-          {[1, 2, 3].map(i => <Skeleton key={i} className="h-48 w-full rounded-lg" />)}
+      <div className="h-screen flex flex-col bg-white">
+        <div className="h-14 border-b border-[#E8E7E2] px-6 flex items-center">
+          <Skeleton className="h-6 w-48" />
+        </div>
+        <div className="h-11 border-b border-[#E8E7E2] px-6 flex items-center gap-4">
+          <Skeleton className="h-4 w-20" />
+          <Skeleton className="h-4 w-24" />
+        </div>
+        <div className="flex-1 p-6">
+          <Skeleton className="h-full w-full rounded-lg" />
+        </div>
+        <div className="h-16 border-t border-[#E8E7E2] px-6 flex items-center justify-end gap-3">
+          <Skeleton className="h-9 w-36" />
+          <Skeleton className="h-9 w-28" />
         </div>
       </div>
     )
   }
 
+  // ===== ERROR STATE =====
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="h-screen bg-gray-50 flex items-center justify-center">
         <div className="max-w-md w-full px-6">
           <ErrorAlert variant="page" title="Unable to load BOE" message={error.message} />
         </div>
@@ -209,240 +217,207 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
     }
   })
 
+  const grandTotal = roleRows.reduce((sum, r) => sum + r.totalCost, 0)
+
+  // Format currency
+  const fmt = (val: number, decimals = 2) =>
+    `$${val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals })}`
+
+  // Format percentage
+  const fmtPct = (val: number) => `${(val * 100).toFixed(2)}%`
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg font-semibold text-gray-900">
-                <span className="text-muted-foreground font-normal">TrueBid</span> Basis of Estimate
-              </h1>
-            </div>
-            <Badge variant="secondary" className="text-xs">
-              <Clock className="w-3 h-3 mr-1" />
-              Read-only
-            </Badge>
-          </div>
-        </div>
+    <div className="h-screen flex flex-col bg-white overflow-hidden">
+      {/* ===== HEADER (56px) ===== */}
+      <header className="h-14 shrink-0 flex items-center justify-between px-6 border-b border-[#E8E7E2]">
+        <h1 className="text-lg font-semibold text-gray-900">Basis of Estimate</h1>
+        <span className="text-sm text-gray-500 truncate max-w-md">{proposal.title}</span>
       </header>
 
-      {/* Proposal context strip */}
-      <div className="bg-gray-100 border-b border-gray-200">
-        <div className="max-w-5xl mx-auto px-6 py-3 flex flex-wrap items-center gap-4 text-sm">
-          {proposal.title && <span className="font-medium">{proposal.title}</span>}
-          {proposal.agency && <span className="text-muted-foreground">&middot; {proposal.agency}</span>}
-          {proposal.contractType && (
-            <Badge variant="secondary" className="text-xs">
-              {contractTypeLabels[proposal.contractType] || proposal.contractType}
-            </Badge>
-          )}
-          {proposal.solicitationNumber && (
-            <span className="text-muted-foreground text-xs font-mono">
-              {proposal.solicitationNumber}
-            </span>
-          )}
-        </div>
+      {/* ===== TAB BAR (44px) ===== */}
+      <div className="h-11 shrink-0 flex items-end px-6 border-b border-[#E8E7E2]">
+        <button
+          onClick={() => setActiveTab('summary')}
+          className={`px-4 pb-2 text-sm border-b-2 transition-colors ${
+            activeTab === 'summary'
+              ? 'border-gray-900 font-medium text-gray-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Summary
+        </button>
+        <button
+          onClick={() => setActiveTab('indirect')}
+          className={`px-4 pb-2 text-sm border-b-2 transition-colors ${
+            activeTab === 'indirect'
+              ? 'border-gray-900 font-medium text-gray-900'
+              : 'border-transparent text-gray-500 hover:text-gray-700'
+          }`}
+        >
+          Indirect Rates
+        </button>
       </div>
 
-      {/* Tab Bar */}
-      <div className="max-w-5xl mx-auto px-6 pt-6">
-        <div className="flex gap-1 border-b border-gray-200">
-          <button
-            onClick={() => setActiveTab('summary')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'summary'
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-muted-foreground hover:text-gray-700'
-            }`}
-          >
-            Summary
-          </button>
-          <button
-            onClick={() => setActiveTab('indirect')}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-              activeTab === 'indirect'
-                ? 'border-gray-900 text-gray-900'
-                : 'border-transparent text-muted-foreground hover:text-gray-700'
-            }`}
-          >
-            Indirect Rates
-          </button>
-        </div>
-      </div>
-
-      {/* Tab Content */}
-      <div className="max-w-5xl mx-auto px-6 py-6">
+      {/* ===== TABLE AREA (flex-1, scrolls independently) ===== */}
+      <div className="flex-1 overflow-hidden">
         {activeTab === 'summary' ? (
-          <Card className="overflow-x-auto">
+          <div className="h-full overflow-auto">
             <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50">
-                  <th className="text-left py-3 px-3 font-medium text-gray-700">Role</th>
-                  <th className="text-left py-3 px-3 font-medium text-gray-700">Labor Category</th>
+              <thead className="sticky top-0 bg-white border-b border-gray-200 z-10">
+                <tr>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider w-48">
+                    Role
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider w-40">
+                    Labor Category
+                  </th>
                   {yearLabels.map(label => (
-                    <th key={label} className="text-right py-3 px-3 font-medium text-gray-700">{label} Hours</th>
+                    <th key={label} className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider whitespace-nowrap">
+                      {label}
+                    </th>
                   ))}
-                  <th className="text-right py-3 px-3 font-medium text-gray-700">Base Rate</th>
-                  <th className="text-right py-3 px-3 font-medium text-gray-700">Fringe</th>
-                  <th className="text-right py-3 px-3 font-medium text-gray-700">Overhead</th>
-                  <th className="text-right py-3 px-3 font-medium text-gray-700">G&A</th>
-                  <th className="text-right py-3 px-3 font-medium text-gray-700">Loaded Rate</th>
-                  <th className="text-right py-3 px-3 font-medium text-gray-700">Total</th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                    Base Rate
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                    Fringe
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                    Overhead
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                    G&A
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                    Loaded Rate
+                  </th>
+                  <th className="text-right px-4 py-3 font-medium text-gray-500 text-xs uppercase tracking-wider">
+                    Total
+                  </th>
                 </tr>
               </thead>
-              <tbody>
+              <tbody className="divide-y divide-gray-100">
                 {roleRows.map((row, idx) => (
-                  <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="py-2.5 px-3 font-medium text-gray-900">{row.name}</td>
-                    <td className="py-2.5 px-3 text-muted-foreground">{row.laborCategory}</td>
+                  <tr key={idx} className="hover:bg-gray-50">
+                    <td className="px-4 py-3 font-medium text-gray-900">{row.name}</td>
+                    <td className="px-4 py-3 text-gray-500">{row.laborCategory}</td>
                     {row.hoursByYear.map((hours, yIdx) => (
-                      <td key={yIdx} className="py-2.5 px-3 text-right text-muted-foreground">
+                      <td key={yIdx} className="px-4 py-3 text-right text-gray-600 tabular-nums">
                         {hours > 0 ? hours.toLocaleString() : '—'}
                       </td>
                     ))}
-                    <td className="py-2.5 px-3 text-right">{formatCurrency(row.baseRate)}</td>
-                    <td className="py-2.5 px-3 text-right text-muted-foreground">{formatCurrency(row.fringe)}</td>
-                    <td className="py-2.5 px-3 text-right text-muted-foreground">{formatCurrency(row.overhead)}</td>
-                    <td className="py-2.5 px-3 text-right text-muted-foreground">{formatCurrency(row.ga)}</td>
-                    <td className="py-2.5 px-3 text-right font-medium">{formatCurrency(row.loadedRate)}</td>
-                    <td className="py-2.5 px-3 text-right font-medium">{formatCurrency(row.totalCost, 0)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{fmt(row.baseRate)}</td>
+                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.fringe)}</td>
+                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.overhead)}</td>
+                    <td className="px-4 py-3 text-right text-gray-500 tabular-nums">{fmt(row.ga)}</td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">{fmt(row.loadedRate)}</td>
+                    <td className="px-4 py-3 text-right font-medium tabular-nums">{fmt(row.totalCost, 0)}</td>
                   </tr>
                 ))}
-                {/* Totals row */}
-                <tr className="bg-gray-50 font-medium">
-                  <td className="py-2.5 px-3" colSpan={2}>Total</td>
-                  {yearLabels.map((_, yIdx) => (
-                    <td key={yIdx} className="py-2.5 px-3 text-right">
-                      {roleRows.reduce((sum, r) => sum + r.hoursByYear[yIdx], 0).toLocaleString()}
-                    </td>
-                  ))}
-                  <td className="py-2.5 px-3" colSpan={4}></td>
-                  <td className="py-2.5 px-3 text-right">
-                    {formatCurrency(roleRows.reduce((sum, r) => sum + r.totalCost, 0), 0)}
+              </tbody>
+              <tfoot className="sticky bottom-0 bg-gray-50 border-t-2 border-gray-200">
+                <tr>
+                  <td colSpan={2 + yearLabels.length + 5} className="px-4 py-3 font-semibold text-right text-sm">
+                    Total
+                  </td>
+                  <td className="px-4 py-3 font-semibold text-sm text-right tabular-nums">
+                    {fmt(grandTotal, 0)}
                   </td>
                 </tr>
-              </tbody>
+              </tfoot>
             </table>
-          </Card>
+          </div>
         ) : (
-          <Card className="space-y-6">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b bg-gray-50">
-                  <th className="text-left py-3 px-3 font-medium text-gray-700">Rate Type</th>
-                  <th className="text-right py-3 px-3 font-medium text-gray-700">Percentage</th>
-                  <th className="text-left py-3 px-3 font-medium text-gray-700">Basis</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr className="border-b border-gray-100">
-                  <td className="py-2.5 px-3 font-medium">Fringe</td>
-                  <td className="py-2.5 px-3 text-right">{((indirectRates?.fringe || FRINGE_RATE) * 100).toFixed(2)}%</td>
-                  <td className="py-2.5 px-3 text-muted-foreground">Direct labor</td>
-                </tr>
-                <tr className="border-b border-gray-100">
-                  <td className="py-2.5 px-3 font-medium">Overhead</td>
-                  <td className="py-2.5 px-3 text-right">{((indirectRates?.overhead || OVERHEAD_RATE) * 100).toFixed(2)}%</td>
-                  <td className="py-2.5 px-3 text-muted-foreground">Direct labor + fringe</td>
-                </tr>
-                <tr className="border-b border-gray-100">
-                  <td className="py-2.5 px-3 font-medium">G&A</td>
-                  <td className="py-2.5 px-3 text-right">{((indirectRates?.ga || GA_RATE) * 100).toFixed(2)}%</td>
-                  <td className="py-2.5 px-3 text-muted-foreground">Total cost input</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <div className="px-3 pb-3 text-xs text-muted-foreground">
-              <p>Rate basis: 2,080 hours/year</p>
-              <p className="mt-1">
-                Rates calculated on 2,080-hour annual basis per FAR 31.2 cost principles.
-              </p>
+          <div className="h-full overflow-auto p-6">
+            {/* Rate Cards */}
+            <div className="grid grid-cols-3 gap-6 max-w-2xl">
+              <Card className="p-6 text-center">
+                <p className="text-sm text-gray-500 mb-2">Fringe</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {fmtPct(indirectRates?.fringe || FRINGE_RATE)}
+                </p>
+              </Card>
+              <Card className="p-6 text-center">
+                <p className="text-sm text-gray-500 mb-2">Overhead</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {fmtPct(indirectRates?.overhead || OVERHEAD_RATE)}
+                </p>
+              </Card>
+              <Card className="p-6 text-center">
+                <p className="text-sm text-gray-500 mb-2">G&A</p>
+                <p className="text-2xl font-semibold text-gray-900">
+                  {fmtPct(indirectRates?.ga || GA_RATE)}
+                </p>
+              </Card>
             </div>
-          </Card>
+
+            {/* Rate Basis Notes */}
+            <div className="mt-6 text-sm text-gray-500 space-y-1">
+              <p>Rate basis: 2,080 hours/year</p>
+              <p>Calculated per FAR 31.2 cost principles</p>
+            </div>
+          </div>
         )}
-
-        {/* Approve / Request Corrections */}
-        <div className="mt-8 space-y-4">
-          {submitted === 'approved' ? (
-            <Card className="p-6">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-6 h-6 text-green-600" />
-                <div>
-                  <p className="text-sm font-medium text-green-700">BOE approved.</p>
-                  <p className="text-xs text-muted-foreground">Friends From The City has been notified.</p>
-                </div>
-              </div>
-            </Card>
-          ) : submitted === 'corrections' ? (
-            <Card className="p-6">
-              <div className="flex items-center gap-3">
-                <CheckCircle2 className="w-6 h-6 text-amber-600" />
-                <div>
-                  <p className="text-sm font-medium text-amber-700">Corrections sent.</p>
-                  <p className="text-xs text-muted-foreground">Friends From The City has been notified.</p>
-                </div>
-              </div>
-            </Card>
-          ) : (
-            <>
-              <div className="flex gap-3">
-                <Button
-                  onClick={handleApprove}
-                  disabled={submitting}
-                  className="bg-green-600 hover:bg-green-700 text-white"
-                >
-                  {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                  Approve BOE
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => setShowCorrections(true)}
-                  disabled={submitting}
-                >
-                  Request Corrections
-                </Button>
-              </div>
-
-              {showCorrections && (
-                <Card className="p-4 space-y-3">
-                  <Textarea
-                    placeholder="Describe what needs to be corrected..."
-                    value={correctionNote}
-                    onChange={(e) => setCorrectionNote(e.target.value)}
-                    rows={4}
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={handleSubmitCorrections}
-                      disabled={submitting || !correctionNote.trim()}
-                    >
-                      {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      Send to TrueBid
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setShowCorrections(false)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </Card>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="mt-8 text-center text-xs text-muted-foreground">
-          <p>
-            Generated with TrueBid &middot; View count: {data.linkInfo.viewCount}
-            {data.linkInfo.expiresAt && (
-              <span> &middot; Expires: {new Date(data.linkInfo.expiresAt).toLocaleDateString()}</span>
-            )}
-          </p>
-        </div>
       </div>
+
+      {/* ===== CORRECTIONS SLIDE-UP ===== */}
+      {showCorrections && !submitted && (
+        <div className="shrink-0 border-t border-[#E8E7E2] bg-gray-50 px-6 py-4">
+          <Textarea
+            placeholder="Describe what needs to be corrected..."
+            value={correctionNote}
+            onChange={(e) => setCorrectionNote(e.target.value)}
+            rows={3}
+            className="mb-3"
+          />
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={handleSubmitCorrections}
+              disabled={submitting || !correctionNote.trim()}
+            >
+              {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Send Feedback
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setShowCorrections(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* ===== FOOTER (64px) ===== */}
+      <footer className="h-16 shrink-0 flex items-center justify-end gap-3 px-6 border-t border-[#E8E7E2] bg-white">
+        {submitted === 'approved' ? (
+          <div className="flex items-center gap-2 text-green-700">
+            <CheckCircle2 className="w-5 h-5" />
+            <span className="text-sm font-medium">BOE Approved</span>
+          </div>
+        ) : submitted === 'corrections' ? (
+          <div className="flex items-center gap-2 text-amber-700">
+            <CheckCircle2 className="w-5 h-5" />
+            <span className="text-sm font-medium">Corrections Sent</span>
+          </div>
+        ) : (
+          <>
+            <Button
+              variant="outline"
+              onClick={() => setShowCorrections(true)}
+              disabled={submitting}
+            >
+              Request Corrections
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={handleApprove}
+              disabled={submitting}
+            >
+              {submitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              Approve BOE
+            </Button>
+          </>
+        )}
+      </footer>
 
       <Toaster />
     </div>
