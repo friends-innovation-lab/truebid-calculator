@@ -21,7 +21,6 @@ import { RolesPricing } from '@/components/tabs/staff/roles-pricing'
 import { Team } from '@/components/tabs/staff/team'
 import { LaborLoading } from '@/components/tabs/staff/labor-loading'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
-import { DeliverHub } from '@/components/tabs/deliver/deliver-hub'
 import { DeliverReview } from '@/components/tabs/deliver/deliver-review'
 import { DeliverExport } from '@/components/tabs/deliver/deliver-export'
 import { DeliverShare } from '@/components/tabs/deliver/deliver-share'
@@ -48,7 +47,6 @@ type ViewId =
   | 'outline'
   | 'technical-editor'
   // Deliver
-  | 'deliver-hub'
   | 'deliver-review'
   | 'deliver-export'
   | 'deliver-share'
@@ -61,7 +59,7 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
   'roles': { section: 'staff', view: 'roles-pricing' },
   'teaming-partners': { section: 'staff', view: 'team' },
   'write': { section: 'write', view: 'outline' },
-  'export': { section: 'deliver', view: 'deliver-hub' },
+  'export': { section: 'deliver', view: 'deliver-review' },
 }
 
 // ==================== MAIN COMPONENT ====================
@@ -132,7 +130,6 @@ export function SectionNavigation() {
       'roles-pricing': 'roles',
       'team': 'teaming-partners',
       'labor-loading': 'estimate',
-      'deliver-hub': 'export',
       'deliver-review': 'export',
       'deliver-export': 'export',
       'deliver-share': 'export',
@@ -243,9 +240,6 @@ export function SectionNavigation() {
         )}
 
         {/* DELIVER views */}
-        {activeView === 'deliver-hub' && activeSection === 'deliver' && (
-          <DeliverHub onNavigate={handleViewChange} />
-        )}
         {activeView === 'deliver-review' && activeSection === 'deliver' && (
           <DeliverReview />
         )}

@@ -66,7 +66,6 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
     {
       label: 'Deliver',
       items: [
-        { id: 'deliver-hub', label: 'Deliver', icon: FileDown },
         { id: 'deliver-review', label: 'Review', icon: ClipboardCheck },
         { id: 'deliver-export', label: 'Export', icon: Download },
         { id: 'deliver-share', label: 'Share', icon: Share2 },
@@ -80,7 +79,7 @@ const SECTION_DEFAULT_VIEWS: Record<SectionId, string> = {
   scope: 'solicitation',
   staff: 'wbs-elements',
   write: 'outline',
-  deliver: 'deliver-hub',
+  deliver: 'deliver-review',
 }
 
 interface ProposalLayoutProps {
