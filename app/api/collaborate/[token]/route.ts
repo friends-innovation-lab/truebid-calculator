@@ -51,17 +51,66 @@ export async function GET(
     return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
   }
 
-  // Fetch assigned sections
-  const { data: sections } = await supabase
-    .from('proposal_sections')
-    .select('id, title, section_number, sort_order, summary, content, content_text, instructions, compliance_item_ids, requirement_refs')
-    .in('id', link.section_ids || [])
-    .order('sort_order', { ascending: true })
+  // Get assigned section/subsection IDs
+  const assignedIds = new Set(link.section_ids || [])
 
-  // Fetch compliance items for these sections
-  const allComplianceIds = (sections || []).flatMap(
-    (s: { compliance_item_ids: string[] | null }) => s.compliance_item_ids || []
-  )
+  // Look up sections from outline in working_data
+  interface OutlineSubsection {
+    id: string
+    number: string
+    title: string
+    pageTarget: number | null
+    status: string
+  }
+  interface OutlineSection {
+    id: string
+    number: string
+    title: string
+    description: string | null
+    complianceRefs: string[]
+    requirementRefs: string[]
+    subsections: OutlineSubsection[]
+  }
+  interface OutlineVolume {
+    id: string
+    title: string
+    sections: OutlineSection[]
+  }
+  interface ProposalOutline {
+    volumes: OutlineVolume[]
+  }
+
+  const workingData = proposal.working_data as { outline?: ProposalOutline } | null
+  const outline = workingData?.outline
+
+  // Build sections list from outline subsections that match assigned IDs
+  const sections: { id: string; title: string; sectionNumber: string | null; sortOrder: number; summary: string | null; instructions: string | null; complianceItemIds: string[]; requirementRefs: string[] }[] = []
+  let sortOrder = 0
+
+  if (outline?.volumes) {
+    for (const volume of outline.volumes) {
+      for (const section of volume.sections) {
+        // Check if any subsections are assigned
+        for (const sub of section.subsections || []) {
+          if (assignedIds.has(sub.id)) {
+            sections.push({
+              id: sub.id,
+              title: sub.title,
+              sectionNumber: sub.number || null,
+              sortOrder: sortOrder++,
+              summary: null,
+              instructions: null,
+              complianceItemIds: [],
+              requirementRefs: [],
+            })
+          }
+        }
+      }
+    }
+  }
+
+  // Fetch compliance items for these sections (if any have compliance IDs)
+  const allComplianceIds = sections.flatMap(s => s.complianceItemIds || [])
   let complianceItems: { id: string; reference_number: string; requirement_text: string; compliance_status: string }[] = []
   if (allComplianceIds.length > 0) {
     const { data: items } = await supabase
@@ -103,16 +152,7 @@ export async function GET(
       solicitationNumber: proposal.solicitation_number,
       agency: proposal.agency,
     },
-    sections: (sections || []).map((s: Record<string, unknown>) => ({
-      id: s.id,
-      title: s.title,
-      sectionNumber: s.section_number,
-      sortOrder: s.sort_order,
-      summary: s.summary,
-      instructions: s.instructions,
-      complianceItemIds: s.compliance_item_ids || [],
-      requirementRefs: s.requirement_refs || [],
-    })),
+    sections,
     complianceItems,
     winThemes,
     writingGuide,
