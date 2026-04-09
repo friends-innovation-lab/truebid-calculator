@@ -25,6 +25,8 @@ import {
   Plus,
   Check,
 } from 'lucide-react'
+import { ContractIntelligenceCard } from './contract-intelligence-card'
+import type { ContractIntelligence } from '@/lib/types/contract-intelligence'
 
 // PDF.js is loaded dynamically to avoid SSR issues
  
@@ -428,6 +430,9 @@ function AISummaryPanel({
   hasCompanyProfile,
   isExtracting,
   extractionSteps,
+  contractIntelligence,
+  proposalId,
+  onContractIntelligenceConfirmed,
 }: {
   summary: AISummary | null
   status: SummaryStatus
@@ -437,6 +442,9 @@ function AISummaryPanel({
   hasCompanyProfile: boolean
   isExtracting: boolean
   extractionSteps: ExtractionStep[]
+  contractIntelligence: ContractIntelligence | null
+  proposalId: string | null
+  onContractIntelligenceConfirmed: (updated: ContractIntelligence) => void
 }) {
   // Get the primary due date
   const primaryDueDate = summary?.keyDates?.find(d =>
@@ -767,6 +775,17 @@ function AISummaryPanel({
                 </div>
               </SummarySection>
             )}
+
+            {/* Contract Intelligence Card */}
+            {contractIntelligence && proposalId && (
+              <div className="mt-4">
+                <ContractIntelligenceCard
+                  intelligence={contractIntelligence}
+                  proposalId={proposalId}
+                  onConfirmed={onContractIntelligenceConfirmed}
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -941,6 +960,9 @@ export function Solicitation() {
   const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>('waiting')
   const [summaryError, setSummaryError] = useState<string | null>(null)
 
+  // Contract intelligence state
+  const [contractIntelligence, setContractIntelligence] = useState<ContractIntelligence | null>(null)
+
   // Dialogs
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
   const [showReplaceConfirm, setShowReplaceConfirm] = useState(false)
@@ -966,6 +988,7 @@ export function Solicitation() {
               pdfUrl?: string
               pdfFileName?: string
               pdfUploadDate?: string
+              contractIntelligence?: ContractIntelligence
             }
             aiSummary?: {
               what_they_want?: string
@@ -995,6 +1018,11 @@ export function Solicitation() {
           if (workingData?.solicitationSummary) {
             setSummary(workingData.solicitationSummary)
             setSummaryStatus('complete')
+          }
+
+          // Load contract intelligence if exists
+          if (workingData?.contractIntelligence) {
+            setContractIntelligence(workingData.contractIntelligence)
           }
         }
 
@@ -1627,6 +1655,9 @@ export function Solicitation() {
             hasCompanyProfile={false}
             isExtracting={isExtracting}
             extractionSteps={extractionSteps}
+            contractIntelligence={contractIntelligence}
+            proposalId={proposalId}
+            onContractIntelligenceConfirmed={setContractIntelligence}
           />
         </div>
       </div>

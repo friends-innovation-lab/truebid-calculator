@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
-import { collabApi } from '@/lib/api'
+import { collabApi, proposalsApi } from '@/lib/api'
+import type { ContractIntelligence } from '@/lib/types/contract-intelligence'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { EmptyState } from '@/components/ui/empty-state'
@@ -112,6 +113,7 @@ function getTasksFromLabor(el: WBSElementData): WBSTask[] {
 
 export function ScopeOfWork() {
   const params = useParams()
+  const router = useRouter()
   const proposalId = params?.id as string
   const {
     estimateWbsElements,
@@ -131,6 +133,20 @@ export function ScopeOfWork() {
   const [directorSession, setDirectorSession] = useState<CollabSession | null>(null)
   const [isGenerating, setIsGenerating] = useState(false)
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
+  const [contractIntelligence, setContractIntelligence] = useState<ContractIntelligence | null>(null)
+
+  // Load contract intelligence
+  useEffect(() => {
+    if (!proposalId) return
+    proposalsApi.get(proposalId)
+      .then((res: unknown) => {
+        const data = res as { proposal?: { workingData?: { contractIntelligence?: ContractIntelligence } } }
+        if (data.proposal?.workingData?.contractIntelligence) {
+          setContractIntelligence(data.proposal.workingData.contractIntelligence)
+        }
+      })
+      .catch(() => {})
+  }, [proposalId])
 
   // Load director session if exists
   useEffect(() => {
@@ -227,7 +243,15 @@ export function ScopeOfWork() {
     setSelectedElement(newElement)
   }
 
+  const canGenerateWBS = contractIntelligence?.confirmed === true
+
   const handleGenerate = async () => {
+    // Check contract intelligence is confirmed
+    if (!canGenerateWBS) {
+      toast.warning('Please confirm contract structure on the Solicitation tab first.')
+      return
+    }
+
     // Check requirements exist
     if (!extractedRequirements || extractedRequirements.length === 0) {
       toast.warning('No requirements found. Extract requirements from your RFP first.')
@@ -341,6 +365,24 @@ export function ScopeOfWork() {
           </button>
         </div>
       </div>
+
+      {/* Contract Intelligence Gate Banner */}
+      {!canGenerateWBS && extractedRequirements.length > 0 && (
+        <div className="rounded border border-amber-200 bg-amber-50 p-4 mx-4 mt-2">
+          <p className="text-sm text-amber-800 font-medium">
+            Confirm contract structure first
+          </p>
+          <p className="text-xs text-amber-700 mt-1">
+            Review the Contract Intelligence card on the Solicitation tab before generating WBS elements.
+          </p>
+          <button
+            onClick={() => router.push(`/${proposalId}?tab=solicitation`)}
+            className="mt-2 text-xs font-medium text-amber-900 hover:text-amber-700 border border-amber-300 rounded px-3 py-1.5 bg-white hover:bg-amber-50"
+          >
+            Go to Solicitation →
+          </button>
+        </div>
+      )}
 
       {/* ZONE 4 — WBS LIST */}
       <div className="flex flex-1 min-h-0">

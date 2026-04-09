@@ -359,6 +359,15 @@ export function UploadTab({ onContinue }: UploadTabProps) {
         console.error('[Upload] Requirements extraction failed:', requirementsResult.reason)
       }
 
+      // Stage 5: Extract contract intelligence (runs in background, non-blocking)
+      if (proposalId) {
+        fetch(`/api/proposals/${proposalId}/extract-contract-intelligence`, {
+          method: 'POST',
+        }).catch((error) => {
+          console.warn('[Upload] Contract intelligence extraction failed:', error)
+        })
+      }
+
       // Complete
       setProgress(100)
       setProgressText('Complete!')
