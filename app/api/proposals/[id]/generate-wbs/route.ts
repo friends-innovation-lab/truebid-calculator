@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
+import type { ContractIntelligence } from '@/lib/types/contract-intelligence'
 
 const SYSTEM_PROMPT = `You are a senior government proposal manager and technical architect with deep expertise in staffing federal IT delivery teams.
 
@@ -338,6 +339,12 @@ export async function POST(
     }, { status: 400 })
   }
 
+  // Load contract intelligence for discipline constraints
+  const intelligence = workingData.contractIntelligence as ContractIntelligence | undefined
+  const disciplines = intelligence?.disciplines?.required || []
+  const confirmedRoles = intelligence?.roles || []
+  const periods = intelligence?.periods || []
+
   // Extract setup context
   const periodOfPerformance = (proposal.period_of_performance || {}) as { baseYear?: boolean; optionYears?: number }
   const optionYears = periodOfPerformance.optionYears ?? 4
@@ -396,7 +403,30 @@ ${keyChallenges.length > 0 ? keyChallenges.join(', ') : 'Not specified'}
 
 EXTRACTED REQUIREMENTS:
 ${reqsText}
+${disciplines.length > 0 ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DISCIPLINE CONSTRAINTS — CRITICAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+This contract requires ONLY these disciplines:
+${disciplines.join(', ')}
+
+Generate WBS tasks ONLY within these disciplines. If a task falls outside these disciplines, do not include it. A PM/HCD contract does not need engineering tasks. An engineering contract does not need research tasks. Read the disciplines list and stay within it.
+` : ''}
+${confirmedRoles.length > 0 ? `
+ROLES CONFIRMED FOR THIS CONTRACT:
+${confirmedRoles.map(r =>
+  `${r.title}: ${r.hoursPerMonth || 0} hours/month (${Math.round((r.hoursPerMonth || 0) / 160 * 100)}% utilization)`
+).join('\n')}
+
+Generate WBS tasks that can be staffed by these specific roles. Do not generate tasks requiring roles not in this list.
+` : ''}
+${periods.length > 0 ? `
+CONTRACT PERIODS:
+${periods.map(p => `${p.name}: ${p.months} months`).join('\n')}
+
+Distribute work appropriately across these periods. Not all tasks run in all periods.
+` : ''}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 YOUR TASK
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -437,6 +467,8 @@ Return ONLY a valid JSON array, no other text:
         "name": "Specific task name",
         "suggestedRole": "Back-end Developer",
         "estimatedHours": 320,
+        "estimatedHoursPerMonth": 160,
+        "applicablePeriods": ["Base Period", "Option Period 1"],
         "loeType": "development",
         "basisOfEstimate": "2-3 sprints for enterprise auth implementation with government overhead factor applied"
       }
@@ -490,7 +522,15 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       requirementRefs: string[]
       dependsOn: string[]
       estimationType: string
-      tasks: { name: string; suggestedRole: string; estimatedHours: number; loeType?: string; basisOfEstimate?: string }[]
+      tasks: {
+        name: string
+        suggestedRole: string
+        estimatedHours: number
+        estimatedHoursPerMonth?: number
+        applicablePeriods?: string[]
+        loeType?: string
+        basisOfEstimate?: string
+      }[]
       totalHours: number
       assumptions: string[]
     }[]
@@ -528,6 +568,12 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       refToId.set(r.id, r.id)
     })
 
+    // Helper to check if a task applies to a period
+    const appliesToPeriod = (applicablePeriods: string[] | undefined, periodName: string): boolean => {
+      if (!applicablePeriods || applicablePeriods.length === 0) return true // Default: applies to all
+      return applicablePeriods.some(p => p.toLowerCase().includes(periodName.toLowerCase()))
+    }
+
     // Convert to WBS elements format with BOE fields
     const wbsElements = parsed.map(el => ({
       id: crypto.randomUUID(),
@@ -542,40 +588,50 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       basisOfEstimate: '',
       historicalReference: '',
       assumptions: el.assumptions || [],
-      laborEstimates: el.tasks.map(t => ({
-        id: crypto.randomUUID(),
-        roleId: '',
-        roleName: t.suggestedRole,
-        hoursByPeriod: {
-          base: t.estimatedHours,
-          option1: optionYears >= 1 ? t.estimatedHours : 0,
-          option2: optionYears >= 2 ? t.estimatedHours : 0,
-          option3: optionYears >= 3 ? t.estimatedHours : 0,
-          option4: optionYears >= 4 ? t.estimatedHours : 0,
-        },
-        rationale: t.name,
-        confidence: 'medium' as const,
-        isAISuggested: true,
-        isOrphaned: false,
-        loeType: t.loeType || 'development',
-        basisOfEstimate: t.basisOfEstimate || '',
-      })),
-      tasks: el.tasks.map(t => ({
-        id: crypto.randomUUID(),
-        name: t.name,
-        role: t.suggestedRole,
-        hours: t.estimatedHours,
-        hoursByYear: {
-          baseYear: t.estimatedHours,
-          oy1: optionYears >= 1 ? t.estimatedHours : 0,
-          oy2: optionYears >= 2 ? t.estimatedHours : 0,
-          oy3: optionYears >= 3 ? t.estimatedHours : 0,
-          oy4: optionYears >= 4 ? t.estimatedHours : 0,
-        },
-        loeType: t.loeType || 'development',
-        chargeCode: null,
-        basisOfEstimate: t.basisOfEstimate || '',
-      })),
+      laborEstimates: el.tasks.map(t => {
+        const hours = t.estimatedHoursPerMonth || t.estimatedHours
+        return {
+          id: crypto.randomUUID(),
+          roleId: '',
+          roleName: t.suggestedRole,
+          hoursByPeriod: {
+            base: appliesToPeriod(t.applicablePeriods, 'base') ? hours : 0,
+            option1: optionYears >= 1 && appliesToPeriod(t.applicablePeriods, 'option 1') ? hours : 0,
+            option2: optionYears >= 2 && appliesToPeriod(t.applicablePeriods, 'option 2') ? hours : 0,
+            option3: optionYears >= 3 && appliesToPeriod(t.applicablePeriods, 'option 3') ? hours : 0,
+            option4: optionYears >= 4 && appliesToPeriod(t.applicablePeriods, 'option 4') ? hours : 0,
+          },
+          rationale: t.name,
+          confidence: 'medium' as const,
+          isAISuggested: true,
+          isOrphaned: false,
+          loeType: t.loeType || 'development',
+          basisOfEstimate: t.basisOfEstimate || '',
+          estimatedHoursPerMonth: t.estimatedHoursPerMonth,
+          applicablePeriods: t.applicablePeriods,
+        }
+      }),
+      tasks: el.tasks.map(t => {
+        const hours = t.estimatedHoursPerMonth || t.estimatedHours
+        return {
+          id: crypto.randomUUID(),
+          name: t.name,
+          role: t.suggestedRole,
+          hours: t.estimatedHours,
+          hoursByYear: {
+            baseYear: appliesToPeriod(t.applicablePeriods, 'base') ? hours : 0,
+            oy1: optionYears >= 1 && appliesToPeriod(t.applicablePeriods, 'option 1') ? hours : 0,
+            oy2: optionYears >= 2 && appliesToPeriod(t.applicablePeriods, 'option 2') ? hours : 0,
+            oy3: optionYears >= 3 && appliesToPeriod(t.applicablePeriods, 'option 3') ? hours : 0,
+            oy4: optionYears >= 4 && appliesToPeriod(t.applicablePeriods, 'option 4') ? hours : 0,
+          },
+          loeType: t.loeType || 'development',
+          chargeCode: null,
+          basisOfEstimate: t.basisOfEstimate || '',
+          estimatedHoursPerMonth: t.estimatedHoursPerMonth,
+          applicablePeriods: t.applicablePeriods,
+        }
+      }),
       totalHours: el.totalHours,
       requirementLinks: el.requirementRefs
         .map(ref => refToId.get(ref))
