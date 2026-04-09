@@ -886,6 +886,9 @@ export interface Role {
   subcontractorName?: string | null;
   subRate?: number;
   subMarkup?: number;
+  hoursPerMonth?: number; // Utilization-based: hours worked per month
+  gsaLaborCategory?: string; // GSA MAS labor category for rate lookup
+  gsaHourlyRate?: number; // GSA rate per hour (from schedule)
 }
 
 // ==================== SUBCONTRACTORS ====================

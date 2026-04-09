@@ -20,6 +20,9 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { proposalsApi } from '@/lib/api'
+import type { ContractIntelligence, ContractPeriod, RateSource } from '@/lib/types/contract-intelligence'
+import { useParams } from 'next/navigation'
 
 // ==================== TYPES ====================
 
@@ -28,9 +31,45 @@ type RoleFilter = 'all' | 'prime' | 'sub'
 
 const YEAR_KEYS = ['base', 'option1', 'option2', 'option3', 'option4'] as const
 const HOURS_YEAR_KEYS = ['baseYear', 'oy1', 'oy2', 'oy3', 'oy4'] as const
-const YEAR_LABELS = ['Base yr', 'OY1', 'OY2', 'OY3', 'OY4']
-const YEAR_SHORT = ['BY', 'OY1', 'OY2', 'OY3', 'OY4']
-const ESCALATION_MULTIPLIERS = [1.0, 1.03, 1.0609, 1.0927, 1.1255]
+
+// Helper to calculate hours for a period using utilization-based calculation
+function calculatePeriodHours(role: Role, period: ContractPeriod): number {
+  const hoursPerMonth = role.hoursPerMonth ?? 160 // Default to full-time equivalent
+  return hoursPerMonth * period.months
+}
+
+// Helper to get short label for a period
+function getPeriodShortLabel(period: ContractPeriod, index: number): string {
+  if (period.name.toLowerCase().includes('base')) {
+    return 'Base yr'
+  }
+  return `OY${index}` // Option Year number based on index
+}
+
+// Helper to get rate based on rate source
+function getRateForPeriod(
+  role: Role,
+  period: ContractPeriod,
+  rateSource: RateSource,
+  baseRate: number,
+  escalation: number
+): number {
+  // For subcontractors, use their rate + markup
+  if (role.type === 'sub' && role.subRate) {
+    const markup = role.subMarkup ?? 10
+    return role.subRate * (1 + markup / 100)
+  }
+
+  // For GSA MAS, use the GSA rate (no escalation within contract year bands)
+  if (rateSource === 'gsa_mas' && role.gsaHourlyRate) {
+    // GSA rates are typically fixed per rate year
+    return role.gsaHourlyRate
+  }
+
+  // For internal (FFTC), apply escalation based on period's GSA rate year
+  const yearIndex = period.gsaRateYear - 1 // Convert 1-based to 0-based index
+  return baseRate * Math.pow(1 + escalation, yearIndex)
+}
 
 // ==================== HELPERS ====================
 
@@ -38,38 +77,12 @@ function getActiveYears(role: Role): boolean[] {
   return [role.years.base, role.years.option1, role.years.option2, role.years.option3, role.years.option4]
 }
 
-
-function getEscalatedRate(baseRate: number, yearIndex: number, escalation: number): number {
-  return baseRate * Math.pow(1 + escalation, yearIndex)
-}
-
-function getRoleTotalCost(role: Role, billRate: number, escalation: number): number {
-  let total = 0
-  const hoursByYear = role.hoursByYear || { baseYear: 0, oy1: 0, oy2: 0, oy3: 0, oy4: 0 }
-  const yearHours = [hoursByYear.baseYear, hoursByYear.oy1, hoursByYear.oy2, hoursByYear.oy3, hoursByYear.oy4]
-
-  for (let i = 0; i < 5; i++) {
-    const hours = yearHours[i] || 0
-    if (hours === 0) continue
-    const rate = getEscalatedRate(billRate, i, escalation)
-    total += hours * rate
-  }
-  return total
-}
-
-function getRoleTotalHours(role: Role): number {
-  const active = getActiveYears(role)
-  const hours = role.billableHours || 1920
-  let total = 0
-  for (let i = 0; i < 5; i++) {
-    if (active[i]) total += hours * role.fte * role.quantity
-  }
-  return total
-}
-
 // ==================== MAIN COMPONENT ====================
 
 export function RolesPricing() {
+  const params = useParams()
+  const proposalId = params?.id as string
+
   const {
     selectedRoles,
     addRole,
@@ -83,6 +96,22 @@ export function RolesPricing() {
     calculateLoadedRate,
     estimateWbsElements,
   } = useAppContext()
+
+  // Contract intelligence state
+  const [contractIntelligence, setContractIntelligence] = useState<ContractIntelligence | null>(null)
+
+  // Load contract intelligence from working_data
+  useEffect(() => {
+    if (!proposalId) return
+    proposalsApi.get(proposalId)
+      .then(res => {
+        const data = res as { proposal?: { workingData?: { contractIntelligence?: ContractIntelligence } } }
+        if (data.proposal?.workingData?.contractIntelligence) {
+          setContractIntelligence(data.proposal.workingData.contractIntelligence)
+        }
+      })
+      .catch(() => {})
+  }, [proposalId])
 
   // Compute WBS-derived role data for indicators
   const wbsRoleData = useMemo(() => {
@@ -120,25 +149,63 @@ export function RolesPricing() {
     return ga * (1 + (uiProfitMargin || 8) / 100)
   }, [calculateLoadedRate, indirectRates, uiProfitMargin])
 
-  // Compute summary stats with year-by-year breakdown
+  // Get periods from contract intelligence or fall back to solicitation
+  const periods = useMemo((): ContractPeriod[] => {
+    if (contractIntelligence?.periods && contractIntelligence.periods.length > 0) {
+      return contractIntelligence.periods
+    }
+    // Fallback: create periods from solicitation data
+    const pop = solicitation.periodOfPerformance
+    const optionYears = pop?.optionYears || 2
+    const result: ContractPeriod[] = [{
+      name: 'Base Period',
+      months: 12,
+      cumulativeMonthsEnd: 12,
+      gsaRateYear: 1,
+    }]
+    for (let i = 0; i < optionYears; i++) {
+      const cumulative = 12 * (i + 2)
+      result.push({
+        name: `Option Period ${i + 1}`,
+        months: 12,
+        cumulativeMonthsEnd: cumulative,
+        gsaRateYear: Math.min(5, i + 2) as 1 | 2 | 3 | 4 | 5,
+      })
+    }
+    return result
+  }, [contractIntelligence?.periods, solicitation.periodOfPerformance])
+
+  // Rate source from contract intelligence
+  const rateSource = useMemo((): RateSource => {
+    return contractIntelligence?.rateSource?.value || 'internal'
+  }, [contractIntelligence?.rateSource])
+
+  // Compute summary stats with period-by-period breakdown
   const stats = useMemo(() => {
     let totalHours = 0
-    const yearCosts = HOURS_YEAR_KEYS.map((key, i) => {
+    const periodCosts = periods.map((period) => {
       return selectedRoles.reduce((sum, role) => {
-        const hours = role.hoursByYear?.[key] || 0
-        const rate = role.loadedRate || (role.baseSalary ? role.baseSalary / 2080 : 0)
-        return sum + (hours * rate * ESCALATION_MULTIPLIERS[i])
+        // Use utilization-based hours: hoursPerMonth × period.months
+        const hours = calculatePeriodHours(role, period)
+
+        // Get the appropriate rate based on rate source
+        const baseRate = getRoleBillRate(role)
+        const rate = getRateForPeriod(role, period, rateSource, baseRate, escalation)
+
+        totalHours += hours
+        return sum + (hours * rate)
       }, 0)
     })
 
-    selectedRoles.forEach(role => {
-      totalHours += getRoleTotalHours(role)
-    })
+    // Ensure periodCosts has 5 entries for backward compatibility
+    while (periodCosts.length < 5) {
+      periodCosts.push(0)
+    }
 
-    const totalValue = yearCosts.reduce((sum, c) => sum + c, 0)
+    const totalValue = periodCosts.reduce((sum, c) => sum + c, 0)
 
-    return { totalValue, yearCosts, totalHours }
-  }, [selectedRoles, getRoleBillRate, escalation]) // eslint-disable-line react-hooks/exhaustive-deps
+    return { totalValue, yearCosts: periodCosts, totalHours }
+  }, [selectedRoles, periods, rateSource, getRoleBillRate, escalation])
 
   // Filter roles
   const filteredRoles = useMemo(() => {
@@ -146,12 +213,6 @@ export function RolesPricing() {
     if (roleFilter === 'sub') return selectedRoles.filter(r => r.type === 'sub')
     return selectedRoles.filter(r => (r.type ?? 'prime') === 'prime')
   }, [selectedRoles, roleFilter])
-
-  // Number of active option years from solicitation
-  const activeYearCount = useMemo(() => {
-    const pop = solicitation.periodOfPerformance
-    return 1 + (pop?.optionYears || 2)
-  }, [solicitation.periodOfPerformance])
 
   // Transform companyRoles (levels format) to laborCategories (salary_levels format) for RoleDetailPanel
   const laborCategories = useMemo(() => {
@@ -265,13 +326,13 @@ export function RolesPricing() {
           <div>
             <div style={{ fontSize: 20, fontWeight: 800, color: '#111110' }}>{formatCurrency(stats.totalValue, 0)}</div>
             <div style={{ fontSize: 10, color: '#6B6A65', marginTop: 1 }}>Total contract value</div>
-            <div style={{ fontSize: 10, color: '#9B9A95', marginTop: 1 }}>Across {activeYearCount} contract years</div>
+            <div style={{ fontSize: 10, color: '#9B9A95', marginTop: 1 }}>Across {periods.length} contract periods</div>
           </div>
           <Divider />
-          {HOURS_YEAR_KEYS.slice(0, activeYearCount).map((key, i) => (
-            <Fragment key={key}>
-              <SummaryItem label={YEAR_LABELS[i]} value={formatCurrency(stats.yearCosts[i], 0)} />
-              {i < activeYearCount - 1 && <Divider />}
+          {periods.map((period, i) => (
+            <Fragment key={period.name}>
+              <SummaryItem label={getPeriodShortLabel(period, i)} value={formatCurrency(stats.yearCosts[i], 0)} />
+              {i < periods.length - 1 && <Divider />}
             </Fragment>
           ))}
           <Divider />
@@ -351,7 +412,8 @@ export function RolesPricing() {
           <PricingView
             roles={filteredRoles}
             escalation={escalation}
-            activeYearCount={activeYearCount}
+            periods={periods}
+            rateSource={rateSource}
             getRoleBillRate={getRoleBillRate}
             editingCell={editingCell}
             cellValue={cellValue}
@@ -366,7 +428,7 @@ export function RolesPricing() {
         ) : (
           <TimelineView
             roles={filteredRoles}
-            activeYearCount={activeYearCount}
+            periods={periods}
             getRoleBillRate={getRoleBillRate}
             onBlockClick={handleTimelineClick}
             onRowClick={setDetailRole}
@@ -401,13 +463,14 @@ export function RolesPricing() {
 // ==================== PRICING VIEW ====================
 
 function PricingView({
-  roles, escalation, activeYearCount, getRoleBillRate,
+  roles, escalation, periods, rateSource, getRoleBillRate,
   editingCell, cellValue, onCellClick, onCellChange, onCellSave,
   onRowClick, onRemoveRole, stats, wbsRoleData,
 }: {
   roles: Role[]
   escalation: number
-  activeYearCount: number
+  periods: ContractPeriod[]
+  rateSource: RateSource
   getRoleBillRate: (role: Role) => number
   editingCell: { roleId: string; yearIndex: number } | null
   cellValue: string
@@ -420,9 +483,10 @@ function PricingView({
   wbsRoleData: Map<string, number>
 }) {
   const [removeConfirm, setRemoveConfirm] = useState<{ id: string; name: string } | null>(null)
-  const yearCols = YEAR_LABELS.slice(0, activeYearCount)
-  // Spread columns: flexible role, wider year columns, trash at end
-  const gridCols = `1fr 80px 100px ${yearCols.map(() => '90px').join(' ')} 120px 40px`
+  // Use period labels from contract intelligence
+  const periodLabels = periods.map((p, i) => getPeriodShortLabel(p, i))
+  // Spread columns: flexible role, wider period columns, trash at end
+  const gridCols = `1fr 80px 100px ${periodLabels.map(() => '90px').join(' ')} 120px 40px`
 
   return (
     <div style={{ minWidth: 800 }}>
@@ -434,7 +498,7 @@ function PricingView({
         <HeaderCell first>Role</HeaderCell>
         <HeaderCell>Type</HeaderCell>
         <HeaderCell align="right">Bill rate</HeaderCell>
-        {yearCols.map(label => <HeaderCell key={label} align="right">{label}</HeaderCell>)}
+        {periodLabels.map(label => <HeaderCell key={label} align="right">{label}</HeaderCell>)}
         <HeaderCell align="right">Total cost</HeaderCell>
         <HeaderCell>{''}</HeaderCell>
       </div>
@@ -444,7 +508,12 @@ function PricingView({
 
       {roles.map(role => {
         const billRate = getRoleBillRate(role)
-        const totalCost = getRoleTotalCost(role, billRate, escalation)
+        // Calculate total cost using periods and utilization-based hours
+        const totalCost = periods.reduce((sum, period) => {
+          const hours = calculatePeriodHours(role, period)
+          const rate = getRateForPeriod(role, period, rateSource, billRate, escalation)
+          return sum + (hours * rate)
+        }, 0)
         return (
           <div
             key={role.id}
@@ -489,9 +558,10 @@ function PricingView({
             <div style={{ padding: '14px 12px', textAlign: 'right', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: '#6B6A65' }}>
               {formatCurrency(billRate)}
             </div>
-            {yearCols.map((_, i) => {
+            {periods.map((period, i) => {
               const isEditing = editingCell?.roleId === role.id && editingCell.yearIndex === i
-              const hours = role.hoursByYear?.[HOURS_YEAR_KEYS[i]] || 0
+              // Use utilization-based calculation: hoursPerMonth × period.months
+              const hours = calculatePeriodHours(role, period)
               return (
                 <div
                   key={i}
@@ -541,7 +611,7 @@ function PricingView({
         className="grid"
         style={{ gridTemplateColumns: gridCols, background: '#FAFAF9', borderTop: '0.5px solid #D4D3CE' }}
       >
-        <div style={{ padding: '8px 12px 8px 20px', gridColumn: `1 / ${3 + activeYearCount}`, fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
+        <div style={{ padding: '8px 12px 8px 20px', gridColumn: `1 / ${3 + periods.length}`, fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
           Prime subtotal
         </div>
         <div style={{ padding: '8px 12px', textAlign: 'right', fontSize: 11, fontWeight: 600, color: '#6B6A65' }}>
@@ -555,7 +625,7 @@ function PricingView({
         className="grid"
         style={{ gridTemplateColumns: gridCols, borderTop: '2px solid #111110' }}
       >
-        <div style={{ padding: '12px 12px 12px 20px', gridColumn: `1 / ${3 + activeYearCount}`, fontSize: 13, fontWeight: 800, color: '#111110' }}>
+        <div style={{ padding: '12px 12px 12px 20px', gridColumn: `1 / ${3 + periods.length}`, fontSize: 13, fontWeight: 800, color: '#111110' }}>
           Total contract value
         </div>
         <div style={{ padding: '12px', textAlign: 'right', fontSize: 13, fontWeight: 800, color: '#111110' }}>
@@ -583,10 +653,10 @@ function PricingView({
 // ==================== TIMELINE VIEW ====================
 
 function TimelineView({
-  roles, activeYearCount, getRoleBillRate, onBlockClick, onRowClick, stats,
+  roles, periods, getRoleBillRate, onBlockClick, onRowClick, stats,
 }: {
   roles: Role[]
-  activeYearCount: number
+  periods: ContractPeriod[]
   getRoleBillRate: (role: Role) => number
   onBlockClick: (roleId: string, yearIndex: number) => void
   onRowClick: (role: Role) => void
@@ -598,11 +668,11 @@ function TimelineView({
       <div className="flex items-center gap-4 px-4 py-2" style={{ background: '#FAFAF9', borderBottom: '0.5px solid #F4F3EF' }}>
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm" style={{ background: '#111110' }} />
-          <span style={{ fontSize: 12, color: '#5F5E5A' }}>Full time (1.0 FTE)</span>
+          <span style={{ fontSize: 12, color: '#5F5E5A' }}>Full time (160 hrs/mo)</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm" style={{ background: '#F5C200' }} />
-          <span style={{ fontSize: 12, color: '#5F5E5A' }}>Part time (&lt; 1.0 FTE)</span>
+          <span style={{ fontSize: 12, color: '#5F5E5A' }}>Part time (&lt; 160 hrs/mo)</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-3 h-3 rounded-sm" style={{ background: '#F4F3EF' }} />
@@ -615,9 +685,9 @@ function TimelineView({
 
       {roles.map(role => {
         const billRate = getRoleBillRate(role)
-        const totalHours = getRoleTotalHours(role)
-        const active = getActiveYears(role)
-        const hours = role.billableHours || 1920
+        // Calculate total hours across all periods using utilization-based calculation
+        const totalHours = periods.reduce((sum, period) => sum + calculatePeriodHours(role, period), 0)
+        const hoursPerMonth = role.hoursPerMonth ?? 160
 
         return (
           <div
@@ -629,15 +699,16 @@ function TimelineView({
             {/* Role cell */}
             <div style={{ padding: '10px 12px' }}>
               <div style={{ fontSize: 12, fontWeight: 600, color: '#111110' }}>{role.name}</div>
-              <div style={{ fontSize: 10, color: '#6B6A65' }}>{formatCurrency(billRate)}/hr · Prime</div>
+              <div style={{ fontSize: 10, color: '#6B6A65' }}>{formatCurrency(billRate)}/hr · {role.type === 'sub' ? 'Sub' : 'Prime'}</div>
             </div>
 
             {/* Timeline blocks */}
             <div className="flex items-center gap-1 px-2 py-2">
-              {Array.from({ length: activeYearCount }).map((_, i) => {
-                const isActive = active[i]
-                const isFullTime = isActive && hours >= 1800
-                const isPartTime = isActive && hours > 0 && hours < 1800
+              {periods.map((period, i) => {
+                const periodHours = calculatePeriodHours(role, period)
+                const isActive = hoursPerMonth > 0
+                const isFullTime = isActive && hoursPerMonth >= 160
+                const isPartTime = isActive && hoursPerMonth > 0 && hoursPerMonth < 160
 
                 let bg = '#F4F3EF', fg = '#C4C3BE'
                 if (isFullTime) { bg = '#111110'; fg = '#FFFFFF' }
@@ -650,8 +721,8 @@ function TimelineView({
                     style={{ height: 28, borderRadius: 4, background: bg, color: fg }}
                     onClick={(e) => { e.stopPropagation(); onBlockClick(role.id, i) }}
                   >
-                    <span style={{ fontSize: 8, fontWeight: 700 }}>{YEAR_SHORT[i]}</span>
-                    <span style={{ fontSize: 7 }}>{isActive ? hours.toLocaleString() : '—'}</span>
+                    <span style={{ fontSize: 8, fontWeight: 700 }}>{getPeriodShortLabel(period, i)}</span>
+                    <span style={{ fontSize: 7 }}>{isActive ? periodHours.toLocaleString() : '—'}</span>
                   </div>
                 )
               })}
@@ -660,7 +731,7 @@ function TimelineView({
             {/* Hours cell */}
             <div style={{ padding: '10px 12px', textAlign: 'right' }}>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#111110' }}>{totalHours.toLocaleString()}</div>
-              <div style={{ fontSize: 9, color: '#6B6A65' }}>{role.fte} FTE</div>
+              <div style={{ fontSize: 9, color: '#6B6A65' }}>{hoursPerMonth} hrs/mo</div>
             </div>
           </div>
         )
@@ -1210,22 +1281,22 @@ function RoleDetailPanel({
 
           <div style={{ borderTop: '0.5px solid #E8E7E2' }} />
 
-          {/* Hours summary */}
+          {/* Hours per month (utilization) */}
           <div className="space-y-1.5">
-            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Hours by year</div>
-            <div className="flex gap-4">
-              {['Base', 'OY1', 'OY2', 'OY3', 'OY4'].map((label, i) => {
-                const active = getActiveYears(role)
-                const hours = active[i] ? (role.billableHours || 1920) : 0
-                return (
-                  <div key={label}>
-                    <div style={{ fontSize: 9, color: '#9B9A95', marginBottom: 2 }}>{label}</div>
-                    <div style={{ fontSize: 11, fontFamily: 'JetBrains Mono, monospace', color: hours > 0 ? '#111110' : '#C4C3BE' }}>
-                      {hours > 0 ? hours.toLocaleString() : '—'}
-                    </div>
-                  </div>
-                )
-              })}
+            <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#6B6A65', letterSpacing: '1px' }}>Utilization</div>
+            <div style={{ fontSize: 10, color: '#9B9A95', marginBottom: 4 }}>Hours worked per month (default: 160 = full time)</div>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min={0}
+                max={200}
+                step={8}
+                value={role.hoursPerMonth ?? 160}
+                onChange={(e) => saveRole({ hoursPerMonth: parseInt(e.target.value) || 160 })}
+                className="w-24 text-sm"
+                style={{ fontFamily: 'JetBrains Mono, monospace' }}
+              />
+              <span style={{ fontSize: 11, color: '#5F5E5A' }}>hrs/month</span>
             </div>
           </div>
         </div>
