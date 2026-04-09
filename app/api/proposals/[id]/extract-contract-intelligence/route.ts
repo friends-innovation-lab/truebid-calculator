@@ -187,25 +187,49 @@ ${solicitationText.slice(0, 15000)}`,
       extractedAt: new Date().toISOString(),
     }
 
-    // Save to working_data
-    const { error: updateError } = await supabase
+    console.log('[extract-contract-intelligence] Extracted:', JSON.stringify({
+      documentType: contractIntelligence.documentType.value,
+      periods: contractIntelligence.periods.length,
+      disciplines: contractIntelligence.disciplines?.required,
+      roles: contractIntelligence.roles.length
+    }))
+
+    // Load current working_data fresh to avoid stale data
+    const { data: current, error: fetchCurrentError } = await supabase
+      .from('proposals')
+      .select('working_data')
+      .eq('id', proposalId)
+      .single()
+
+    if (fetchCurrentError || !current) {
+      console.error('[extract-contract-intelligence] Failed to fetch current data:', fetchCurrentError)
+      return NextResponse.json(
+        { error: 'Proposal not found' },
+        { status: 404 }
+      )
+    }
+
+    // Merge contractIntelligence into existing working_data
+    const { error: saveError } = await supabase
       .from('proposals')
       .update({
         working_data: {
-          ...workingData,
+          ...(current.working_data as Record<string, unknown> || {}),
           contractIntelligence,
         },
         updated_at: new Date().toISOString(),
       })
       .eq('id', proposalId)
 
-    if (updateError) {
-      console.error('Failed to save contract intelligence:', updateError)
+    if (saveError) {
+      console.error('[extract-contract-intelligence] Save failed:', saveError)
       return NextResponse.json(
-        { error: 'Failed to save contract intelligence' },
+        { error: 'Save failed', details: saveError },
         { status: 500 }
       )
     }
+
+    console.log('[extract-contract-intelligence] Saved successfully for:', proposalId)
 
     return NextResponse.json({ contractIntelligence })
   } catch (error) {

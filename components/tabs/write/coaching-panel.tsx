@@ -15,6 +15,7 @@ import {
   RefreshCw,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { formatDateTime } from '@/lib/utils/format-date'
 
 // ==================== TYPES ====================
 
@@ -394,12 +395,7 @@ export function CoachingPanel({
                         >
                           <p className="text-xs text-gray-500">
                             {item.generatedAt
-                              ? new Date(item.generatedAt).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  hour: 'numeric',
-                                  minute: '2-digit',
-                                })
+                              ? formatDateTime(item.generatedAt)
                               : 'Unknown date'}
                           </p>
                           <p className="text-xs text-gray-600 truncate mt-0.5">

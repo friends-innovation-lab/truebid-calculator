@@ -56,6 +56,7 @@ import {
 Clock,
 BarChart3,
 } from 'lucide-react'
+import { formatDate } from '@/lib/utils/format-date'
 
 // ==================== LOCAL TYPES ====================
 
@@ -3342,7 +3343,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                     <p className="text-[10px] text-blue-700 line-clamp-2">{justification.notes}</p>
                                   )}
                                   <p className="text-[10px] text-blue-600 mt-1">
-                                    Last updated {new Date(justification.savedAt).toLocaleDateString()}
+                                    Last updated {formatDate(justification.savedAt)}
                                   </p>
                                 </div>
                               )}

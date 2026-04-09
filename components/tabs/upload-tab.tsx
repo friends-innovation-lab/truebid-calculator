@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import { ErrorAlert } from '@/components/ui/error-alert'
 import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
+import { formatDate } from '@/lib/utils/format-date'
 
 // ==================== TYPES ====================
 interface UploadTabProps {
@@ -584,12 +585,8 @@ export function UploadTab({ onContinue }: UploadTabProps) {
                     <div>
                       <p className="text-xs text-gray-500">Proposal Due</p>
                       <p className="text-sm text-gray-900">
-                        {solicitation.proposalDueDate 
-                          ? new Date(solicitation.proposalDueDate).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })
+                        {solicitation.proposalDueDate
+                          ? formatDate(solicitation.proposalDueDate)
                           : 'Not specified'
                         }
                       </p>
