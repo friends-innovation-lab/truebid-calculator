@@ -222,14 +222,20 @@ ${solicitationText.slice(0, 15000)}`,
       .eq('id', proposalId)
 
     if (saveError) {
-      console.error('[extract-contract-intelligence] Save failed:', saveError)
+      console.error('[contract-intelligence] Save failed:', JSON.stringify(saveError))
       return NextResponse.json(
-        { error: 'Save failed', details: saveError },
+        { error: 'Save failed' },
         { status: 500 }
       )
     }
 
-    console.log('[extract-contract-intelligence] Saved successfully for:', proposalId)
+    console.log('[contract-intelligence] Saved successfully:', JSON.stringify({
+      proposalId,
+      documentType: contractIntelligence.documentType?.value,
+      periods: contractIntelligence.periods?.length,
+      disciplines: contractIntelligence.disciplines?.required,
+      roles: contractIntelligence.roles?.length
+    }))
 
     return NextResponse.json({ contractIntelligence })
   } catch (error) {

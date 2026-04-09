@@ -1432,6 +1432,19 @@ export function Solicitation() {
         updateExtractionStep('compliance', 'error')
       }
 
+      // Extract contract intelligence (runs in background, non-blocking)
+      if (proposalId) {
+        fetch(`/api/proposals/${proposalId}/extract-contract-intelligence`, {
+          method: 'POST',
+        })
+          .then(() => {
+            console.log('[Solicitation] Contract intelligence extraction triggered')
+          })
+          .catch((error) => {
+            console.warn('[Solicitation] Contract intelligence extraction failed:', error)
+          })
+      }
+
       // Done
       setIsExtracting(false)
 
