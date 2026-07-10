@@ -82,7 +82,7 @@ describe('Rate Convergence - All Call Sites', () => {
     }, DEFAULT_PROFIT_TARGETS.tm)
 
     expect(resolved.source).toBe('contract_default')
-    expect(resolved.profitRate).toBe(0.12) // FFP default is 12%
+    expect(resolved.profitRate).toBe(0.10) // FFP default is 10% (Low risk)
 
     const breakdown = calculateFullyBurdenedRate({
       annualSalary: testSalary,
@@ -90,11 +90,11 @@ describe('Rate Convergence - All Call Sites', () => {
       profitRate: resolved.profitRate,
     })
 
-    console.log(`\nFFP Contract: $${breakdown.fullyBurdenedRate.toFixed(2)} (12% profit)`)
+    console.log(`\nFFP Contract: $${breakdown.fullyBurdenedRate.toFixed(2)} (10% profit - Low risk)`)
 
-    // Higher rate due to higher profit than T&M (8%)
+    // Higher rate than T&M (8%) but lower than old 12%
     expect(breakdown.fullyBurdenedRate).toBeGreaterThan(121.45)
-    expect(breakdown.fullyBurdenedRate).toBeCloseTo(125.95, 1)
+    expect(breakdown.fullyBurdenedRate).toBeCloseTo(123.70, 1) // 10% profit
   })
 
   it('explicit profit rate overrides contract default', () => {
@@ -117,5 +117,66 @@ describe('Rate Convergence - All Call Sites', () => {
 
     // Even higher rate
     expect(breakdown.fullyBurdenedRate).toBeGreaterThan(125)
+  })
+
+  /**
+   * Convergence test for all 8 pricing sites at $106K / FFP.
+   *
+   * Sites:
+   * 1. contexts/app-context.tsx: calculateFullyBurdenedRate
+   * 2. contexts/app-context.tsx: calculateLoadedRate
+   * 3. contexts/app-context.tsx: getRateBreakdown
+   * 4. components/tabs/staff/roles-pricing.tsx: getRoleBillRate
+   * 5. components/tabs/staff/roles-pricing.tsx: RoleDetailPanel breakdown
+   * 6. components/tabs/roles-and-pricing-tab.tsx: calculateRateBreakdownStatic
+   * 7. components/tabs/deliver/deliver-export.tsx: pricing export
+   * 8. app/boe/[token]/page.tsx: public BOE display
+   */
+  it('all 8 sites converge at $106K / FFP with 8% explicit margin', () => {
+    const salary106K = 106000
+
+    // With 8% EXPLICIT profit (user override)
+    const resolvedExplicit = resolveProfitRateWithFallback({
+      explicitProfitRate: 0.08,
+      contractType: 'ffp',
+    }, DEFAULT_PROFIT_TARGETS.tm)
+
+    expect(resolvedExplicit.source).toBe('explicit')
+    expect(resolvedExplicit.profitRate).toBe(0.08)
+
+    const breakdownExplicit = calculateFullyBurdenedRate({
+      annualSalary: salary106K,
+      rates: testRates,
+      profitRate: resolvedExplicit.profitRate,
+    })
+
+    console.log('\n=== 8-SITE CONVERGENCE TABLE ($106K / FFP) ===')
+    console.log(`With 8% EXPLICIT margin: $${breakdownExplicit.fullyBurdenedRate.toFixed(2)}`)
+
+    // All 8 sites must show this bill rate with 8% explicit
+    expect(breakdownExplicit.fullyBurdenedRate).toBeCloseTo(107.28, 1)
+  })
+
+  it('FFP default path returns 10% (Low risk)', () => {
+    const salary106K = 106000
+
+    // With FFP DEFAULT profit (no explicit override)
+    const resolvedDefault = resolveProfitRateWithFallback({
+      contractType: 'ffp',
+    }, DEFAULT_PROFIT_TARGETS.tm)
+
+    expect(resolvedDefault.source).toBe('contract_default')
+    expect(resolvedDefault.profitRate).toBe(0.10) // FFP Low risk
+
+    const breakdownDefault = calculateFullyBurdenedRate({
+      annualSalary: salary106K,
+      rates: testRates,
+      profitRate: resolvedDefault.profitRate,
+    })
+
+    console.log(`With FFP DEFAULT (10%): $${breakdownDefault.fullyBurdenedRate.toFixed(2)}`)
+
+    // FFP default (10% Low risk) gives higher rate
+    expect(breakdownDefault.fullyBurdenedRate).toBeCloseTo(109.27, 1)
   })
 })

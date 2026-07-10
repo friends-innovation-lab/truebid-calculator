@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ErrorAlert } from '@/components/ui/error-alert'
 import { CheckCircle2, Loader2, X, MessageSquare } from 'lucide-react'
 import { Toaster } from '@/components/ui/sonner'
+import { calculateFullyBurdenedRate, DEFAULT_STANDARD_HOURS } from '@/lib/pricing'
 
 // ===== TYPES =====
 
@@ -76,10 +77,10 @@ interface RoleRow {
 
 // ===== CONSTANTS =====
 
-const FRINGE_RATE = 0.2116
-const OVERHEAD_RATE = 0.3426
-const GA_RATE = 0.1983
-const STANDARD_HOURS = 2080 // Hours per work year
+// Default rates only used if API doesn't provide them (shouldn't happen)
+const DEFAULT_FRINGE_RATE = 0.2116
+const DEFAULT_OVERHEAD_RATE = 0.3426
+const DEFAULT_GA_RATE = 0.1983
 
 // ===== MAIN PAGE =====
 
@@ -202,20 +203,27 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
   const yearLabels = ['Base Year']
   for (let i = 1; i <= optionYears; i++) yearLabels.push(`Year ${i}`)
 
-  // Build role rows for the summary table
-  // The rate from API is annual baseSalary - convert to hourly first
+  // Use indirect rates from API (live from settings) or defaults as fallback
+  const fringeRate = indirectRates?.fringe ?? DEFAULT_FRINGE_RATE
+  const overheadRate = indirectRates?.overhead ?? DEFAULT_OVERHEAD_RATE
+  const gaRate = indirectRates?.ga ?? DEFAULT_GA_RATE
+
+  // Build role rows using pricing engine for correct cascade
   const roleRows: RoleRow[] = roles.map(role => {
     const annualSalary = role.rate || 0
-    // Convert annual salary to hourly rate (same as internal roles-and-pricing-tab)
-    const directRate = annualSalary / STANDARD_HOURS
 
-    // Apply indirect rates to the HOURLY rate (not annual)
-    const fringe = directRate * FRINGE_RATE
-    const withFringe = directRate + fringe
-    const overhead = withFringe * OVERHEAD_RATE
-    const withOverhead = withFringe + overhead
-    const ga = withOverhead * GA_RATE
-    const loadedRate = withOverhead + ga
+    // Use pricing engine for correct cascade calculation (cost only, no profit)
+    const breakdown = annualSalary > 0 ? calculateFullyBurdenedRate({
+      annualSalary,
+      rates: { fringe: fringeRate, overhead: overheadRate, ga: gaRate },
+      profitRate: 0, // Public BOE shows cost breakdown only
+    }) : null
+
+    const directRate = breakdown?.baseHourly || 0
+    const fringe = breakdown?.fringeAmount || 0
+    const overhead = breakdown?.overheadAmount || 0
+    const ga = breakdown?.gaAmount || 0
+    const loadedRate = breakdown?.costBeforeProfit || 0
 
     // Hours per year
     const hoursByYear: number[] = yearLabels.map((_, idx) => {
@@ -394,19 +402,19 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
                 <Card className="p-6 text-center">
                   <p className="text-sm text-gray-500 mb-2">Fringe</p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {fmtPct(indirectRates?.fringe || FRINGE_RATE)}
+                    {fmtPct(fringeRate)}
                   </p>
                 </Card>
                 <Card className="p-6 text-center">
                   <p className="text-sm text-gray-500 mb-2">Overhead</p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {fmtPct(indirectRates?.overhead || OVERHEAD_RATE)}
+                    {fmtPct(overheadRate)}
                   </p>
                 </Card>
                 <Card className="p-6 text-center">
                   <p className="text-sm text-gray-500 mb-2">G&A</p>
                   <p className="text-2xl font-semibold text-gray-900">
-                    {fmtPct(indirectRates?.ga || GA_RATE)}
+                    {fmtPct(gaRate)}
                   </p>
                 </Card>
               </div>
@@ -473,19 +481,19 @@ export default function PublicBOEPage({ params }: { params: Promise<{ token: str
                       <span className="tabular-nums">{fmt(selectedRole.annualSalary, 0)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">÷ {STANDARD_HOURS.toLocaleString()} hrs</span>
+                      <span className="text-gray-600">÷ {DEFAULT_STANDARD_HOURS.toLocaleString()} hrs</span>
                       <span className="tabular-nums text-gray-500">{fmt(selectedRole.baseRate)}/hr</span>
                     </div>
                     <div className="flex justify-between text-sm pt-1.5 border-t border-gray-100">
-                      <span className="text-gray-600">+ Fringe ({fmtPct(FRINGE_RATE)})</span>
+                      <span className="text-gray-600">+ Fringe ({fmtPct(fringeRate)})</span>
                       <span className="tabular-nums text-gray-500">{fmt(selectedRole.fringe)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">+ Overhead ({fmtPct(OVERHEAD_RATE)})</span>
+                      <span className="text-gray-600">+ Overhead ({fmtPct(overheadRate)})</span>
                       <span className="tabular-nums text-gray-500">{fmt(selectedRole.overhead)}</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">+ G&A ({fmtPct(GA_RATE)})</span>
+                      <span className="text-gray-600">+ G&A ({fmtPct(gaRate)})</span>
                       <span className="tabular-nums text-gray-500">{fmt(selectedRole.ga)}</span>
                     </div>
                     <div className="flex justify-between text-sm pt-1.5 border-t border-gray-200">

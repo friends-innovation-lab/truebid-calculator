@@ -590,7 +590,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
       contractType: contractType as PricingContractType,
       profitTargets: {
         tm: profitTargets.tmDefault,
-        ffp: profitTargets.ffpMediumRisk,
+        ffp: profitTargets.ffpLowRisk,
         gsa: profitTargets.gsaDefault,
       },
     }, profitTargets.tmDefault)

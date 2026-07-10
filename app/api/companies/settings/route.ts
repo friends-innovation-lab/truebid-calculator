@@ -81,6 +81,7 @@ export async function POST(request: Request) {
   if (body.overhead_rate !== undefined) updateData.overhead_rate = body.overhead_rate
   if (body.ga_rate !== undefined) updateData.ga_rate = body.ga_rate
   if (body.profit_rate !== undefined) updateData.profit_rate = body.profit_rate
+  if (body.profit_targets !== undefined) updateData.profit_targets = body.profit_targets
   if (body.escalation_rate !== undefined) updateData.escalation_rate = body.escalation_rate
   if (body.salary_structure !== undefined) updateData.salary_structure = body.salary_structure
   if (body.step_increase_percent !== undefined) updateData.step_increase_percent = body.step_increase_percent

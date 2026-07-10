@@ -10,6 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Download, Loader2, Sparkles, Check, Minus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { generateBOEDocument, downloadBOE } from '@/lib/boe-export'
+import { calculateFullyBurdenedRate } from '@/lib/pricing'
 
 // ==================== TYPES ====================
 
@@ -116,6 +117,7 @@ export function DeliverExport() {
     outline,
     sectionContent,
     setSectionContent,
+    indirectRates,
   } = useAppContext()
 
   // Compliance items for export
@@ -314,27 +316,38 @@ export function DeliverExport() {
       const XLSX = await import('xlsx')
       const wb = XLSX.utils.book_new()
 
-      const fringeRate = 0.2116
-      const overheadRate = 0.3426
-      const gaRate = 0.1983
+      // Use live indirect rates from settings
+      const fringeRate = indirectRates.fringe || 0
+      const overheadRate = indirectRates.overhead || 0
+      const gaRate = indirectRates.ga || 0
 
-      // Sheet 1 - Summary
+      // Sheet 1 - Summary (using pricing engine for correct cascade)
       const summaryRows = selectedRoles.map((role) => {
-        const baseRate = role.hourlyRate || role.baseSalary || 0
+        const annualSalary = role.baseSalary || 0
         const hours = role.billableHours || role.quantity || 0
-        const fringe = baseRate * fringeRate
-        const overhead = baseRate * overheadRate
-        const ga = baseRate * gaRate
-        const loadedRate = baseRate + fringe + overhead + ga
+
+        // Use pricing engine for correct cascade calculation (no profit for cost export)
+        const breakdown = annualSalary > 0 ? calculateFullyBurdenedRate({
+          annualSalary,
+          rates: { fringe: fringeRate, overhead: overheadRate, ga: gaRate },
+          profitRate: 0, // Cost-only export
+        }) : null
+
+        const baseHourly = breakdown?.baseHourly || 0
+        const fringeAmt = breakdown?.fringeAmount || 0
+        const overheadAmt = breakdown?.overheadAmount || 0
+        const gaAmt = breakdown?.gaAmount || 0
+        const loadedRate = breakdown?.costBeforeProfit || 0
         const totalCost = loadedRate * hours
+
         return {
           'Role': role.title || role.name,
           'Labor Category': role.laborCategory || role.icLevel || '',
           'Hours': hours,
-          'Base Rate': baseRate,
-          'Fringe (21.16%)': fringe,
-          'Overhead (34.26%)': overhead,
-          'G&A (19.83%)': ga,
+          'Base Rate': baseHourly,
+          'Fringe': fringeAmt,
+          'Overhead': overheadAmt,
+          'G&A': gaAmt,
           'Loaded Rate': loadedRate,
           'Total Cost': totalCost,
         }
@@ -353,25 +366,34 @@ export function DeliverExport() {
           const yearKey = idx === 0 ? 'base' : `option${idx}`
           const isActive = role.years[yearKey as keyof typeof role.years]
           if (!isActive) return
-          const baseRate = role.hourlyRate || role.baseSalary || 0
+          const baseSalary = role.baseSalary || 0
           const escalation = Math.pow(1 + (proposalSetup?.escalationRate || 0.03), idx)
-          const adjustedRate = baseRate * escalation
+          const escalatedSalary = baseSalary * escalation
           const hours = role.hoursByYear
             ? role.hoursByYear[idx === 0 ? 'baseYear' : `oy${idx}` as keyof typeof role.hoursByYear] || 0
             : role.billableHours || role.quantity || 0
-          const fringe = adjustedRate * fringeRate
-          const overhead = adjustedRate * overheadRate
-          const ga = adjustedRate * gaRate
-          const loadedRate = adjustedRate + fringe + overhead + ga
+
+          // Use pricing engine for correct cascade
+          const breakdown = escalatedSalary > 0 ? calculateFullyBurdenedRate({
+            annualSalary: escalatedSalary,
+            rates: { fringe: fringeRate, overhead: overheadRate, ga: gaRate },
+            profitRate: 0,
+          }) : null
+
+          const baseHourly = breakdown?.baseHourly || 0
+          const fringeAmt = breakdown?.fringeAmount || 0
+          const overheadAmt = breakdown?.overheadAmount || 0
+          const gaAmt = breakdown?.gaAmount || 0
+          const loadedRate = breakdown?.costBeforeProfit || 0
           byYearRows.push({
             'Year': yearLabel,
             'Role': role.title || role.name,
             'Labor Category': role.laborCategory || role.icLevel || '',
             'Hours': hours,
-            'Base Rate': adjustedRate,
-            'Fringe (21.16%)': fringe,
-            'Overhead (34.26%)': overhead,
-            'G&A (19.83%)': ga,
+            'Base Rate': baseHourly,
+            'Fringe': fringeAmt,
+            'Overhead': overheadAmt,
+            'G&A': gaAmt,
             'Loaded Rate': loadedRate,
             'Total Cost': loadedRate * hours,
           })
@@ -380,11 +402,11 @@ export function DeliverExport() {
       const ws2 = XLSX.utils.json_to_sheet(byYearRows)
       XLSX.utils.book_append_sheet(wb, ws2, 'By Year')
 
-      // Sheet 3 - Indirect Rates
+      // Sheet 3 - Indirect Rates (using live rates from settings)
       const indirectRows = [
-        { 'Rate Type': 'Fringe', 'Percentage': '21.16%', 'Basis': 'Direct labor' },
-        { 'Rate Type': 'Overhead', 'Percentage': '34.26%', 'Basis': 'Direct labor + fringe' },
-        { 'Rate Type': 'G&A', 'Percentage': '19.83%', 'Basis': 'Total cost input' },
+        { 'Rate Type': 'Fringe', 'Percentage': `${(fringeRate * 100).toFixed(2)}%`, 'Basis': 'Direct labor' },
+        { 'Rate Type': 'Overhead', 'Percentage': `${(overheadRate * 100).toFixed(2)}%`, 'Basis': 'Direct labor + fringe' },
+        { 'Rate Type': 'G&A', 'Percentage': `${(gaRate * 100).toFixed(2)}%`, 'Basis': 'Total cost input' },
         { 'Rate Type': '', 'Percentage': '', 'Basis': '' },
         { 'Rate Type': 'Rate basis', 'Percentage': '2,080 hours', 'Basis': '' },
       ]

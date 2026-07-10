@@ -177,11 +177,29 @@ describe('Profit Resolver', () => {
      */
     it('has correct default values', () => {
       expect(DEFAULT_PROFIT_TARGETS.tm).toBe(0.08)    // T&M: 8%
-      expect(DEFAULT_PROFIT_TARGETS.ffp).toBe(0.12)   // FFP: 12%
+      expect(DEFAULT_PROFIT_TARGETS.ffp).toBe(0.10)   // FFP: 10% (Low risk default)
       expect(DEFAULT_PROFIT_TARGETS.cpff).toBe(0.08)  // CPFF: 8%
       expect(DEFAULT_PROFIT_TARGETS.cpif).toBe(0.10)  // CPIF: 10%
       expect(DEFAULT_PROFIT_TARGETS.hybrid).toBe(0.10) // Hybrid: 10%
       expect(DEFAULT_PROFIT_TARGETS.gsa).toBe(0.08)   // GSA: 8%
+    })
+
+    /**
+     * Test 13: FFP uses Low risk (10%) as default, Medium (12%) requires explicit margin.
+     */
+    it('FFP defaults to Low risk (10%), Medium requires explicit', () => {
+      // FFP with no explicit margin → 10% (Low)
+      const ffpDefault = resolveProfitRate({ contractType: 'ffp' })
+      expect(ffpDefault.profitRate).toBe(0.10)
+      expect(ffpDefault.source).toBe('contract_default')
+
+      // FFP with explicit 12% margin → 12% (explicit overrides default)
+      const ffpMedium = resolveProfitRate({
+        contractType: 'ffp',
+        explicitProfitRate: 0.12,
+      })
+      expect(ffpMedium.profitRate).toBe(0.12)
+      expect(ffpMedium.source).toBe('explicit')
     })
   })
 })

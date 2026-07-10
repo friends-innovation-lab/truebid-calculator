@@ -1135,7 +1135,7 @@ export function ExportTab() {
           contractType: contractType as PricingContractType,
           profitTargets: {
             tm: profitTargets.tmDefault,
-            ffp: profitTargets.ffpMediumRisk,
+            ffp: profitTargets.ffpLowRisk,
             gsa: profitTargets.gsaDefault,
           },
         }, profitTargets.tmDefault).profitRate,
@@ -1596,7 +1596,7 @@ export function ExportTab() {
                   contractType: contractType as PricingContractType,
                   profitTargets: {
                     tm: profitTargets.tmDefault,
-                    ffp: profitTargets.ffpMediumRisk,
+                    ffp: profitTargets.ffpLowRisk,
                     gsa: profitTargets.gsaDefault,
                   },
                 }, profitTargets.tmDefault).profitRate * 100).toFixed(1)}%`}

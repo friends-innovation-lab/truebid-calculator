@@ -10,8 +10,10 @@ import { formatCurrency } from '@/lib/utils'
 import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
 import {
   calculateBillRate as pricingEngineBillRate,
+  calculateFullyBurdenedRate,
   normalizeRateToDecimal,
   resolveProfitRateWithFallback,
+  DEFAULT_STANDARD_HOURS,
   type ContractType as PricingContractType,
 } from '@/lib/pricing'
 import {
@@ -159,7 +161,7 @@ export function RolesPricing() {
       contractType: contractType as PricingContractType,
       profitTargets: {
         tm: profitTargets.tmDefault,
-        ffp: profitTargets.ffpMediumRisk,
+        ffp: profitTargets.ffpLowRisk,
         gsa: profitTargets.gsaDefault,
       },
     }, profitTargets.tmDefault)
@@ -481,6 +483,9 @@ export function RolesPricing() {
           onDelete={() => { removeRole(detailRole.id); setDetailRole(null) }}
           onClose={() => setDetailRole(null)}
           laborCategories={laborCategories}
+          indirectRates={indirectRates}
+          profitTargets={profitTargets}
+          contractType={contractType}
         />
       )}
     </div>
@@ -863,9 +868,6 @@ function AddRolePanel({
 
 // ==================== ROLE DETAIL PANEL ====================
 
-// FFTC indirect rates (will come from Account → Company Settings later)
-const INDIRECT = { fringe: 0.2116, overhead: 0.3426, ga: 0.1983, hoursPerYear: 2080 }
-
 // Default IC levels with titles
 const IC_LEVELS = [
   { level: 'IC1', title: 'Associate' },
@@ -884,22 +886,15 @@ const DEFAULT_SALARIES: Record<string, number[]> = {
   IC5: [175000, 195000, 220000],
 }
 
-function calculateBillRate(salary: number, profit: number): number {
-  const fringe = salary * INDIRECT.fringe
-  const overhead = salary * INDIRECT.overhead
-  const loaded = salary + fringe + overhead
-  const ga = loaded * INDIRECT.ga
-  const total = loaded + ga
-  const perHour = total / INDIRECT.hoursPerYear
-  return Math.round(perHour * (1 + profit) * 100) / 100
-}
-
 function RoleDetailPanel({
   role,
   onUpdate,
   onDelete,
   onClose,
   laborCategories,
+  indirectRates,
+  profitTargets,
+  contractType,
   escalation = 0.03,
 }: {
   role: Role
@@ -907,6 +902,9 @@ function RoleDetailPanel({
   onDelete: () => void
   onClose: () => void
   laborCategories: { title: string; salary_levels?: { level: string; level_title?: string; steps: number[] }[] }[]
+  indirectRates: { fringe: number; overhead: number; ga: number }
+  profitTargets: { tmDefault: number; ffpLowRisk: number; gsaDefault: number }
+  contractType: string
   escalation?: number
 }) {
   const extRole = role as Role & { selectedLevel?: string; selectedStep?: number; currentSalary?: number; profitMargin?: number; type?: string; subcontractorName?: string; billRateBase?: number }
@@ -917,7 +915,18 @@ function RoleDetailPanel({
 
   const [selectedLevel, setSelectedLevel] = useState(extRole.selectedLevel || role.icLevel || 'IC3')
   const [selectedStep, setSelectedStep] = useState(extRole.selectedStep ?? 0)
-  const [profit, setProfit] = useState((extRole.profitMargin ?? 0.10) * 100)
+
+  // Resolve default profit from contract type if not explicitly set
+  const defaultProfit = resolveProfitRateWithFallback({
+    contractType: contractType as PricingContractType,
+    profitTargets: {
+      tm: profitTargets.tmDefault,
+      ffp: profitTargets.ffpLowRisk,
+      gsa: profitTargets.gsaDefault,
+    },
+  }, profitTargets.tmDefault).profitRate
+
+  const [profit, setProfit] = useState((extRole.profitMargin ?? defaultProfit) * 100)
   const [roleType, setRoleType] = useState<'prime' | 'sub'>(extRole.type as 'prime' | 'sub' || 'prime')
   const [subName, setSubName] = useState(extRole.subcontractorName || '')
   const [subRate, setSubRate] = useState(role.subRate ?? 0)
@@ -952,17 +961,32 @@ function RoleDetailPanel({
   const currentSteps = getStepsForLevel(selectedLevel)
   const salary = currentSteps[selectedStep] ?? extRole.currentSalary ?? extRole.baseSalary ?? 0
 
-  // Calculate breakdown from salary
+  // Calculate breakdown using the centralized pricing engine
   const breakdown = salary > 0 ? (() => {
-    const fringe = salary * INDIRECT.fringe
-    const oh = salary * INDIRECT.overhead
-    const loaded = salary + fringe + oh
-    const gaAmt = loaded * INDIRECT.ga
-    const totalCost = loaded + gaAmt
-    const costPerHour = totalCost / INDIRECT.hoursPerYear
-    const profitAmt = costPerHour * (profit / 100)
-    const billRate = costPerHour + profitAmt
-    return { salary, fringe, oh, loaded, gaAmt, totalCost, costPerHour, profitAmt, billRate }
+    const profitDecimal = profit / 100
+    const engineBreakdown = calculateFullyBurdenedRate({
+      annualSalary: salary,
+      rates: {
+        fringe: indirectRates.fringe || 0,
+        overhead: indirectRates.overhead || 0,
+        ga: indirectRates.ga || 0,
+      },
+      profitRate: profitDecimal,
+    })
+
+    // Map engine output to display format (annualized for UI)
+    const hoursPerYear = DEFAULT_STANDARD_HOURS
+    return {
+      salary,
+      fringe: engineBreakdown.fringeAmount * hoursPerYear,
+      oh: engineBreakdown.overheadAmount * hoursPerYear,
+      loaded: (engineBreakdown.baseHourly + engineBreakdown.fringeAmount + engineBreakdown.overheadAmount) * hoursPerYear,
+      gaAmt: engineBreakdown.gaAmount * hoursPerYear,
+      totalCost: engineBreakdown.costBeforeProfit * hoursPerYear,
+      costPerHour: engineBreakdown.costBeforeProfit,
+      profitAmt: engineBreakdown.profitAmount,
+      billRate: engineBreakdown.fullyBurdenedRate,
+    }
   })() : null
 
   // Sync calculated rate back to role so table row stays in sync
@@ -1012,8 +1036,16 @@ function RoleDetailPanel({
   const handleProfitChange = (newProfit: number) => {
     setProfit(newProfit)
     if (salary > 0) {
-      const newBillRate = calculateBillRate(salary, newProfit / 100)
-      saveRole({ loadedRate: newBillRate } as Partial<Role>)
+      const newBreakdown = calculateFullyBurdenedRate({
+        annualSalary: salary,
+        rates: {
+          fringe: indirectRates.fringe || 0,
+          overhead: indirectRates.overhead || 0,
+          ga: indirectRates.ga || 0,
+        },
+        profitRate: newProfit / 100,
+      })
+      saveRole({ loadedRate: newBreakdown.fullyBurdenedRate, profitMargin: newProfit / 100 } as Partial<Role>)
     }
   }
 
@@ -1245,14 +1277,14 @@ function RoleDetailPanel({
                   <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', textTransform: 'uppercase', color: '#6B6A65', marginBottom: 10 }}>Bill rate calculation</div>
                   <div className="space-y-1">
                     <BreakdownRow label="Base salary" value={`${fmt(breakdown.salary)}/yr`} />
-                    <BreakdownRow label={`+ Fringe (${(INDIRECT.fringe * 100).toFixed(2)}%)`} value={`${fmt(breakdown.fringe)}/yr`} />
-                    <BreakdownRow label={`+ Overhead (${(INDIRECT.overhead * 100).toFixed(2)}%)`} value={`${fmt(breakdown.oh)}/yr`} />
+                    <BreakdownRow label={`+ Fringe (${(indirectRates.fringe * 100).toFixed(2)}%)`} value={`${fmt(breakdown.fringe)}/yr`} />
+                    <BreakdownRow label={`+ Overhead (${(indirectRates.overhead * 100).toFixed(2)}%)`} value={`${fmt(breakdown.oh)}/yr`} />
                     <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
                     <BreakdownRow label="Loaded cost" value={`${fmt(breakdown.loaded)}/yr`} />
-                    <BreakdownRow label={`+ G&A (${(INDIRECT.ga * 100).toFixed(2)}%)`} value={`${fmt(breakdown.gaAmt)}/yr`} />
+                    <BreakdownRow label={`+ G&A (${(indirectRates.ga * 100).toFixed(2)}%)`} value={`${fmt(breakdown.gaAmt)}/yr`} />
                     <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />
                     <BreakdownRow label="Total cost" value={`${fmt(breakdown.totalCost)}/yr`} />
-                    <BreakdownRow label={`÷ ${INDIRECT.hoursPerYear.toLocaleString()} hours`} value="─────────────" muted />
+                    <BreakdownRow label={`÷ ${DEFAULT_STANDARD_HOURS.toLocaleString()} hours`} value="─────────────" muted />
                     <BreakdownRow label="Cost per hour" value={`${fmt(breakdown.costPerHour)}/hr`} />
                     <BreakdownRow label={`+ Profit (${profit.toFixed(0)}%)`} value={`${fmt(breakdown.profitAmt)}/hr`} />
                     <div style={{ height: 0.5, background: '#E8E7E2', margin: '3px 0' }} />

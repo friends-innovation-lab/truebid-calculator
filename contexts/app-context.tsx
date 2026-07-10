@@ -1753,29 +1753,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   });
   const [indirectRatesLoaded, setIndirectRatesLoaded] = useState(false);
 
-  // Load indirect rates from API on mount
+  // Load indirect rates and profit targets from API on mount
   useEffect(() => {
-    async function loadIndirectRates() {
+    async function loadSettings() {
       if (typeof window === 'undefined') return;
 
       try {
         const response = await settingsApi.get() as { settings: Record<string, unknown> | null };
         if (response.settings) {
           const s = response.settings;
+          // Load indirect rates
           setIndirectRatesState(prev => ({
             ...prev,
             fringe: (s.fringe_rate as number) ?? prev.fringe,
             overhead: (s.overhead_rate as number) ?? prev.overhead,
             ga: (s.ga_rate as number) ?? prev.ga,
           }));
+          // Load profit targets if present
+          if (s.profit_targets && typeof s.profit_targets === 'object') {
+            const pt = s.profit_targets as Record<string, number>;
+            setProfitTargetsState(prev => ({
+              ...prev,
+              tmDefault: pt.tm ?? prev.tmDefault,
+              ffpLowRisk: pt.ffp ?? prev.ffpLowRisk,
+              gsaDefault: pt.gsa ?? prev.gsaDefault,
+            }));
+          }
         }
       } catch (e) {
-        console.warn('Failed to load indirect rates from API:', e);
+        console.warn('Failed to load settings from API:', e);
       }
       setIndirectRatesLoaded(true);
     }
 
-    loadIndirectRates();
+    loadSettings();
   }, []);
 
   // Wrapper to save indirect rates to API when they change
@@ -1797,13 +1808,36 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   // ==================== PROFIT TARGETS ====================
-  const [profitTargets, setProfitTargets] = useState<ProfitTargets>({
+  const [profitTargetsState, setProfitTargetsState] = useState<ProfitTargets>({
     tmDefault: 0.08,      // Time & Materials: 8%
-    ffpLowRisk: 0.12,
-    ffpMediumRisk: 0.15,
-    ffpHighRisk: 0.20,
+    ffpLowRisk: 0.10,     // FFP Low risk: 10% (resolver default)
+    ffpMediumRisk: 0.12,  // FFP Medium risk: 12% (explicit only)
+    ffpHighRisk: 0.15,    // FFP High risk: 15% (explicit only)
     gsaDefault: 0.08,     // GSA Schedule: 8%
   });
+
+  // Alias for reading (components use profitTargets)
+  const profitTargets = profitTargetsState;
+
+  // Wrapper to save profit targets to API when they change
+  const setProfitTargets = async (targets: ProfitTargets) => {
+    setProfitTargetsState(targets);
+
+    // Don't save until initial load is complete
+    if (!indirectRatesLoaded) return;
+
+    try {
+      await settingsApi.save({
+        profit_targets: {
+          tm: targets.tmDefault,
+          ffp: targets.ffpLowRisk, // FFP default is Low risk
+          gsa: targets.gsaDefault,
+        },
+      });
+    } catch (e) {
+      console.warn('Failed to save profit targets to API:', e);
+    }
+  };
 
   // ==================== ESCALATION ====================
   const [escalationRates, setEscalationRates] = useState<EscalationRates>({
@@ -2171,7 +2205,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         contractType: contractType as PricingContractType,
         profitTargets: {
           tm: profitTargets.tmDefault,
-          ffp: profitTargets.ffpMediumRisk,
+          ffp: profitTargets.ffpLowRisk,
           gsa: profitTargets.gsaDefault,
         },
       }, profitTargets.tmDefault);
@@ -2205,7 +2239,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       contractType: contractType as PricingContractType,
       profitTargets: {
         tm: profitTargets.tmDefault,
-        ffp: profitTargets.ffpMediumRisk,
+        ffp: profitTargets.ffpLowRisk,
         gsa: profitTargets.gsaDefault,
       },
     }, profitTargets.tmDefault);
@@ -2240,7 +2274,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         contractType: contractType as PricingContractType,
         profitTargets: {
           tm: profitTargets.tmDefault,
-          ffp: profitTargets.ffpMediumRisk,
+          ffp: profitTargets.ffpLowRisk,
           gsa: profitTargets.gsaDefault,
         },
       }, profitTargets.tmDefault);
