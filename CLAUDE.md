@@ -254,6 +254,10 @@ if (result.success) {
 
 ### Database Migrations
 
+**Standing rule: NO schema changes via SQL Editor. Migrations only.**
+
+All database changes must go through versioned migration files in `supabase/migrations/`. Never use the Supabase dashboard SQL editor for schema changes—it creates tracking drift between the migration history and actual schema.
+
 New tables (apply in order):
 - `025_tenants.sql` - tenants + tenant_memberships + backfill
 - `026_audit_events.sql` - immutable audit log
