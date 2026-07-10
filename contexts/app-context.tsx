@@ -328,6 +328,7 @@ export interface ProposalSetup {
   setAside: string;
   billableHoursPerYear: number;
   escalationRate: number;
+  profitMargin: number;  // Percent (e.g., 10 for 10%)
   proposalDueDate?: string;
   wordsPerPage?: number;
 }

@@ -64,9 +64,9 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
     const wpp = overrides.wpp ?? wordsPerPage
 
     // Determine profit margin: if contract type is changing, use target for new type
-    // Otherwise preserve existing margin
+    // Otherwise preserve existing margin (read from proposalSetup first, then solicitation)
     const isContractTypeChange = overrides.ct !== undefined
-    let profitMarginPercent = solicitation?.pricingSettings?.profitMargin || 8
+    let profitMarginPercent = proposalSetup?.profitMargin ?? solicitation?.pricingSettings?.profitMargin ?? 8
     if (isContractTypeChange) {
       // Look up default profit target for new contract type
       const profitTargetDecimal = ct === 'ffp' ? profitTargets.ffpLowRisk
@@ -102,6 +102,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
           setAside: sa,
           billableHoursPerYear: bh,
           escalationRate: esc / 100,
+          profitMargin: profitMarginPercent,
           proposalDueDate: proposalSetup?.proposalDueDate,
           wordsPerPage: wpp,
         }

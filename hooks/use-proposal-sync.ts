@@ -57,6 +57,7 @@ interface WorkingData {
     setAside: string
     billableHoursPerYear: number
     escalationRate: number
+    profitMargin: number
     proposalDueDate?: string
   }
   gsaEnabled?: boolean
@@ -88,7 +89,7 @@ const MANAGED_FIELDS = [
 type ContextSetters = Pick<
   ReturnType<typeof useAppContext>,
   'setSolicitation' | 'updateSolicitation' | 'setSelectedRoles' | 'setSubcontractors' |
-  'setTeamingPartners' | 'setTeamMembers' | 'setDirectors' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType' | 'setProposalSetup' | 'setOutline' | 'setSectionContent'
+  'setTeamingPartners' | 'setTeamMembers' | 'setDirectors' | 'setEstimateWbsElements' | 'setRateJustifications' | 'setODCs' | 'setPerDiem' | 'setExtractedRequirements' | 'setContractType' | 'setProposalSetup' | 'setOutline' | 'setSectionContent' | 'setUiProfitMargin'
 >
 
 function hydrateContext(
@@ -107,7 +108,13 @@ function hydrateContext(
     }))
   )
   if (roles) setters.setSelectedRoles(roles as Parameters<ContextSetters['setSelectedRoles']>[0])
-  if (data.proposalSetup) setters.setProposalSetup(data.proposalSetup as Parameters<ContextSetters['setProposalSetup']>[0])
+  if (data.proposalSetup) {
+    setters.setProposalSetup(data.proposalSetup as Parameters<ContextSetters['setProposalSetup']>[0])
+    // Sync UI profit margin from persisted proposalSetup
+    if (data.proposalSetup.profitMargin !== undefined) {
+      setters.setUiProfitMargin(data.proposalSetup.profitMargin)
+    }
+  }
   if (data.subcontractors) setters.setSubcontractors(data.subcontractors as Parameters<ContextSetters['setSubcontractors']>[0])
   if (data.teamingPartners) setters.setTeamingPartners(data.teamingPartners as Parameters<ContextSetters['setTeamingPartners']>[0])
   if (data.teamMembers) setters.setTeamMembers(data.teamMembers as Parameters<ContextSetters['setTeamMembers']>[0])
@@ -175,6 +182,7 @@ export function useProposalSync(proposalId: string) {
     sectionContent,
     setSectionContent,
     resetSolicitation,
+    setUiProfitMargin,
   } = useAppContext()
 
   const isInitialLoad = useRef(true)
@@ -188,7 +196,7 @@ export function useProposalSync(proposalId: string) {
 
   const setters = {
     setSolicitation, updateSolicitation, setSelectedRoles, setSubcontractors,
-    setTeamingPartners, setTeamMembers, setDirectors, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType, setProposalSetup, setOutline, setSectionContent,
+    setTeamingPartners, setTeamMembers, setDirectors, setEstimateWbsElements, setRateJustifications, setODCs, setPerDiem, setExtractedRequirements, setContractType, setProposalSetup, setOutline, setSectionContent, setUiProfitMargin,
   }
 
   // Clear all working data state (call when proposal changes)
