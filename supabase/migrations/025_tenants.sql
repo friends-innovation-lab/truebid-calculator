@@ -65,45 +65,50 @@ CREATE INDEX idx_memberships_role ON tenant_memberships(tenant_id, role);
 -- RLS
 ALTER TABLE tenant_memberships ENABLE ROW LEVEL SECURITY;
 
--- Users can see memberships in their tenants
-CREATE POLICY "View memberships in own tenants"
+-- Users can see their own membership row (avoids recursion)
+CREATE POLICY "Users view own membership"
   ON tenant_memberships
   FOR SELECT TO authenticated
-  USING (
-    tenant_id IN (
-      SELECT tenant_id FROM tenant_memberships
-      WHERE user_id = auth.uid() AND status = 'active'
-    )
-  );
+  USING (user_id = auth.uid());
 
--- Only owner/admin can manage memberships
-CREATE POLICY "Owner/admin manage memberships"
+-- Owner/admin can view all memberships in their tenant
+-- Uses EXISTS with SECURITY DEFINER function to avoid recursion
+CREATE OR REPLACE FUNCTION is_tenant_admin(check_tenant_id UUID)
+RETURNS BOOLEAN
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM tenant_memberships
+    WHERE tenant_id = check_tenant_id
+      AND user_id = auth.uid()
+      AND role IN ('owner', 'admin')
+      AND status = 'active'
+  );
+$$;
+
+CREATE POLICY "Admin view all tenant memberships"
+  ON tenant_memberships
+  FOR SELECT TO authenticated
+  USING (is_tenant_admin(tenant_id));
+
+-- Only owner/admin can manage (insert/update/delete) memberships
+CREATE POLICY "Admin manage memberships"
   ON tenant_memberships
   FOR ALL TO authenticated
-  USING (
-    tenant_id IN (
-      SELECT tenant_id FROM tenant_memberships
-      WHERE user_id = auth.uid()
-        AND role IN ('owner', 'admin')
-        AND status = 'active'
-    )
-  )
-  WITH CHECK (
-    tenant_id IN (
-      SELECT tenant_id FROM tenant_memberships
-      WHERE user_id = auth.uid()
-        AND role IN ('owner', 'admin')
-        AND status = 'active'
-    )
-  );
+  USING (is_tenant_admin(tenant_id))
+  WITH CHECK (is_tenant_admin(tenant_id));
 
 -- =============================================================================
 -- BACKFILL: Create FFTC tenant and memberships
 -- =============================================================================
 -- Role assignment rules:
---   - Company owner (Lapedra) → 'owner' role
---   - Tamara → 'admin' role (identified by email containing 'tamara')
---   - All other users → 'estimator' role
+--   - Company owner → 'owner' role
+--   - All other existing users → 'estimator' role (can be promoted manually)
+--
+-- NOTE: Removed substring matching for admin role assignment.
+-- Admin roles should be granted explicitly via the UI after migration.
 --
 -- IMPORTANT: Before running, verify auth.users contains expected users.
 -- Run this query to list users: SELECT id, email FROM auth.users;
@@ -130,27 +135,19 @@ BEGIN
     )
     RETURNING id INTO new_tenant_id;
 
-    -- Create owner membership for company owner (Lapedra)
+    -- Create owner membership for company owner
     INSERT INTO tenant_memberships (tenant_id, user_id, role, status)
     VALUES (new_tenant_id, company_record.owner_id, 'owner', 'active')
     ON CONFLICT (tenant_id, user_id) DO NOTHING;
 
-    -- Add all other auth users to this tenant
+    -- Add all other auth users to this tenant as estimators
+    -- Admin roles should be granted explicitly via UI
     FOR user_record IN
       SELECT id, email FROM auth.users
       WHERE id != company_record.owner_id
     LOOP
-      -- Tamara = admin, everyone else = estimator
       INSERT INTO tenant_memberships (tenant_id, user_id, role, status)
-      VALUES (
-        new_tenant_id,
-        user_record.id,
-        CASE
-          WHEN LOWER(user_record.email) LIKE '%tamara%' THEN 'admin'
-          ELSE 'estimator'
-        END,
-        'active'
-      )
+      VALUES (new_tenant_id, user_record.id, 'estimator', 'active')
       ON CONFLICT (tenant_id, user_id) DO NOTHING;
     END LOOP;
   END LOOP;
