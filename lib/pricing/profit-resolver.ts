@@ -9,13 +9,12 @@
  * 2. Contract-type default from profitTargets (if contract type known)
  * 3. Error if neither exists
  *
- * FFP Risk Levels:
- * - FFP default (this resolver): 10% (Low risk)
+ * FFP Risk Levels (per settings screen):
+ * - FFP Low (10%): Default for FFP contracts
  * - FFP Medium (12%): Only via explicit role/proposal margin
- * - FFP High (15%+): Only via explicit role/proposal margin
  *
- * Rationale: Proposals don't yet capture risk level, so Medium/High
- * are reachable only through explicit margin override. When proposal
+ * Rationale: Proposals don't yet capture risk level, so Medium
+ * is reachable only through explicit margin override. When proposal
  * risk level field is added (Phase 5 backlog), the resolver can
  * accept risk level as input and return the appropriate FFP target.
  */
@@ -31,8 +30,8 @@ export type ContractType = 'tm' | 'ffp' | 'cpff' | 'cpif' | 'hybrid' | 'gsa'
 /**
  * Default profit targets by contract type.
  *
- * FFP uses Low risk (10%) as default. Medium (12%) and High (15%)
- * require explicit margin selection until proposal risk level is implemented.
+ * FFP uses Low risk (10%) as default. Medium (12%)
+ * requires explicit margin selection until proposal risk level is implemented.
  */
 export const DEFAULT_PROFIT_TARGETS: Record<ContractType, number> = {
   tm: 0.08,      // Time & Materials: 8%

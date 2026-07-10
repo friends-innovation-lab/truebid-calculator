@@ -773,7 +773,6 @@ export interface ProfitTargets {
   tmDefault: number;
   ffpLowRisk: number;
   ffpMediumRisk: number;
-  ffpHighRisk: number;
   gsaDefault: number;
 }
 
@@ -1812,7 +1811,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     tmDefault: 0.08,      // Time & Materials: 8%
     ffpLowRisk: 0.10,     // FFP Low risk: 10% (resolver default)
     ffpMediumRisk: 0.12,  // FFP Medium risk: 12% (explicit only)
-    ffpHighRisk: 0.15,    // FFP High risk: 15% (explicit only)
     gsaDefault: 0.08,     // GSA Schedule: 8%
   });
 
