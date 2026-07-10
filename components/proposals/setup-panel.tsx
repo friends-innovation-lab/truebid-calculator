@@ -24,7 +24,7 @@ const SET_ASIDES = [
 ]
 
 export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
-  const { solicitation, updateSolicitation, proposalSetup, setProposalSetup } = useAppContext()
+  const { solicitation, updateSolicitation, proposalSetup, setProposalSetup, profitTargets } = useAppContext()
 
   // Read from proposalSetup context first, fall back to solicitation
   const [contractType, setContractType] = useState<'tm' | 'ffp' | 'cpff'>(
@@ -63,6 +63,18 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
     const esc = overrides.esc ?? escalation
     const wpp = overrides.wpp ?? wordsPerPage
 
+    // Determine profit margin: if contract type is changing, use target for new type
+    // Otherwise preserve existing margin
+    const isContractTypeChange = overrides.ct !== undefined
+    let profitMarginPercent = solicitation?.pricingSettings?.profitMargin || 8
+    if (isContractTypeChange) {
+      // Look up default profit target for new contract type
+      const profitTargetDecimal = ct === 'ffp' ? profitTargets.ffpLowRisk
+        : ct === 'cpff' ? profitTargets.tmDefault  // CPFF uses T&M-like margins
+        : profitTargets.tmDefault
+      profitMarginPercent = profitTargetDecimal * 100
+    }
+
     setSaveStatus('saving')
     if (saveTimeout.current) clearTimeout(saveTimeout.current)
     saveTimeout.current = setTimeout(async () => {
@@ -76,7 +88,7 @@ export function SetupPanel({ open, onClose, proposalId }: SetupPanelProps) {
           setAside: sa as never,
           pricingSettings: {
             billableHours: bh,
-            profitMargin: solicitation?.pricingSettings?.profitMargin || 8,
+            profitMargin: profitMarginPercent,
             escalationEnabled: true,
             laborEscalation: esc,
             odcEscalation: solicitation?.pricingSettings?.odcEscalation || 0,
