@@ -9,6 +9,12 @@ import { EmptyState } from '@/components/ui/empty-state'
 import { formatCurrency } from '@/lib/utils'
 import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
 import {
+  calculateBillRate as pricingEngineBillRate,
+  normalizeRateToDecimal,
+  resolveProfitRateWithFallback,
+  type ContractType as PricingContractType,
+} from '@/lib/pricing'
+import {
   Users,
   Plus,
   X,
@@ -95,6 +101,8 @@ export function RolesPricing() {
     uiBillableHours,
     calculateLoadedRate,
     estimateWbsElements,
+    contractType,
+    profitTargets,
   } = useAppContext()
 
   // Contract intelligence state
@@ -135,19 +143,38 @@ export function RolesPricing() {
   const [editingCell, setEditingCell] = useState<{ roleId: string; yearIndex: number } | null>(null)
   const [cellValue, setCellValue] = useState('')
 
-  // Calculate bill rates for each role
+  // Calculate bill rates for each role using centralized pricing engine
   const getRoleBillRate = useCallback((role: Role): number => {
+    // Use pre-calculated rate if available
     if (role.loadedRate) return role.loadedRate
+
+    // Use app context's calculateLoadedRate if available (also uses pricing engine)
     if (typeof calculateLoadedRate === 'function') {
       return calculateLoadedRate(role.baseSalary)
     }
-    // Fallback calculation
-    const hourly = role.baseSalary / 2080
-    const fringe = hourly * (1 + (indirectRates.fringe || 0))
-    const oh = fringe * (1 + (indirectRates.overhead || 0))
-    const ga = oh * (1 + (indirectRates.ga || 0))
-    return ga * (1 + (uiProfitMargin || 8) / 100)
-  }, [calculateLoadedRate, indirectRates, uiProfitMargin])
+
+    // Resolve profit rate via central resolver (fallback path)
+    const resolved = resolveProfitRateWithFallback({
+      explicitProfitRate: uiProfitMargin ? normalizeRateToDecimal(uiProfitMargin) : undefined,
+      contractType: contractType as PricingContractType,
+      profitTargets: {
+        tm: profitTargets.tmDefault,
+        ffp: profitTargets.ffpMediumRisk,
+        gsa: profitTargets.gsaDefault,
+      },
+    }, profitTargets.tmDefault)
+
+    // Direct call to pricing engine (fallback)
+    return pricingEngineBillRate({
+      annualSalary: role.baseSalary,
+      rates: {
+        fringe: indirectRates.fringe || 0,
+        overhead: indirectRates.overhead || 0,
+        ga: indirectRates.ga || 0,
+      },
+      profitRate: resolved.profitRate,
+    })
+  }, [calculateLoadedRate, indirectRates, uiProfitMargin, contractType, profitTargets])
 
   // Get periods from contract intelligence or fall back to solicitation
   const periods = useMemo((): ContractPeriod[] => {

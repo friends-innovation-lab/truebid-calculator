@@ -55,6 +55,9 @@ lib/
   boe-export.ts        # BOE document export
   solicitation-type.ts # Solicitation/RFP type definitions
   gsa-schedule-data.ts # GSA schedule reference data
+  pricing/             # Centralized pricing engine (Phase 1)
+  tenancy/             # Multi-tenancy support (Phase 1)
+  commands/            # Command pattern for mutations (Phase 1)
 
 hooks/
   use-proposal-sync.ts # Proposal sync hook
@@ -162,3 +165,105 @@ See `.env.example` for required keys:
 ## AI Features
 
 - **Shipley PDF:** Available via `SHIPLEY_PDF_URL` env var. Used as knowledge base for the Phase 4 coaching engine. Never commit the actual URL to the repository.
+
+---
+
+## Phase 1: Integrity Spine (Implemented)
+
+### Pricing Engine (`lib/pricing/`)
+
+THE centralized pricing engine for all rate calculations. **All pricing logic MUST use this module.**
+
+```typescript
+import {
+  calculateFullyBurdenedRate,
+  calculateBillRate,
+  normalizeRateToDecimal,
+} from '@/lib/pricing'
+
+const breakdown = calculateFullyBurdenedRate({
+  annualSalary: 120000,
+  rates: { fringe: 0.2116, overhead: 0.3426, ga: 0.1983 },
+  profitRate: 0.10,  // REQUIRED - no default, must be explicit
+})
+
+console.log(breakdown.fullyBurdenedRate) // $123.71
+```
+
+**Key formulas (non-negotiable):**
+```
+base_hourly        = annual_salary / 2080
+fringe_amount      = base_hourly * fringe_rate
+overhead_base      = base_hourly + fringe_amount
+overhead_amount    = overhead_base * overhead_rate   ← CORRECT (not salary * rate)
+ga_base            = overhead_base + overhead_amount
+ga_amount          = ga_base * ga_rate
+cost_before_profit = ga_base + ga_amount
+profit_amount      = cost_before_profit * profit_rate
+fully_burdened     = cost_before_profit + profit_amount
+
+fte                = planned_billable_hours / 1920
+gsa_year           = floor((cumulative_month - 1) / 12) + 1
+```
+
+**Constants:**
+- `DEFAULT_STANDARD_HOURS = 2080` (for rate calculation)
+- `DEFAULT_BILLABLE_HOURS_PER_YEAR = 1920` (for FTE calculation)
+
+**Rate normalization:** Use `normalizeRateToDecimal()` at boundaries where input may be percentage (21.16) or decimal (0.2116).
+
+### Multi-Tenancy (`lib/tenancy/`)
+
+Tenant context resolution for multi-company support.
+
+```typescript
+import { resolveTenantContext, hasRole } from '@/lib/tenancy'
+
+const context = await resolveTenantContext(supabase)
+if (hasRole(context, ['owner', 'admin', 'estimator'])) {
+  // User can perform this action
+}
+```
+
+**Roles:** `owner`, `admin`, `estimator`, `writer`, `reviewer`, `accountant`
+
+### Command Layer (`lib/commands/`)
+
+Command pattern for state mutations with audit logging and optimistic concurrency.
+
+```typescript
+import { runCommand, createCreateProposalCommand } from '@/lib/commands'
+
+const command = createCreateProposalCommand(supabase)
+const result = await runCommand(supabase, command, {
+  title: 'New Proposal',
+  agency: 'DOD',
+})
+
+if (result.success) {
+  console.log('Created:', result.data.id)
+}
+```
+
+**Available commands:**
+- `CreateProposal` - Create new proposal
+- `ArchiveProposal` - Soft-delete proposal (with optimistic concurrency)
+- `UpdateProposalMetadata` - Update title, solicitation number, agency
+
+**Optimistic concurrency:** Pass `expectedVersion` to detect conflicts. Returns `STALE_VERSION` error with conflict details.
+
+### Database Migrations
+
+New tables (apply in order):
+- `025_tenants.sql` - tenants + tenant_memberships + backfill
+- `026_audit_events.sql` - immutable audit log
+- `027_proposal_row_version.sql` - optimistic concurrency for proposals
+
+### working_data Freeze
+
+**No new writers to `working_data` may be introduced.**
+**No new keys may be added.**
+
+All new persistence uses normalized tables + commands. Existing writers continue until their domain migrates (Phases 2-3).
+
+---

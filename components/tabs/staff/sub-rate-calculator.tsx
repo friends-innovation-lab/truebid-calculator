@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useAppContext } from '@/contexts/app-context'
 import { settingsApi } from '@/lib/api'
 import { formatCurrency } from '@/lib/utils'
+import { DEFAULT_BILLABLE_HOURS_PER_YEAR } from '@/lib/pricing'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -77,9 +78,12 @@ export function SubRateCalculator() {
   const [targetMargin, setTargetMargin] = useState<number>(15)
   const [showScenarios, setShowScenarios] = useState(false)
 
+  // Derived error state for targetMargin validation (no useState needed)
+  const targetMarginError = targetMargin >= 100 ? 'Target margin must be less than 100%' : null
+
   // Data loading state
   const [isLoadingPage, setIsLoadingPage] = useState(true)
-  const [billableHoursPerYear, setBillableHoursPerYear] = useState(1920)
+  const [billableHoursPerYear, setBillableHoursPerYear] = useState(DEFAULT_BILLABLE_HOURS_PER_YEAR)
 
   // Transform context roles to local format (context uses 'levels' already)
   const companyRoles: CompanyRole[] = contextRoles.map(r => ({
@@ -168,7 +172,12 @@ export function SubRateCalculator() {
     const marginPercent = grossRevenue > 0 ? (profit / grossRevenue) * 100 : 0
 
     // Minimum viable rate
+    // Guard against targetMargin >= 100% which would cause division by zero or negative rates
+    // User-visible error is handled by the derived targetMarginError state
     const targetMarginDecimal = targetMargin / 100
+    if (targetMarginDecimal >= 1) {
+      return null
+    }
     const minimumViableRate = hours > 0 ? (totalLoadedCost / hours) / (1 - targetMarginDecimal) : 0
     const rateGap = minimumViableRate - rate
 
@@ -421,14 +430,20 @@ export function SubRateCalculator() {
                   value={targetMargin}
                   onChange={(e) => setTargetMargin(parseInt(e.target.value))}
                   className="flex-1 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-900"
+                  aria-invalid={!!targetMarginError}
+                  aria-describedby={targetMarginError ? "target-margin-error" : undefined}
                 />
                 <span className="text-sm font-medium w-12 text-right">{targetMargin}%</span>
               </div>
-              {calculation && (
+              {targetMarginError ? (
+                <p id="target-margin-error" className="text-xs text-red-600 mt-1" role="alert">
+                  {targetMarginError}
+                </p>
+              ) : calculation ? (
                 <p className="text-xs text-muted-foreground">
                   Target profit: {formatCurrency(calculation.targetProfit)}
                 </p>
-              )}
+              ) : null}
             </div>
           </Card>
         </div>

@@ -5,15 +5,23 @@
  */
 
 import type { Role } from '@/contexts/app-context'
+import {
+  calculateBillRate as pricingEngineBillRate,
+  resolveProfitRateWithFallback,
+  DEFAULT_PROFIT_TARGETS,
+  type IndirectRates,
+  type ContractType,
+} from '@/lib/pricing'
 
 // FFTC indirect rates (will come from Account → Company Settings later)
-const INDIRECT_RATES = {
+const DEFAULT_INDIRECT_RATES: IndirectRates = {
   fringe: 0.2116,
   overhead: 0.3426,
   ga: 0.1983,
-  hoursPerYear: 2080,
-  defaultProfit: 0.10,
 }
+
+// Default profit resolved via central resolver for T&M contracts
+const DEFAULT_PROFIT = DEFAULT_PROFIT_TARGETS.tm
 
 // Default salaries by role name when no labor categories available
 const DEFAULT_SALARIES: Record<string, number> = {
@@ -30,15 +38,30 @@ const DEFAULT_SALARIES: Record<string, number> = {
   'Design Lead': 138000,
 }
 
-export function calculateBillRate(salary: number, profit: number = INDIRECT_RATES.defaultProfit): number {
+/**
+ * Calculate bill rate using the centralized pricing engine.
+ *
+ * IMPORTANT: This function previously had a BUG where overhead was calculated
+ * on salary alone instead of (salary + fringe). The pricing engine now uses
+ * the correct formula, which results in rates ~$4/hr HIGHER (correct behavior).
+ *
+ * @param salary - Annual salary
+ * @param profit - Profit rate as decimal (default 0.10)
+ * @param rates - Optional indirect rates override
+ * @returns Fully burdened hourly rate
+ */
+export function calculateBillRate(
+  salary: number,
+  profit: number = DEFAULT_PROFIT,
+  rates: IndirectRates = DEFAULT_INDIRECT_RATES
+): number {
   if (salary <= 0) return 0
-  const fringe = salary * INDIRECT_RATES.fringe
-  const overhead = salary * INDIRECT_RATES.overhead
-  const loaded = salary + fringe + overhead
-  const ga = loaded * INDIRECT_RATES.ga
-  const total = loaded + ga
-  const perHour = total / INDIRECT_RATES.hoursPerYear
-  return Math.round(perHour * (1 + profit) * 100) / 100
+
+  return pricingEngineBillRate({
+    annualSalary: salary,
+    rates,
+    profitRate: profit,
+  })
 }
 
 interface WBSTask {
@@ -83,6 +106,7 @@ interface ProposalSetup {
   optionYears?: number
   billableHoursPerYear?: number
   profitMargin?: number
+  contractType?: ContractType
 }
 
 export interface SyncedRole {
@@ -158,7 +182,12 @@ export function syncRolesFromWBS(
   setup?: ProposalSetup | null,
   laborCategories?: LaborCategory[],
 ): Role[] {
-  const profit = setup?.profitMargin ?? INDIRECT_RATES.defaultProfit
+  // Resolve profit rate via central resolver
+  const resolved = resolveProfitRateWithFallback({
+    explicitProfitRate: setup?.profitMargin,
+    contractType: setup?.contractType || 'tm',
+  }, DEFAULT_PROFIT)
+  const profit = resolved.profitRate
   const billableHrs = setup?.billableHoursPerYear || 1920
 
   // Aggregate hours by role from laborEstimates only (tasks duplicate the same data)
@@ -244,7 +273,7 @@ export function syncRolesFromWBS(
       selectedLevelTitle: 'Mid-Level',
       selectedStep: r.selectedStep ?? 0,
       currentSalary: r.currentSalary || 0,
-      profitMargin: r.profitMargin ?? INDIRECT_RATES.defaultProfit,
+      profitMargin: r.profitMargin ?? DEFAULT_PROFIT,
       level: r.level || null,
       totalHoursFromWBS: 0,
       isManual: true,

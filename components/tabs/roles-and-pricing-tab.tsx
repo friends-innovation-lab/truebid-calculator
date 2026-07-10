@@ -3,6 +3,13 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useAppContext, Subcontractor, ODCItem, PerDiemCalculation, Role } from '@/contexts/app-context'
+import {
+  calculateFullyBurdenedRate as pricingEngineRate,
+  normalizeRateToDecimal,
+  DEFAULT_STANDARD_HOURS,
+  resolveProfitRateWithFallback,
+  type ContractType as PricingContractType,
+} from '@/lib/pricing'
 import { EmptyState } from '@/components/ui/empty-state'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
@@ -322,6 +329,9 @@ export function RolesAndPricingTab() {
   estimateWbsElements,
   // Labor categories from Account Center
   getIcLevelSalaries,
+  // Contract type and profit targets for resolver
+  contractType,
+  profitTargets,
 } = useAppContext()
   
   // Get pricing settings from solicitation (centralized source of truth)
@@ -559,24 +569,52 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
   })
 
   // ==================== DERIVED VALUES ====================
-  
-  // Static rate calculation (doesn't depend on state) - defined first so useMemo can use it
+
+  // Static rate calculation using centralized pricing engine
+  // Rates are passed as percentages (e.g., 21.16) and normalized to decimals (0.2116)
+  // Profit parameter is the proposal-specific margin, treated as explicit rate in resolver
   const calculateRateBreakdownStatic = (
-    baseSalary: number, 
+    baseSalary: number,
     ratesObj: { fringe: number; overhead: number; gAndA: number },
     profit: number
   ): RateBreakdown => {
-    const standardHours = 2080
-    const directRate = baseSalary / standardHours
-    const fringeAmount = directRate * (ratesObj.fringe / 100)
-    const withFringe = directRate + fringeAmount
-    const overheadAmount = withFringe * (ratesObj.overhead / 100)
-    const withOverhead = withFringe + overheadAmount
-    const gaAmount = withOverhead * (ratesObj.gAndA / 100)
-    const fullyLoadedRate = withOverhead + gaAmount
-    const profitAmount = fullyLoadedRate * (profit / 100)
-    const billedRate = fullyLoadedRate + profitAmount
-    return { baseSalary, directRate, fringeAmount, overheadAmount, gaAmount, fullyLoadedRate, profitAmount, billedRate }
+    // Normalize percentage inputs to decimals
+    const fringeDecimal = normalizeRateToDecimal(ratesObj.fringe)
+    const overheadDecimal = normalizeRateToDecimal(ratesObj.overhead)
+    const gaDecimal = normalizeRateToDecimal(ratesObj.gAndA)
+
+    // Resolve profit rate via central resolver
+    // The proposal's profit margin is treated as the explicit rate
+    const resolvedProfit = resolveProfitRateWithFallback({
+      explicitProfitRate: normalizeRateToDecimal(profit),
+      contractType: contractType as PricingContractType,
+      profitTargets: {
+        tm: profitTargets.tmDefault,
+        ffp: profitTargets.ffpMediumRisk,
+        gsa: profitTargets.gsaDefault,
+      },
+    }, profitTargets.tmDefault)
+
+    const breakdown = pricingEngineRate({
+      annualSalary: baseSalary,
+      rates: {
+        fringe: fringeDecimal,
+        overhead: overheadDecimal,
+        ga: gaDecimal,
+      },
+      profitRate: resolvedProfit.profitRate,
+    })
+
+    return {
+      baseSalary,
+      directRate: breakdown.baseHourly,
+      fringeAmount: breakdown.fringeAmount,
+      overheadAmount: breakdown.overheadAmount,
+      gaAmount: breakdown.gaAmount,
+      fullyLoadedRate: breakdown.costBeforeProfit,
+      profitAmount: breakdown.profitAmount,
+      billedRate: breakdown.fullyBurdenedRate,
+    }
   }
   
   // Convert AppContext Role to local TeamRole format for display
@@ -612,24 +650,10 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
   }, [solicitation])
 
   // ==================== CALCULATION FUNCTIONS ====================
+  // Uses centralized pricing engine via calculateRateBreakdownStatic
 
   const calculateRateBreakdown = (baseSalary: number): RateBreakdown => {
-    const standardHours = 2080
-    const directRate = baseSalary / standardHours
-    
-    const fringeAmount = directRate * (rates.fringe / 100)
-    const withFringe = directRate + fringeAmount
-    
-    const overheadAmount = withFringe * (rates.overhead / 100)
-    const withOverhead = withFringe + overheadAmount
-    
-    const gaAmount = withOverhead * (rates.gAndA / 100)
-    const fullyLoadedRate = withOverhead + gaAmount
-    
-    const profitAmount = fullyLoadedRate * (profitMargin / 100)
-    const billedRate = fullyLoadedRate + profitAmount
-    
-    return { baseSalary, directRate, fringeAmount, overheadAmount, gaAmount, fullyLoadedRate, profitAmount, billedRate }
+    return calculateRateBreakdownStatic(baseSalary, rates, profitMargin)
   }
 
   const calculateHourlyRate = (icLevel: string, customSalary?: number): number => {

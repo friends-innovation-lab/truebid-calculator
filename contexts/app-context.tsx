@@ -2,6 +2,12 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, SetStateAction } from 'react';
 import { rolesApi, settingsApi, companiesApi } from '@/lib/api';
+import {
+  calculateFullyBurdenedRate as pricingEngineRate,
+  calculateEscalatedRate as pricingEngineEscalation,
+  resolveProfitRateWithFallback,
+  type ContractType as PricingContractType,
+} from '@/lib/pricing';
 
 // ==================== LOCALSTORAGE KEYS ====================
 
@@ -1792,11 +1798,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // ==================== PROFIT TARGETS ====================
   const [profitTargets, setProfitTargets] = useState<ProfitTargets>({
-    tmDefault: 0.10,
+    tmDefault: 0.08,      // Time & Materials: 8%
     ffpLowRisk: 0.12,
     ffpMediumRisk: 0.15,
     ffpHighRisk: 0.20,
-    gsaDefault: 0.10,
+    gsaDefault: 0.08,     // GSA Schedule: 8%
   });
 
   // ==================== ESCALATION ====================
@@ -2143,59 +2149,125 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   // ==================== CALCULATION FUNCTIONS ====================
+  // All pricing calculations now use the centralized pricing engine (lib/pricing)
 
+  /**
+   * Calculate fully burdened rate using the centralized pricing engine.
+   *
+   * @param baseSalary - Annual salary
+   * @param includeProfit - Whether to include profit margin
+   * @param profitOverride - Optional profit rate override (as decimal, e.g., 0.10)
+   * @returns Hourly rate
+   */
   const calculateFullyBurdenedRate = (
     baseSalary: number,
     includeProfit: boolean = true,
     profitOverride?: number
   ): number => {
-    const baseRate = baseSalary / companyPolicy.standardHours;
-    const afterFringe = baseRate * (1 + indirectRates.fringe);
-    const afterOverhead = afterFringe * (1 + indirectRates.overhead);
-    const afterGA = afterOverhead * (1 + indirectRates.ga);
-    
+    let profit = 0;
     if (includeProfit) {
-      const profit = profitOverride ?? profitTargets.tmDefault;
-      return afterGA * (1 + profit);
+      const resolved = resolveProfitRateWithFallback({
+        explicitProfitRate: profitOverride,
+        contractType: contractType as PricingContractType,
+        profitTargets: {
+          tm: profitTargets.tmDefault,
+          ffp: profitTargets.ffpMediumRisk,
+          gsa: profitTargets.gsaDefault,
+        },
+      }, profitTargets.tmDefault);
+      profit = resolved.profitRate;
     }
-    return afterGA;
+    const breakdown = pricingEngineRate({
+      annualSalary: baseSalary,
+      rates: {
+        fringe: indirectRates.fringe,
+        overhead: indirectRates.overhead,
+        ga: indirectRates.ga,
+      },
+      profitRate: profit,
+      standardHours: companyPolicy.standardHours,
+    });
+    return includeProfit ? breakdown.fullyBurdenedRate : breakdown.costBeforeProfit;
   };
 
   const calculateLoadedCost = (baseSalary: number): number => {
     return calculateFullyBurdenedRate(baseSalary, false);
   };
-  
-  // Alias for use in Rate Justification tab
+
+  /**
+   * Calculate loaded rate using uiProfitMargin (from UI slider).
+   * Used by Rate Justification tab.
+   * Note: uiProfitMargin is passed as explicit rate to the resolver.
+   */
   const calculateLoadedRate = (baseSalary: number): number => {
-    return calculateFullyBurdenedRate(baseSalary, true, uiProfitMargin / 100);
+    const resolved = resolveProfitRateWithFallback({
+      explicitProfitRate: uiProfitMargin / 100,
+      contractType: contractType as PricingContractType,
+      profitTargets: {
+        tm: profitTargets.tmDefault,
+        ffp: profitTargets.ffpMediumRisk,
+        gsa: profitTargets.gsaDefault,
+      },
+    }, profitTargets.tmDefault);
+    return calculateFullyBurdenedRate(baseSalary, true, resolved.profitRate);
   };
 
+  /**
+   * Calculate escalated rate using the pricing engine.
+   */
   const calculateEscalatedRate = (baseRate: number, year: number): number => {
-    if (year <= 1) return baseRate;
-    return baseRate * Math.pow(1 + escalationRates.laborDefault, year - 1);
+    const result = pricingEngineEscalation({
+      baseRate,
+      year,
+      escalationRate: escalationRates.laborDefault,
+    });
+    return result.escalatedRate;
   };
 
-  const getRateBreakdown = (baseSalary: number, includeProfit: boolean = true) => {
-    const baseRate = baseSalary / companyPolicy.standardHours;
-    const fringeAmount = baseRate * indirectRates.fringe;
-    const afterFringe = baseRate + fringeAmount;
-    const overheadAmount = afterFringe * indirectRates.overhead;
-    const afterOverhead = afterFringe + overheadAmount;
-    const gaAmount = afterOverhead * indirectRates.ga;
-    const afterGA = afterOverhead + gaAmount;
-    const profitAmount = includeProfit ? afterGA * profitTargets.tmDefault : 0;
-    const fullyBurdenedRate = afterGA + profitAmount;
+  /**
+   * Get full rate breakdown using the pricing engine.
+   *
+   * @param baseSalary - Annual salary
+   * @param includeProfit - Whether to include profit
+   * @param profitOverride - Optional profit rate override (as decimal)
+   * @returns Rate breakdown object
+   */
+  const getRateBreakdown = (baseSalary: number, includeProfit: boolean = true, profitOverride?: number) => {
+    let profit = 0;
+    if (includeProfit) {
+      const resolved = resolveProfitRateWithFallback({
+        explicitProfitRate: profitOverride,
+        contractType: contractType as PricingContractType,
+        profitTargets: {
+          tm: profitTargets.tmDefault,
+          ffp: profitTargets.ffpMediumRisk,
+          gsa: profitTargets.gsaDefault,
+        },
+      }, profitTargets.tmDefault);
+      profit = resolved.profitRate;
+    }
+    const breakdown = pricingEngineRate({
+      annualSalary: baseSalary,
+      rates: {
+        fringe: indirectRates.fringe,
+        overhead: indirectRates.overhead,
+        ga: indirectRates.ga,
+      },
+      profitRate: profit,
+      standardHours: companyPolicy.standardHours,
+    });
 
+    // Map to existing interface for backwards compatibility
     return {
-      baseRate,
-      fringeAmount,
-      afterFringe,
-      overheadAmount,
-      afterOverhead,
-      gaAmount,
-      afterGA,
-      profitAmount,
-      fullyBurdenedRate,
+      baseRate: breakdown.baseHourly,
+      fringeAmount: breakdown.fringeAmount,
+      afterFringe: breakdown.afterFringe,
+      overheadAmount: breakdown.overheadAmount,
+      afterOverhead: breakdown.afterOverhead,
+      gaAmount: breakdown.gaAmount,
+      afterGA: breakdown.costBeforeProfit,
+      profitAmount: breakdown.profitAmount,
+      fullyBurdenedRate: breakdown.fullyBurdenedRate,
     };
   };
 

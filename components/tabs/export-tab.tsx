@@ -12,6 +12,10 @@ import {
   type ExportOptions,
   type WBSElement
 } from '@/lib/export-utils'
+import {
+  resolveProfitRateWithFallback,
+  type ContractType as PricingContractType,
+} from '@/lib/pricing'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -921,6 +925,7 @@ export function ExportTab() {
     companyRoles,
     solicitation,
     estimateData,
+    contractType,
   } = useAppContext()
 
   const wbsElements = estimateData?.wbsElements?.length > 0 ? estimateData.wbsElements : MOCK_WBS_ELEMENTS
@@ -1126,7 +1131,14 @@ export function ExportTab() {
           source: indirectRates.source,
           fiscalYear: String(indirectRates.fiscalYear || 2024)
         },
-        profitMargin: profitTargets.tmDefault,
+        profitMargin: resolveProfitRateWithFallback({
+          contractType: contractType as PricingContractType,
+          profitTargets: {
+            tm: profitTargets.tmDefault,
+            ffp: profitTargets.ffpMediumRisk,
+            gsa: profitTargets.gsaDefault,
+          },
+        }, profitTargets.tmDefault).profitRate,
         escalationRate: escalationRates.laborDefault,
         productiveHours: companyPolicy.standardHours,
         roles: selectedRoles.map(role => {
@@ -1577,10 +1589,17 @@ export function ExportTab() {
 
               {/* Info Footer */}
               <p className="text-xs text-gray-500">
-                Fringe {(indirectRates.fringe * 100).toFixed(1)}% · 
-                OH {(indirectRates.overhead * 100).toFixed(1)}% · 
+                Fringe {(indirectRates.fringe * 100).toFixed(1)}% ·
+                OH {(indirectRates.overhead * 100).toFixed(1)}% ·
                 G&A {(indirectRates.ga * 100).toFixed(1)}%
-                {(contractType as string) !== 'ffp' && ` · Profit ${(profitTargets.tmDefault * 100).toFixed(1)}%`}
+                {(contractType as string) !== 'ffp' && ` · Profit ${(resolveProfitRateWithFallback({
+                  contractType: contractType as PricingContractType,
+                  profitTargets: {
+                    tm: profitTargets.tmDefault,
+                    ffp: profitTargets.ffpMediumRisk,
+                    gsa: profitTargets.gsaDefault,
+                  },
+                }, profitTargets.tmDefault).profitRate * 100).toFixed(1)}%`}
                 {config.includeEscalation && ` · ${(escalationRates.laborDefault * 100).toFixed(1)}% escalation`}
               </p>
             </div>
