@@ -10,6 +10,28 @@ This document describes the three deployment environments, their configurations,
 | **Staging** | `truebid-staging`   | `truebid-staging` | `develop`  | Preview      |
 | **Production** | `truebid-prod`   | `truebid-prod`    | `main`     | Production   |
 
+## Verified Project References (Last verified: 2026-07-11)
+
+### Production
+
+| Field | Value |
+|-------|-------|
+| **Project Ref** | `qtotsijebcpddipmzstb` |
+| **Project Name** | `truebid-production` |
+| **Region** | `us-east-1` |
+| **Database Host** | `db.qtotsijebcpddipmzstb.supabase.co` |
+| **Pooler URL** | `postgresql://postgres.qtotsijebcpddipmzstb@aws-1-us-east-1.pooler.supabase.com:5432/postgres` |
+
+### Staging
+
+| Field | Value |
+|-------|-------|
+| **Project Ref** | `tcobyquewjootwxpqijq` |
+| **Project Name** | `truebid-staging` |
+| **Region** | `us-east-2` |
+| **Database Host** | `db.tcobyquewjootwxpqijq.supabase.co` |
+| **Pooler URL** | `postgresql://postgres.tcobyquewjootwxpqijq@aws-1-us-east-2.pooler.supabase.com:5432/postgres` |
+
 ## Local Development
 
 ### Initial Setup
@@ -161,6 +183,28 @@ supabase migration list --db-url "$PROD_DB_URL"
 3. **Risky prod migrations get a fresh `pg_dump` immediately before applying.**
 4. **Always use `--db-url` for staging/prod pushes.**
 
+### MANDATORY Remote Database Safety Rules
+
+These rules exist because `supabase db reset --linked` wiped production on 2026-07-11. They are non-negotiable.
+
+1. **`supabase db reset` is LOCAL-ONLY.** It may NEVER be run with `--linked` or against any remote URL. No exceptions. No prompt-confirmation workaround.
+
+2. **NEVER auto-confirm destructive commands.** Never pipe `yes`, `--yes`, `-y`, or any auto-confirmation into a destructive command. A safety prompt you must defeat is a stop sign, not an obstacle.
+
+3. **`supabase link` is FORBIDDEN for staging/prod.** Every remote operation uses explicit `--db-url` with the target host printed and checked against this file immediately before execution.
+
+4. **Destructive/schema-changing commands require explicit go.** Any destructive or schema-changing command against a remote database requires the user's explicit go in the same session, restated, not carried over from a previous session.
+
+### FORBIDDEN Commands
+
+```bash
+# NEVER run these against remote databases:
+supabase db reset --linked        # FORBIDDEN
+supabase db reset --db-url "..."  # FORBIDDEN
+supabase link --project-ref ...   # FORBIDDEN for staging/prod
+yes | supabase ...                # FORBIDDEN (auto-confirm)
+```
+
 ### Secrets
 
 1. **Never commit database URLs or API keys.** Use environment variables.
@@ -268,3 +312,23 @@ supabase db reset  # Full reset to baseline
 Verify these redirect URLs are configured in Supabase dashboard:
 - `https://*-truebid.vercel.app/**`
 - `https://staging.truebid.io/**` (if applicable)
+
+---
+
+## Incident Record
+
+### 2026-07-11: Production Database Wiped
+
+**What happened:** Claude ran `yes | supabase db reset --linked` while the CLI was linked to production (`qtotsijebcpddipmzstb`) instead of staging. The `yes |` bypassed the CLI's safety confirmation prompt.
+
+**Timeline:**
+- 16:09:46 - Linked to staging (tcobyquewjootwxpqijq)
+- 16:10:01 - Linked to production (qtotsijebcpddipmzstb)
+- 16:25:31 - Ran `yes | supabase db reset --linked` — **PRODUCTION WIPED**
+- 16:26:53 - Linked back to staging (too late)
+
+**Root cause:** Did not re-verify which project was linked before running destructive command. Auto-confirmed a safety prompt.
+
+**Resolution:** Restored from Supabase automatic backup. Added mandatory safety rules to CLAUDE.md and this file.
+
+**Prevention:** The four mandatory rules above were added to prevent recurrence.

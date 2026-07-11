@@ -271,6 +271,33 @@ if (result.success) {
 
 All database changes must go through versioned migration files in `supabase/migrations/`. Never use the Supabase dashboard SQL editor for schema changes—it creates tracking drift between the migration history and actual schema.
 
+### Remote Database Safety Rules (MANDATORY)
+
+These rules exist because `supabase db reset --linked` wiped production on 2026-07-11. They are non-negotiable.
+
+1. **`supabase db reset` is LOCAL-ONLY.** It may NEVER be run with `--linked` or against any remote URL. No exceptions. No prompt-confirmation workaround.
+
+2. **NEVER auto-confirm destructive commands.** Never pipe `yes`, `--yes`, `-y`, or any auto-confirmation into a destructive command. A safety prompt you must defeat is a stop sign, not an obstacle.
+
+3. **This repo is NEVER linked to staging or production.** The `supabase/.temp/` directory must not exist when working with remote databases. If it exists, delete it before any remote operation. Local linking is only permitted if local workflows require it.
+
+4. **All remote migrations go through `scripts/db-push-remote.sh`.** Direct use of `supabase db push` against a remote database is FORBIDDEN. The script:
+   - Requires explicit `--db-url` argument
+   - Extracts and prints the target host
+   - Validates against `docs/ENVIRONMENTS.md`
+   - Refuses if `supabase/.temp/` exists
+   - Requires typing the target project ref to confirm
+
+5. **Destructive/schema-changing commands require explicit go.** Any destructive or schema-changing command against a remote database requires the user's explicit go in the same session, restated, not carried over from a previous session.
+
+**Environment references:** See `docs/ENVIRONMENTS.md` for verified project refs and connection strings.
+
+### Migration Coding Standards
+
+1. **All PL/pgSQL variables use `v_` prefix.** In migration functions, every declared variable must be prefixed with `v_` (e.g., `v_prop`, `v_count`, `v_status`). This prevents ambiguity with table column names. No exceptions.
+
+2. **Migration failures trigger whole-file audit.** When any migration fails, the fix must audit the entire file for the same bug class—never a single-line fix. If one variable name conflicts with a column, check ALL variables in the file.
+
 New tables (apply in order):
 - `025_tenants.sql` - tenants + tenant_memberships + backfill
 - `026_audit_events.sql` - immutable audit log

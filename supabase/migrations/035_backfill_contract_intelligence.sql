@@ -34,20 +34,20 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  p RECORD;
-  intel JSONB;
-  new_version_id UUID;
-  orig_status intelligence_status;
-  tenant UUID;
-  period_rec RECORD;
-  discipline TEXT;
-  role_rec RECORD;
-  p_count INTEGER;
-  d_count INTEGER;
-  l_count INTEGER;
+  v_prop RECORD;
+  v_intel JSONB;
+  v_version_id UUID;
+  v_orig_status intelligence_status;
+  v_tenant UUID;
+  v_period RECORD;
+  v_disc TEXT;
+  v_role RECORD;
+  v_periods_count INTEGER;
+  v_disciplines_count INTEGER;
+  v_labor_count INTEGER;
 BEGIN
   -- Loop through proposals with contractIntelligence in working_data
-  FOR p IN
+  FOR v_prop IN
     SELECT
       pr.id AS prop_id,
       pr.company_id,
@@ -63,12 +63,12 @@ BEGIN
         WHERE iv.proposal_id = pr.id AND iv.version_number = 1
       )
   LOOP
-    intel := p.contract_intel;
-    tenant := p.tenant_id;
+    v_intel := v_prop.contract_intel;
+    v_tenant := v_prop.tenant_id;
 
     -- Skip if no tenant found (shouldn't happen, but be safe)
-    IF tenant IS NULL THEN
-      result_proposal_id := p.prop_id;
+    IF v_tenant IS NULL THEN
+      result_proposal_id := v_prop.prop_id;
       result_version_id := NULL;
       result_status := 'skipped';
       result_periods_count := 0;
@@ -83,10 +83,10 @@ BEGIN
     -- NOTE: We insert as 'draft' first because the hash_required_when_confirmed
     -- constraint blocks confirmed rows without hashes. After populating fact
     -- tables, we'll mark rows that WERE confirmed in the original blob.
-    IF (intel->>'confirmed')::BOOLEAN = true THEN
-      orig_status := 'confirmed';
+    IF (v_intel->>'confirmed')::BOOLEAN = true THEN
+      v_orig_status := 'confirmed';
     ELSE
-      orig_status := 'draft';
+      v_orig_status := 'draft';
     END IF;
 
     -- Create intelligence version (always as draft initially to bypass hash constraint)
@@ -101,73 +101,73 @@ BEGIN
       confirmed_at,
       confirmation_hash
     ) VALUES (
-      tenant,
-      p.prop_id,
+      v_tenant,
+      v_prop.prop_id,
       1,
-      'draft', -- Always insert as draft; original status tracked in orig_status
+      'draft', -- Always insert as draft; original status tracked in v_orig_status
       jsonb_build_object(
-        'documentType', intel->'documentType',
-        'vehicle', intel->'vehicle',
-        'contractType', intel->'contractType',
-        'setAside', intel->'setAside',
-        'rateSource', intel->'rateSource'
+        'documentType', v_intel->'documentType',
+        'vehicle', v_intel->'vehicle',
+        'contractType', v_intel->'contractType',
+        'setAside', v_intel->'setAside',
+        'rateSource', v_intel->'rateSource'
       ),
-      (intel->'contractType'->>'value'),
-      COALESCE((intel->>'extractedAt')::TIMESTAMPTZ, now()),
+      (v_intel->'contractType'->>'value'),
+      COALESCE((v_intel->>'extractedAt')::TIMESTAMPTZ, now()),
       NULL, -- confirmed_at will be set when user re-confirms
       NULL
     )
-    RETURNING id INTO new_version_id;
+    RETURNING id INTO v_version_id;
 
     -- Insert periods
-    p_count := 0;
-    IF intel->'periods' IS NOT NULL AND jsonb_array_length(intel->'periods') > 0 THEN
-      FOR period_rec IN
+    v_periods_count := 0;
+    IF v_intel->'periods' IS NOT NULL AND jsonb_array_length(v_intel->'periods') > 0 THEN
+      FOR v_period IN
         SELECT
           value->>'name' AS name,
           (value->>'months')::NUMERIC AS months,
           (value->>'cumulativeMonthsEnd')::NUMERIC AS cumulative_months_end,
           (value->>'gsaRateYear')::INTEGER AS gsa_rate_year,
           ordinality - 1 AS sort_order
-        FROM jsonb_array_elements(intel->'periods') WITH ORDINALITY
+        FROM jsonb_array_elements(v_intel->'periods') WITH ORDINALITY
       LOOP
         INSERT INTO intelligence_periods (
           version_id, name, months, cumulative_months_end, gsa_rate_year, sort_order
         ) VALUES (
-          new_version_id,
-          period_rec.name,
-          period_rec.months,
-          period_rec.cumulative_months_end,
-          COALESCE(period_rec.gsa_rate_year, 1),
-          period_rec.sort_order
+          v_version_id,
+          v_period.name,
+          v_period.months,
+          v_period.cumulative_months_end,
+          COALESCE(v_period.gsa_rate_year, 1),
+          v_period.sort_order
         );
-        p_count := p_count + 1;
+        v_periods_count := v_periods_count + 1;
       END LOOP;
     END IF;
 
     -- Insert disciplines
-    d_count := 0;
-    IF intel->'disciplines'->'required' IS NOT NULL AND jsonb_array_length(intel->'disciplines'->'required') > 0 THEN
-      FOR discipline IN
-        SELECT value::TEXT FROM jsonb_array_elements_text(intel->'disciplines'->'required')
+    v_disciplines_count := 0;
+    IF v_intel->'disciplines'->'required' IS NOT NULL AND jsonb_array_length(v_intel->'disciplines'->'required') > 0 THEN
+      FOR v_disc IN
+        SELECT value::TEXT FROM jsonb_array_elements_text(v_intel->'disciplines'->'required')
       LOOP
         INSERT INTO intelligence_disciplines (
           version_id, discipline, confidence, source_text
         ) VALUES (
-          new_version_id,
-          TRIM(BOTH '"' FROM discipline),
-          COALESCE(intel->'disciplines'->>'confidence', 'medium'),
-          intel->'disciplines'->>'sourceText'
+          v_version_id,
+          TRIM(BOTH '"' FROM v_disc),
+          COALESCE(v_intel->'disciplines'->>'confidence', 'medium'),
+          v_intel->'disciplines'->>'sourceText'
         )
         ON CONFLICT (version_id, discipline) DO NOTHING;
-        d_count := d_count + 1;
+        v_disciplines_count := v_disciplines_count + 1;
       END LOOP;
     END IF;
 
     -- Insert labor requirements (roles)
-    l_count := 0;
-    IF intel->'roles' IS NOT NULL AND jsonb_array_length(intel->'roles') > 0 THEN
-      FOR role_rec IN
+    v_labor_count := 0;
+    IF v_intel->'roles' IS NOT NULL AND jsonb_array_length(v_intel->'roles') > 0 THEN
+      FOR v_role IN
         SELECT
           value->>'title' AS title,
           value->>'laborCategory' AS labor_category,
@@ -176,42 +176,42 @@ BEGIN
           value->>'confidence' AS confidence,
           value->>'sourceText' AS source_text,
           value->'appearsInPeriods' AS appears_in_periods
-        FROM jsonb_array_elements(intel->'roles')
+        FROM jsonb_array_elements(v_intel->'roles')
       LOOP
         INSERT INTO intelligence_labor_requirements (
           version_id, title, labor_category, hours_per_month, utilization_pct,
           confidence, source_text, appears_in_periods
         ) VALUES (
-          new_version_id,
-          role_rec.title,
-          role_rec.labor_category,
-          role_rec.hours_per_month,
-          role_rec.utilization_pct,
-          COALESCE(role_rec.confidence, 'medium'),
-          role_rec.source_text,
+          v_version_id,
+          v_role.title,
+          v_role.labor_category,
+          v_role.hours_per_month,
+          v_role.utilization_pct,
+          COALESCE(v_role.confidence, 'medium'),
+          v_role.source_text,
           COALESCE(
-            (SELECT ARRAY_AGG(elem::TEXT) FROM jsonb_array_elements_text(role_rec.appears_in_periods) AS elem),
+            (SELECT ARRAY_AGG(elem::TEXT) FROM jsonb_array_elements_text(v_role.appears_in_periods) AS elem),
             '{}'::TEXT[]
           )
         );
-        l_count := l_count + 1;
+        v_labor_count := v_labor_count + 1;
       END LOOP;
     END IF;
 
     -- NOTE: We do NOT set active_intelligence_version_id here because
     -- the version is inserted as draft. The original confirmed state is
-    -- tracked in orig_status for reporting, but users must re-confirm via
+    -- tracked in v_orig_status for reporting, but users must re-confirm via
     -- the UI to compute hashes and activate the version.
 
     -- Return report row
-    result_proposal_id := p.prop_id;
-    result_version_id := new_version_id;
+    result_proposal_id := v_prop.prop_id;
+    result_version_id := v_version_id;
     result_status := 'draft'; -- Always draft after backfill
-    result_periods_count := p_count;
-    result_disciplines_count := d_count;
-    result_labor_reqs_count := l_count;
+    result_periods_count := v_periods_count;
+    result_disciplines_count := v_disciplines_count;
+    result_labor_reqs_count := v_labor_count;
     result_notes := CASE
-      WHEN orig_status = 'confirmed' THEN 'Originally confirmed - needs re-confirmation to compute hash'
+      WHEN v_orig_status = 'confirmed' THEN 'Originally confirmed - needs re-confirmation to compute hash'
       ELSE 'Backfilled as draft'
     END;
     RETURN NEXT;
