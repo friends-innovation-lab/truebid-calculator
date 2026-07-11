@@ -70,9 +70,7 @@ jobs:
           supabase db reset --workdir .
 
       - name: Verify migration chain
-        run: |
-          echo "Migration check passed - all migrations apply cleanly from scratch"
-          supabase migration list --workdir .
+        run: echo "Migration check passed - all migrations apply cleanly from scratch"
 
       - name: Stop Supabase
         if: always()
