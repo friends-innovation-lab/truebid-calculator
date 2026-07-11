@@ -23,13 +23,13 @@
 
 CREATE OR REPLACE FUNCTION backfill_contract_intelligence()
 RETURNS TABLE (
-  proposal_id UUID,
-  version_id UUID,
-  status TEXT,
-  periods_count INTEGER,
-  disciplines_count INTEGER,
-  labor_reqs_count INTEGER,
-  notes TEXT
+  result_proposal_id UUID,
+  result_version_id UUID,
+  result_status TEXT,
+  result_periods_count INTEGER,
+  result_disciplines_count INTEGER,
+  result_labor_reqs_count INTEGER,
+  result_notes TEXT
 )
 LANGUAGE plpgsql
 AS $$
@@ -68,13 +68,13 @@ BEGIN
 
     -- Skip if no tenant found (shouldn't happen, but be safe)
     IF tenant IS NULL THEN
-      proposal_id := p.prop_id;
-      version_id := NULL;
-      status := 'skipped';
-      periods_count := 0;
-      disciplines_count := 0;
-      labor_reqs_count := 0;
-      notes := 'No tenant found for company';
+      result_proposal_id := p.prop_id;
+      result_version_id := NULL;
+      result_status := 'skipped';
+      result_periods_count := 0;
+      result_disciplines_count := 0;
+      result_labor_reqs_count := 0;
+      result_notes := 'No tenant found for company';
       RETURN NEXT;
       CONTINUE;
     END IF;
@@ -204,13 +204,13 @@ BEGIN
     -- the UI to compute hashes and activate the version.
 
     -- Return report row
-    proposal_id := p.prop_id;
-    version_id := new_version_id;
-    status := 'draft'; -- Always draft after backfill
-    periods_count := p_count;
-    disciplines_count := d_count;
-    labor_reqs_count := l_count;
-    notes := CASE
+    result_proposal_id := p.prop_id;
+    result_version_id := new_version_id;
+    result_status := 'draft'; -- Always draft after backfill
+    result_periods_count := p_count;
+    result_disciplines_count := d_count;
+    result_labor_reqs_count := l_count;
+    result_notes := CASE
       WHEN orig_status = 'confirmed' THEN 'Originally confirmed - needs re-confirmation to compute hash'
       ELSE 'Backfilled as draft'
     END;
@@ -238,13 +238,13 @@ BEGIN
   LOOP
     row_count := row_count + 1;
     RAISE NOTICE 'Backfilled proposal % -> version % (%, periods: %, disciplines: %, labor_reqs: %) - %',
-      result_row.proposal_id,
-      result_row.version_id,
-      result_row.status,
-      result_row.periods_count,
-      result_row.disciplines_count,
-      result_row.labor_reqs_count,
-      result_row.notes;
+      result_row.result_proposal_id,
+      result_row.result_version_id,
+      result_row.result_status,
+      result_row.result_periods_count,
+      result_row.result_disciplines_count,
+      result_row.result_labor_reqs_count,
+      result_row.result_notes;
   END LOOP;
 
   IF row_count = 0 THEN
