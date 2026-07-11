@@ -36,8 +36,8 @@ AS $$
 DECLARE
   p RECORD;
   intel JSONB;
-  v_id UUID;
-  v_status intelligence_status;
+  new_version_id UUID;
+  orig_status intelligence_status;
   tenant UUID;
   period_rec RECORD;
   discipline TEXT;
@@ -79,14 +79,17 @@ BEGIN
       CONTINUE;
     END IF;
 
-    -- Determine status from blob
+    -- Determine original status from blob
+    -- NOTE: We insert as 'draft' first because the hash_required_when_confirmed
+    -- constraint blocks confirmed rows without hashes. After populating fact
+    -- tables, we'll mark rows that WERE confirmed in the original blob.
     IF (intel->>'confirmed')::BOOLEAN = true THEN
-      v_status := 'confirmed';
+      orig_status := 'confirmed';
     ELSE
-      v_status := 'draft';
+      orig_status := 'draft';
     END IF;
 
-    -- Create intelligence version
+    -- Create intelligence version (always as draft initially to bypass hash constraint)
     INSERT INTO intelligence_versions (
       tenant_id,
       proposal_id,
@@ -96,14 +99,12 @@ BEGIN
       contract_type,
       extracted_at,
       confirmed_at,
-      -- Note: confirmation_hash is NULL for backfilled confirmed versions
-      -- They will need to be re-confirmed after migration if hash verification is required
       confirmation_hash
     ) VALUES (
       tenant,
       p.prop_id,
       1,
-      v_status,
+      'draft', -- Always insert as draft; original status tracked in orig_status
       jsonb_build_object(
         'documentType', intel->'documentType',
         'vehicle', intel->'vehicle',
@@ -113,10 +114,10 @@ BEGIN
       ),
       (intel->'contractType'->>'value'),
       COALESCE((intel->>'extractedAt')::TIMESTAMPTZ, now()),
-      CASE WHEN v_status = 'confirmed' THEN COALESCE((intel->>'confirmedAt')::TIMESTAMPTZ, now()) ELSE NULL END,
-      NULL -- Hash will be set on first re-confirmation
+      NULL, -- confirmed_at will be set when user re-confirms
+      NULL
     )
-    RETURNING id INTO v_id;
+    RETURNING id INTO new_version_id;
 
     -- Insert periods
     p_count := 0;
@@ -133,7 +134,7 @@ BEGIN
         INSERT INTO intelligence_periods (
           version_id, name, months, cumulative_months_end, gsa_rate_year, sort_order
         ) VALUES (
-          v_id,
+          new_version_id,
           period_rec.name,
           period_rec.months,
           period_rec.cumulative_months_end,
@@ -153,7 +154,7 @@ BEGIN
         INSERT INTO intelligence_disciplines (
           version_id, discipline, confidence, source_text
         ) VALUES (
-          v_id,
+          new_version_id,
           TRIM(BOTH '"' FROM discipline),
           COALESCE(intel->'disciplines'->>'confidence', 'medium'),
           intel->'disciplines'->>'sourceText'
@@ -181,7 +182,7 @@ BEGIN
           version_id, title, labor_category, hours_per_month, utilization_pct,
           confidence, source_text, appears_in_periods
         ) VALUES (
-          v_id,
+          new_version_id,
           role_rec.title,
           role_rec.labor_category,
           role_rec.hours_per_month,
@@ -197,20 +198,20 @@ BEGIN
       END LOOP;
     END IF;
 
-    -- Set active_intelligence_version_id if confirmed
-    IF v_status = 'confirmed' THEN
-      UPDATE proposals SET active_intelligence_version_id = v_id WHERE id = p.prop_id;
-    END IF;
+    -- NOTE: We do NOT set active_intelligence_version_id here because
+    -- the version is inserted as draft. The original confirmed state is
+    -- tracked in orig_status for reporting, but users must re-confirm via
+    -- the UI to compute hashes and activate the version.
 
     -- Return report row
     proposal_id := p.prop_id;
-    version_id := v_id;
-    status := v_status::TEXT;
+    version_id := new_version_id;
+    status := 'draft'; -- Always draft after backfill
     periods_count := p_count;
     disciplines_count := d_count;
     labor_reqs_count := l_count;
     notes := CASE
-      WHEN v_status = 'confirmed' THEN 'Backfilled as confirmed (hash needs re-confirmation)'
+      WHEN orig_status = 'confirmed' THEN 'Originally confirmed - needs re-confirmation to compute hash'
       ELSE 'Backfilled as draft'
     END;
     RETURN NEXT;
@@ -259,21 +260,34 @@ DROP FUNCTION IF EXISTS backfill_contract_intelligence();
 -- =============================================================================
 -- POST-MIGRATION NOTES
 -- =============================================================================
--- 1. Backfilled confirmed versions have NULL confirmation_hash
---    - They need re-confirmation to compute hash if hash verification is required
---    - Or update them manually with computed hashes
+-- 1. ALL backfilled versions are inserted as 'draft' status
+--    - This is required because the hash_required_when_confirmed constraint
+--      blocks confirmed versions without hashes
+--    - Versions that were originally confirmed in working_data will have
+--      a note indicating they need re-confirmation
+--    - Users must use the "Confirm" button in the UI to:
+--      a) Compute the SHA-256 hash
+--      b) Set status to 'confirmed'
+--      c) Set active_intelligence_version_id on the proposal
 --
 -- 2. The original working_data.contractIntelligence blob is preserved
 --    - This allows gradual migration and rollback if needed
---    - Remove once migration is stable
+--    - The UI should show data from the new tables
+--    - Remove working_data.contractIntelligence once migration is stable
 --
 -- 3. To generate backfill report:
 --    SELECT
 --      p.id AS proposal_id,
+--      p.title,
 --      iv.id AS version_id,
 --      iv.status,
 --      (SELECT COUNT(*) FROM intelligence_periods WHERE version_id = iv.id) AS periods_count,
 --      (SELECT COUNT(*) FROM intelligence_disciplines WHERE version_id = iv.id) AS disciplines_count,
---      (SELECT COUNT(*) FROM intelligence_labor_requirements WHERE version_id = iv.id) AS labor_reqs_count
+--      (SELECT COUNT(*) FROM intelligence_labor_requirements WHERE version_id = iv.id) AS labor_reqs_count,
+--      CASE
+--        WHEN p.working_data->'contractIntelligence'->>'confirmed' = 'true'
+--        THEN 'Originally confirmed - needs re-confirmation'
+--        ELSE 'Originally draft'
+--      END AS migration_note
 --    FROM proposals p
 --    JOIN intelligence_versions iv ON iv.proposal_id = p.id AND iv.version_number = 1;
