@@ -560,9 +560,9 @@ describe('Hash Round-Trip', () => {
     })
 
     // Simulate tampering (someone changed the contract type)
-    const tamperedVersionRow = {
+    const tamperedVersionRow: IntelligenceVersionRow = {
       ...rawVersionRow,
-      facts_json: { contractType: { value: 'T&M', confidence: 'high' } }, // Changed!
+      facts_json: { contractType: { value: 'T&M' as const, confidence: 'high' as const } }, // Changed!
     }
 
     const tamperedVersion = coerceVersion(tamperedVersionRow)

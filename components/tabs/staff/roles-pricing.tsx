@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { EmptyState } from '@/components/ui/empty-state'
 import { formatCurrency } from '@/lib/utils'
-import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
+// Phase 3: syncRolesFromWBS removed - hours now come from role.hoursByYear (projected from staffing_assignments)
 import {
   calculateBillRate as pricingEngineBillRate,
   calculateFullyBurdenedRate,
@@ -102,7 +102,7 @@ export function RolesPricing() {
     uiProfitMargin,
     uiBillableHours,
     calculateLoadedRate,
-    estimateWbsElements,
+    // Phase 3: estimateWbsElements no longer needed - hours come from role.hoursByYear
     contractType,
     profitTargets,
   } = useAppContext()
@@ -123,14 +123,21 @@ export function RolesPricing() {
       .catch(() => {})
   }, [proposalId])
 
-  // Compute WBS-derived role data for indicators
+  // Compute role hours for indicators (Phase 3: from hoursByYear, projected from staffing_assignments)
   const wbsRoleData = useMemo(() => {
-    const wbs = estimateWbsElements as unknown as { tasks?: { role: string | null; hours: number }[]; laborEstimates?: { roleName: string; hoursByPeriod: { base: number; option1: number; option2: number; option3: number; option4: number } }[] }[]
-    const synced = syncRolesFromWBS(wbs, [], null)
     const map = new Map<string, number>()
-    synced.forEach(r => map.set(r.name, r.totalHoursFromWBS || 0))
+    selectedRoles.forEach(role => {
+      const total = role.totalHoursFromWBS || (
+        (role.hoursByYear?.baseYear || 0) +
+        (role.hoursByYear?.oy1 || 0) +
+        (role.hoursByYear?.oy2 || 0) +
+        (role.hoursByYear?.oy3 || 0) +
+        (role.hoursByYear?.oy4 || 0)
+      )
+      map.set(role.name, total)
+    })
     return map
-  }, [estimateWbsElements])
+  }, [selectedRoles])
 
   const [viewMode, setViewMode] = useState<ViewMode>('pricing')
   const [roleFilter, setRoleFilter] = useState<RoleFilter>('all')

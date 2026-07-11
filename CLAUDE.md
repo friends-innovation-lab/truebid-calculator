@@ -310,4 +310,23 @@ New tables (apply in order):
 
 All new persistence uses normalized tables + commands. Existing writers continue until their domain migrates (Phases 2-3).
 
+### Testing Standards
+
+1. **Execution requirement.** A test that does not execute the code under test may NEVER be reported as PASS. Tests must invoke the actual implementation to qualify as passing.
+
+2. **Shape/type assertions are labeled separately.** Tests that only assert types, interfaces, or data shapes (without executing runtime behavior) must be:
+   - Explicitly labeled as "Shape Assertion" or "Type Check" in the test description
+   - Counted separately in every test report
+   - Not included in "Tests Passed" counts
+
+3. **Test report format.** Every test report must include:
+   - **Executed Tests:** Count of tests that ran actual code
+   - **Shape/Type Assertions:** Count of structural/type-only checks
+   - **Skipped:** Count of skipped tests (with reason)
+
+4. **Integration tests require real execution.** Integration tests must:
+   - Connect to actual database (local Supabase for unit/integration, staging for E2E)
+   - Execute actual commands/queries
+   - Verify actual state changes in the database
+
 ---
