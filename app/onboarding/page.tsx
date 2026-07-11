@@ -11,7 +11,6 @@ import {
   Calculator, 
   Users, 
   LineChart,
-  Building2,
   ArrowRight,
   ArrowLeft,
   Check,
@@ -191,7 +190,7 @@ export default function OnboardingPage() {
           {step === 0 && (
             <div className="space-y-6">
               <div className="text-center">
-                <h1 className="text-2xl font-semibold text-gray-900">What's your role?</h1>
+                <h1 className="text-2xl font-semibold text-gray-900">What&apos;s your role?</h1>
                 <p className="text-gray-500 mt-2">This helps us personalize your experience</p>
               </div>
 
@@ -224,7 +223,7 @@ export default function OnboardingPage() {
             <div className="space-y-6">
               <div className="text-center">
                 <h1 className="text-2xl font-semibold text-gray-900">Tell us about your company</h1>
-                <p className="text-gray-500 mt-2">We'll set up your workspace</p>
+                <p className="text-gray-500 mt-2">We&apos;ll set up your workspace</p>
               </div>
 
               <div className="space-y-5">

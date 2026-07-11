@@ -1,0 +1,293 @@
+-- Phase 2: Backfill existing contractIntelligence from working_data
+-- Migrates existing working_data.contractIntelligence blobs to versioned tables
+--
+-- REQUIREMENTS:
+-- - Idempotent: Can run multiple times safely (uses conflict checks)
+-- - No-op on empty DB: Local reset with no intelligence blobs completes cleanly
+-- - Preserves existing confirmed state from blob
+--
+-- ROLLBACK (data only, schema preserved):
+--   DELETE FROM intelligence_labor_requirements
+--     WHERE version_id IN (SELECT id FROM intelligence_versions WHERE version_number = 1);
+--   DELETE FROM intelligence_disciplines
+--     WHERE version_id IN (SELECT id FROM intelligence_versions WHERE version_number = 1);
+--   DELETE FROM intelligence_periods
+--     WHERE version_id IN (SELECT id FROM intelligence_versions WHERE version_number = 1);
+--   DELETE FROM intelligence_versions WHERE version_number = 1;
+--   UPDATE proposals SET active_intelligence_version_id = NULL;
+
+-- =============================================================================
+-- BACKFILL FUNCTION
+-- =============================================================================
+-- Encapsulate backfill logic in a function for cleaner execution and reporting
+
+CREATE OR REPLACE FUNCTION backfill_contract_intelligence()
+RETURNS TABLE (
+  result_proposal_id UUID,
+  result_version_id UUID,
+  result_status TEXT,
+  result_periods_count INTEGER,
+  result_disciplines_count INTEGER,
+  result_labor_reqs_count INTEGER,
+  result_notes TEXT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_prop RECORD;
+  v_intel JSONB;
+  v_version_id UUID;
+  v_orig_status intelligence_status;
+  v_tenant UUID;
+  v_period RECORD;
+  v_disc TEXT;
+  v_role RECORD;
+  v_periods_count INTEGER;
+  v_disciplines_count INTEGER;
+  v_labor_count INTEGER;
+BEGIN
+  -- Loop through proposals with contractIntelligence in working_data
+  FOR v_prop IN
+    SELECT
+      pr.id AS prop_id,
+      pr.company_id,
+      pr.working_data->'contractIntelligence' AS contract_intel,
+      t.id AS tenant_id
+    FROM proposals pr
+    LEFT JOIN tenants t ON t.company_id = pr.company_id
+    WHERE pr.working_data->'contractIntelligence' IS NOT NULL
+      AND pr.working_data->'contractIntelligence' != 'null'::JSONB
+      -- Skip if already backfilled (idempotent)
+      AND NOT EXISTS (
+        SELECT 1 FROM intelligence_versions iv
+        WHERE iv.proposal_id = pr.id AND iv.version_number = 1
+      )
+  LOOP
+    v_intel := v_prop.contract_intel;
+    v_tenant := v_prop.tenant_id;
+
+    -- Skip if no tenant found (shouldn't happen, but be safe)
+    IF v_tenant IS NULL THEN
+      result_proposal_id := v_prop.prop_id;
+      result_version_id := NULL;
+      result_status := 'skipped';
+      result_periods_count := 0;
+      result_disciplines_count := 0;
+      result_labor_reqs_count := 0;
+      result_notes := 'No tenant found for company';
+      RETURN NEXT;
+      CONTINUE;
+    END IF;
+
+    -- Determine original status from blob
+    -- NOTE: We insert as 'draft' first because the hash_required_when_confirmed
+    -- constraint blocks confirmed rows without hashes. After populating fact
+    -- tables, we'll mark rows that WERE confirmed in the original blob.
+    IF (v_intel->>'confirmed')::BOOLEAN = true THEN
+      v_orig_status := 'confirmed';
+    ELSE
+      v_orig_status := 'draft';
+    END IF;
+
+    -- Create intelligence version (always as draft initially to bypass hash constraint)
+    INSERT INTO intelligence_versions (
+      tenant_id,
+      proposal_id,
+      version_number,
+      status,
+      facts_json,
+      contract_type,
+      extracted_at,
+      confirmed_at,
+      confirmation_hash
+    ) VALUES (
+      v_tenant,
+      v_prop.prop_id,
+      1,
+      'draft', -- Always insert as draft; original status tracked in v_orig_status
+      jsonb_build_object(
+        'documentType', v_intel->'documentType',
+        'vehicle', v_intel->'vehicle',
+        'contractType', v_intel->'contractType',
+        'setAside', v_intel->'setAside',
+        'rateSource', v_intel->'rateSource'
+      ),
+      (v_intel->'contractType'->>'value'),
+      COALESCE((v_intel->>'extractedAt')::TIMESTAMPTZ, now()),
+      NULL, -- confirmed_at will be set when user re-confirms
+      NULL
+    )
+    RETURNING id INTO v_version_id;
+
+    -- Insert periods
+    v_periods_count := 0;
+    IF v_intel->'periods' IS NOT NULL AND jsonb_array_length(v_intel->'periods') > 0 THEN
+      FOR v_period IN
+        SELECT
+          value->>'name' AS name,
+          (value->>'months')::NUMERIC AS months,
+          (value->>'cumulativeMonthsEnd')::NUMERIC AS cumulative_months_end,
+          (value->>'gsaRateYear')::INTEGER AS gsa_rate_year,
+          ordinality - 1 AS sort_order
+        FROM jsonb_array_elements(v_intel->'periods') WITH ORDINALITY
+      LOOP
+        INSERT INTO intelligence_periods (
+          version_id, name, months, cumulative_months_end, gsa_rate_year, sort_order
+        ) VALUES (
+          v_version_id,
+          v_period.name,
+          v_period.months,
+          v_period.cumulative_months_end,
+          COALESCE(v_period.gsa_rate_year, 1),
+          v_period.sort_order
+        );
+        v_periods_count := v_periods_count + 1;
+      END LOOP;
+    END IF;
+
+    -- Insert disciplines
+    v_disciplines_count := 0;
+    IF v_intel->'disciplines'->'required' IS NOT NULL AND jsonb_array_length(v_intel->'disciplines'->'required') > 0 THEN
+      FOR v_disc IN
+        SELECT value::TEXT FROM jsonb_array_elements_text(v_intel->'disciplines'->'required')
+      LOOP
+        INSERT INTO intelligence_disciplines (
+          version_id, discipline, confidence, source_text
+        ) VALUES (
+          v_version_id,
+          TRIM(BOTH '"' FROM v_disc),
+          COALESCE(v_intel->'disciplines'->>'confidence', 'medium'),
+          v_intel->'disciplines'->>'sourceText'
+        )
+        ON CONFLICT (version_id, discipline) DO NOTHING;
+        v_disciplines_count := v_disciplines_count + 1;
+      END LOOP;
+    END IF;
+
+    -- Insert labor requirements (roles)
+    v_labor_count := 0;
+    IF v_intel->'roles' IS NOT NULL AND jsonb_array_length(v_intel->'roles') > 0 THEN
+      FOR v_role IN
+        SELECT
+          value->>'title' AS title,
+          value->>'laborCategory' AS labor_category,
+          (value->>'hoursPerMonth')::NUMERIC AS hours_per_month,
+          (value->>'utilizationPct')::NUMERIC AS utilization_pct,
+          value->>'confidence' AS confidence,
+          value->>'sourceText' AS source_text,
+          value->'appearsInPeriods' AS appears_in_periods
+        FROM jsonb_array_elements(v_intel->'roles')
+      LOOP
+        INSERT INTO intelligence_labor_requirements (
+          version_id, title, labor_category, hours_per_month, utilization_pct,
+          confidence, source_text, appears_in_periods
+        ) VALUES (
+          v_version_id,
+          v_role.title,
+          v_role.labor_category,
+          v_role.hours_per_month,
+          v_role.utilization_pct,
+          COALESCE(v_role.confidence, 'medium'),
+          v_role.source_text,
+          COALESCE(
+            (SELECT ARRAY_AGG(elem::TEXT) FROM jsonb_array_elements_text(v_role.appears_in_periods) AS elem),
+            '{}'::TEXT[]
+          )
+        );
+        v_labor_count := v_labor_count + 1;
+      END LOOP;
+    END IF;
+
+    -- NOTE: We do NOT set active_intelligence_version_id here because
+    -- the version is inserted as draft. The original confirmed state is
+    -- tracked in v_orig_status for reporting, but users must re-confirm via
+    -- the UI to compute hashes and activate the version.
+
+    -- Return report row
+    result_proposal_id := v_prop.prop_id;
+    result_version_id := v_version_id;
+    result_status := 'draft'; -- Always draft after backfill
+    result_periods_count := v_periods_count;
+    result_disciplines_count := v_disciplines_count;
+    result_labor_reqs_count := v_labor_count;
+    result_notes := CASE
+      WHEN v_orig_status = 'confirmed' THEN 'Originally confirmed - needs re-confirmation to compute hash'
+      ELSE 'Backfilled as draft'
+    END;
+    RETURN NEXT;
+  END LOOP;
+
+  -- If no rows processed, return empty result (no-op on empty DB)
+  RETURN;
+END;
+$$;
+
+-- =============================================================================
+-- EXECUTE BACKFILL
+-- =============================================================================
+-- Run the backfill and output results to NOTICE for logging
+
+DO $$
+DECLARE
+  result_row RECORD;
+  row_count INTEGER := 0;
+BEGIN
+  RAISE NOTICE 'Starting contract intelligence backfill...';
+
+  FOR result_row IN SELECT * FROM backfill_contract_intelligence()
+  LOOP
+    row_count := row_count + 1;
+    RAISE NOTICE 'Backfilled proposal % -> version % (%, periods: %, disciplines: %, labor_reqs: %) - %',
+      result_row.result_proposal_id,
+      result_row.result_version_id,
+      result_row.result_status,
+      result_row.result_periods_count,
+      result_row.result_disciplines_count,
+      result_row.result_labor_reqs_count,
+      result_row.result_notes;
+  END LOOP;
+
+  IF row_count = 0 THEN
+    RAISE NOTICE 'No proposals with contractIntelligence found (this is expected on fresh local DB)';
+  ELSE
+    RAISE NOTICE 'Backfill complete. Processed % proposals.', row_count;
+  END IF;
+END $$;
+
+-- Clean up the function (not needed after migration)
+DROP FUNCTION IF EXISTS backfill_contract_intelligence();
+
+-- =============================================================================
+-- POST-MIGRATION NOTES
+-- =============================================================================
+-- 1. ALL backfilled versions are inserted as 'draft' status
+--    - This is required because the hash_required_when_confirmed constraint
+--      blocks confirmed versions without hashes
+--    - Versions that were originally confirmed in working_data will have
+--      a note indicating they need re-confirmation
+--    - Users must use the "Confirm" button in the UI to:
+--      a) Compute the SHA-256 hash
+--      b) Set status to 'confirmed'
+--      c) Set active_intelligence_version_id on the proposal
+--
+-- 2. The original working_data.contractIntelligence blob is preserved
+--    - This allows gradual migration and rollback if needed
+--    - The UI should show data from the new tables
+--    - Remove working_data.contractIntelligence once migration is stable
+--
+-- 3. To generate backfill report:
+--    SELECT
+--      p.id AS proposal_id,
+--      p.title,
+--      iv.id AS version_id,
+--      iv.status,
+--      (SELECT COUNT(*) FROM intelligence_periods WHERE version_id = iv.id) AS periods_count,
+--      (SELECT COUNT(*) FROM intelligence_disciplines WHERE version_id = iv.id) AS disciplines_count,
+--      (SELECT COUNT(*) FROM intelligence_labor_requirements WHERE version_id = iv.id) AS labor_reqs_count,
+--      CASE
+--        WHEN p.working_data->'contractIntelligence'->>'confirmed' = 'true'
+--        THEN 'Originally confirmed - needs re-confirmation'
+--        ELSE 'Originally draft'
+--      END AS migration_note
+--    FROM proposals p
+--    JOIN intelligence_versions iv ON iv.proposal_id = p.id AND iv.version_number = 1;

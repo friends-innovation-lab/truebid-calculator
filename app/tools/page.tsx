@@ -1,97 +1,117 @@
 'use client'
 
-import { useEffect } from 'react'
-import { SubRatesTab } from '@/components/tabs/sub-rates-tab'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft, Wrench, DollarSign, Calculator, Building2 } from 'lucide-react'
 import Link from 'next/link'
-import { useAppContext, UtilityToolType } from '@/contexts/app-context'
+import { Button } from '@/components/ui/button'
+import { Card } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { ChevronLeft, Wrench, DollarSign, Calculator, Building2, ArrowRight } from 'lucide-react'
 
 export default function ToolsPage() {
-  const { activeUtilityTool, setActiveUtilityTool } = useAppContext()
-
-  // Default to sub-rates if no tool selected
-  useEffect(() => {
-    if (!activeUtilityTool) {
-      setActiveUtilityTool('sub-rates')
-    }
-  }, [activeUtilityTool, setActiveUtilityTool])
-
   const tools = [
-    { id: 'sub-rates', label: 'Sub Rates Calculator', icon: DollarSign, available: true },
-    { id: 'rate-builder', label: 'Rate Builder', icon: Calculator, available: false },
-    { id: 'wrap-rate', label: 'Wrap Rate Analyzer', icon: Building2, available: false },
-  ] as const
+    {
+      id: 'sub-rate-calculator',
+      label: 'Sub Rate Calculator',
+      description: "Evaluate a prime's bill rate offer against your indirect costs",
+      icon: DollarSign,
+      href: '/tools/sub-rate-calculator',
+      available: true,
+      color: 'text-green-600 bg-green-50',
+    },
+    {
+      id: 'rate-builder',
+      label: 'Rate Builder',
+      description: 'Build compliant labor rates from salary data and indirect costs',
+      icon: Calculator,
+      href: '/tools/rate-builder',
+      available: false,
+      color: 'text-blue-600 bg-blue-50',
+    },
+    {
+      id: 'wrap-rate',
+      label: 'Wrap Rate Analyzer',
+      description: 'Analyze and compare wrap rate structures across contracts',
+      icon: Building2,
+      href: '/tools/wrap-rate',
+      available: false,
+      color: 'text-purple-600 bg-purple-50',
+    },
+  ]
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       {/* Tools Header */}
       <div className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link href="/">
-                <Button variant="ghost" size="sm" className="gap-2">
-                  <ChevronLeft className="w-4 h-4" />
-                  Dashboard
-                </Button>
-              </Link>
-              <div className="h-6 w-px bg-gray-200 dark:bg-gray-700" />
-              <div className="flex items-center gap-2">
-                <Wrench className="w-5 h-5 text-gray-500" />
-                <h1 className="text-lg font-semibold text-gray-900 dark:text-white">Utility Tools</h1>
-              </div>
-            </div>
+        <div className="max-w-5xl mx-auto px-6 py-6">
+          <div className="flex items-center gap-4 mb-4">
+            <Link href="/dashboard">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ChevronLeft className="w-4 h-4" />
+                Dashboard
+              </Button>
+            </Link>
           </div>
-
-          {/* Tool Tabs */}
-          <div className="flex gap-1 mt-4 -mb-px">
-            {tools.map((tool) => {
-              const Icon = tool.icon
-              const isActive = activeUtilityTool === tool.id
-              return (
-                <button
-                  key={tool.id}
-                  onClick={() => tool.available && setActiveUtilityTool(tool.id as UtilityToolType)}
-                  disabled={!tool.available}
-                  className={`
-                    flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-t-lg
-                    border border-b-0 transition-colors
-                    ${isActive
-                      ? 'bg-gray-50 dark:bg-gray-950 border-gray-200 dark:border-gray-800 text-gray-900 dark:text-white'
-                      : tool.available
-                        ? 'bg-transparent border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                        : 'bg-transparent border-transparent text-gray-300 dark:text-gray-600 cursor-not-allowed'
-                    }
-                  `}
-                >
-                  <Icon className="w-4 h-4" />
-                  {tool.label}
-                  {!tool.available && (
-                    <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 rounded text-gray-400">
-                      Soon
-                    </span>
-                  )}
-                </button>
-              )
-            })}
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-gray-100 dark:bg-gray-800 rounded-lg">
+              <Wrench className="w-6 h-6 text-gray-600 dark:text-gray-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">Tools</h1>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Standalone utilities for government contracting calculations
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Tool Content */}
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        {activeUtilityTool === 'sub-rates' && <SubRatesTab />}
-        {activeUtilityTool === 'rate-builder' && (
-          <div className="text-center py-16 text-gray-500">
-            Rate Builder coming soon
-          </div>
-        )}
-        {activeUtilityTool === 'wrap-rate' && (
-          <div className="text-center py-16 text-gray-500">
-            Wrap Rate Analyzer coming soon
-          </div>
-        )}
+      {/* Tool Cards Grid */}
+      <main className="max-w-5xl mx-auto px-6 py-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {tools.map((tool) => {
+            const Icon = tool.icon
+            return (
+              <Card
+                key={tool.id}
+                className={`p-6 space-y-4 ${
+                  tool.available
+                    ? 'hover:shadow-md hover:border-gray-300 transition-all cursor-pointer'
+                    : 'opacity-60'
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className={`p-3 rounded-lg ${tool.color}`}>
+                    <Icon className="w-6 h-6" />
+                  </div>
+                  {!tool.available && (
+                    <Badge variant="secondary" className="text-xs">
+                      Coming Soon
+                    </Badge>
+                  )}
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                    {tool.label}
+                  </h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {tool.description}
+                  </p>
+                </div>
+                {tool.available ? (
+                  <Link href={tool.href}>
+                    <Button className="w-full gap-2">
+                      Open Tool
+                      <ArrowRight className="w-4 h-4" />
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button disabled className="w-full">
+                    Coming Soon
+                  </Button>
+                )}
+              </Card>
+            )
+          })}
+        </div>
       </main>
     </div>
   )

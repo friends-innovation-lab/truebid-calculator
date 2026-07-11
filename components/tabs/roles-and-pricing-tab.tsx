@@ -1,8 +1,17 @@
 // @ts-nocheck
 'use client'
 
-import { useState, useMemo } from 'react'
-import { useAppContext, Subcontractor, ODCItem, PerDiemCalculation, Role, TeamingPartner } from '@/contexts/app-context'
+import { useState, useMemo, useEffect } from 'react'
+import { useAppContext, Subcontractor, ODCItem, PerDiemCalculation, Role } from '@/contexts/app-context'
+import {
+  calculateFullyBurdenedRate as pricingEngineRate,
+  normalizeRateToDecimal,
+  DEFAULT_STANDARD_HOURS,
+  resolveProfitRateWithFallback,
+  type ContractType as PricingContractType,
+} from '@/lib/pricing'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
@@ -34,10 +43,8 @@ import {
   Check,
   Trash2,
   Calculator,
-  Sparkles,
   DollarSign,
   TrendingUp,
-  TrendingDown,
   ChevronRight,
   ChevronDown,
   ChevronUp,
@@ -47,17 +54,16 @@ import {
   Package,
   Pencil,
   CheckCircle2,
-  HelpCircle,
   Building2,
   AlertTriangle,
   MapPin,
   Shield,
   Award,
-  ExternalLink,
   FileText,
 Clock,
 BarChart3,
 } from 'lucide-react'
+import { formatDate } from '@/lib/utils/format-date'
 
 // ==================== LOCAL TYPES ====================
 
@@ -108,10 +114,6 @@ suggestedFte: number
 
 // ==================== HELPER FUNCTIONS ====================
 
-// Helper to derive priority from confidence
-const getPriorityFromConfidence = (confidence?: 'high' | 'medium' | 'low'): 'high' | 'medium' | 'low' => {
-  return confidence || 'medium'
-}
 
 // Convert AppContext year object to string array
 const yearsObjectToArray = (years: { base: boolean; option1: boolean; option2: boolean; option3: boolean; option4: boolean }): string[] => {
@@ -292,10 +294,7 @@ function calculateBLSPercentile(salary: number, blsData: BLSData): number {
 export function RolesAndPricingTab() {
   const {
     solicitation,
-    companyPolicy,
     indirectRates,
-    escalationRates,
-    profitTargets,
     // Subcontractors from context
     subcontractors,
     addSubcontractor,
@@ -303,7 +302,6 @@ export function RolesAndPricingTab() {
     removeSubcontractor,
     // Teaming Partners from context
     teamingPartners,
-    addTeamingPartner,
     getOrCreatePartnerByName,
     // ODCs from context
     odcs,
@@ -317,36 +315,23 @@ export function RolesAndPricingTab() {
     removePerDiem,
     // Selected Roles from context
     selectedRoles,
-    setSelectedRoles,
     addRole,
     updateRole,
     removeRole,
-    // Recommended Roles from context
-    recommendedRoles,
-    // UI-specific settings from context
-    uiLaborEscalation,
-    uiOdcEscalation,
-    uiShowEscalation,
-    setUiLaborEscalation,
-    setUiOdcEscalation,
-    setUiShowEscalation,
-    uiProfitMargin,
-    setUiProfitMargin,
-    uiBillableHours,
-    setUiBillableHours,
     // Solicitation pricing settings & editor
     getPricingSettings,
     openSolicitationEditor,
     // Rate Justifications
     rateJustifications,
-    updateRateJustification,
-     // Tab Navigation
+    // Tab Navigation
     navigateToRateJustification,
     // WBS Data from Estimate tab (replaces scopingData)
   estimateWbsElements,
   // Labor categories from Account Center
-  companyRoles,
   getIcLevelSalaries,
+  // Contract type and profit targets for resolver
+  contractType,
+  profitTargets,
 } = useAppContext()
   
   // Get pricing settings from solicitation (centralized source of truth)
@@ -362,7 +347,7 @@ export function RolesAndPricingTab() {
   
    const icLevelRates = useMemo(() => {
     return getIcLevelSalaries()
-  }, [getIcLevelSalaries, companyRoles])
+  }, [getIcLevelSalaries])
 
   // Derive IC level options from actual company data
   const icLevelOptions = useMemo(() => {
@@ -487,17 +472,6 @@ const wbsHoursByRole = useMemo((): WBSRoleHours[] => {
 }, [estimateWbsElements, billableHours])
       
   
-  // Helper to find WBS hours for a role
-  const getWBSHoursForRole = (roleName: string): WBSRoleHours | null => {
-    if (!wbsHoursByRole || wbsHoursByRole.length === 0) return null
-    
-    return wbsHoursByRole.find(w =>
-      w.roleName.toLowerCase() === roleName.toLowerCase() ||
-      roleName.toLowerCase().includes(w.roleName.toLowerCase().split(' ')[0]) ||
-      w.roleName.toLowerCase().includes(roleName.toLowerCase().split(' ')[0])
-    ) || null
-  }
-
   // Panel states
   const [selectedRoleForBreakdown, setSelectedRoleForBreakdown] = useState<TeamRole | null>(null)
   const [showSubsExpanded, setShowSubsExpanded] = useState(false)
@@ -595,24 +569,52 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
   })
 
   // ==================== DERIVED VALUES ====================
-  
-  // Static rate calculation (doesn't depend on state) - defined first so useMemo can use it
+
+  // Static rate calculation using centralized pricing engine
+  // Rates are passed as percentages (e.g., 21.16) and normalized to decimals (0.2116)
+  // Profit parameter is the proposal-specific margin, treated as explicit rate in resolver
   const calculateRateBreakdownStatic = (
-    baseSalary: number, 
+    baseSalary: number,
     ratesObj: { fringe: number; overhead: number; gAndA: number },
     profit: number
   ): RateBreakdown => {
-    const standardHours = 2080
-    const directRate = baseSalary / standardHours
-    const fringeAmount = directRate * (ratesObj.fringe / 100)
-    const withFringe = directRate + fringeAmount
-    const overheadAmount = withFringe * (ratesObj.overhead / 100)
-    const withOverhead = withFringe + overheadAmount
-    const gaAmount = withOverhead * (ratesObj.gAndA / 100)
-    const fullyLoadedRate = withOverhead + gaAmount
-    const profitAmount = fullyLoadedRate * (profit / 100)
-    const billedRate = fullyLoadedRate + profitAmount
-    return { baseSalary, directRate, fringeAmount, overheadAmount, gaAmount, fullyLoadedRate, profitAmount, billedRate }
+    // Normalize percentage inputs to decimals
+    const fringeDecimal = normalizeRateToDecimal(ratesObj.fringe)
+    const overheadDecimal = normalizeRateToDecimal(ratesObj.overhead)
+    const gaDecimal = normalizeRateToDecimal(ratesObj.gAndA)
+
+    // Resolve profit rate via central resolver
+    // The proposal's profit margin is treated as the explicit rate
+    const resolvedProfit = resolveProfitRateWithFallback({
+      explicitProfitRate: normalizeRateToDecimal(profit),
+      contractType: contractType as PricingContractType,
+      profitTargets: {
+        tm: profitTargets.tmDefault,
+        ffp: profitTargets.ffpLowRisk,
+        gsa: profitTargets.gsaDefault,
+      },
+    }, profitTargets.tmDefault)
+
+    const breakdown = pricingEngineRate({
+      annualSalary: baseSalary,
+      rates: {
+        fringe: fringeDecimal,
+        overhead: overheadDecimal,
+        ga: gaDecimal,
+      },
+      profitRate: resolvedProfit.profitRate,
+    })
+
+    return {
+      baseSalary,
+      directRate: breakdown.baseHourly,
+      fringeAmount: breakdown.fringeAmount,
+      overheadAmount: breakdown.overheadAmount,
+      gaAmount: breakdown.gaAmount,
+      fullyLoadedRate: breakdown.costBeforeProfit,
+      profitAmount: breakdown.profitAmount,
+      billedRate: breakdown.fullyBurdenedRate,
+    }
   }
   
   // Convert AppContext Role to local TeamRole format for display
@@ -632,7 +634,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
         years: yearsObjectToArray(role.years),
       }
     })
-  }, [selectedRoles, rates, profitMargin])
+  }, [selectedRoles, rates, profitMargin, billableHours, icLevelRates])
 
   // Contract years from solicitation
   const contractYears = useMemo(() => {
@@ -648,24 +650,10 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
   }, [solicitation])
 
   // ==================== CALCULATION FUNCTIONS ====================
+  // Uses centralized pricing engine via calculateRateBreakdownStatic
 
   const calculateRateBreakdown = (baseSalary: number): RateBreakdown => {
-    const standardHours = 2080
-    const directRate = baseSalary / standardHours
-    
-    const fringeAmount = directRate * (rates.fringe / 100)
-    const withFringe = directRate + fringeAmount
-    
-    const overheadAmount = withFringe * (rates.overhead / 100)
-    const withOverhead = withFringe + overheadAmount
-    
-    const gaAmount = withOverhead * (rates.gAndA / 100)
-    const fullyLoadedRate = withOverhead + gaAmount
-    
-    const profitAmount = fullyLoadedRate * (profitMargin / 100)
-    const billedRate = fullyLoadedRate + profitAmount
-    
-    return { baseSalary, directRate, fringeAmount, overheadAmount, gaAmount, fullyLoadedRate, profitAmount, billedRate }
+    return calculateRateBreakdownStatic(baseSalary, rates, profitMargin)
   }
 
   const calculateHourlyRate = (icLevel: string, customSalary?: number): number => {
@@ -766,7 +754,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
       avgRate,
       roleCount: teamRoles.length,
     }
-  }, [teamRoles, contractYears, laborEscalation, odcEscalation, showEscalation, subcontractors, odcs, perDiem])
+  }, [teamRoles, contractYears, laborEscalation, odcEscalation, showEscalation, subcontractors, odcs, perDiem, billableHours])
 
   // Helper to calculate sub total contract cost with escalation
   const calculateSubTotalContractCost = (sub: Subcontractor): number => {
@@ -825,7 +813,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
     })
     
     return Object.values(groups)
-  }, [subcontractors, contractYears, showEscalation, laborEscalation, billableHours])
+  }, [subcontractors, contractYears, showEscalation, laborEscalation, billableHours, calculateSubTotalContractCost])
 
   const [expandedPartnerGroups, setExpandedPartnerGroups] = useState<Record<string, boolean>>({})
 
@@ -837,12 +825,12 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
 
   const handleAddToTeam = (recRole: Role) => {
     const baseSalary = recRole.baseSalary || icLevelRates[recRole.icLevel] || 100000
-    const defaultYears = contractYears.length > 0 
-      ? contractYears.map(y => y.id) 
+    const defaultYears = contractYears.length > 0
+      ? contractYears.map(y => y.id)
       : ['base', 'option1', 'option2']
-    
+
     addRole({
-      id: `role-${Date.now()}`,
+      id: `role-${crypto.randomUUID()}`,
       name: recRole.name,
       description: recRole.description,
       icLevel: recRole.icLevel as 'IC1' | 'IC2' | 'IC3' | 'IC4' | 'IC5' | 'IC6',
@@ -903,8 +891,6 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
     }))
   }
 
-  const isRoleAdded = (name: string) => teamRoles.some(r => r.title === name)
-  const isRoleAssignedToSub = (name: string) => subcontractors.some(s => s.role === name)
   const getRoleAssignment = (name: string): 'prime' | 'sub' | null => {
     if (teamRoles.some(r => r.title === name)) return 'prime'
     if (subcontractors.some(s => s.role === name)) return 'sub'
@@ -1057,34 +1043,6 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
   }
 
   // ==================== SUBCONTRACTOR HANDLERS ====================
-
-  const handleAddSub = () => {
-    setEditingSub(null)
-    
-    const allocations: Record<string, { enabled: boolean; fte: number }> = {
-      base: { enabled: false, fte: 1 },
-      option1: { enabled: false, fte: 1 },
-      option2: { enabled: false, fte: 1 },
-      option3: { enabled: false, fte: 0 },
-      option4: { enabled: false, fte: 0 },
-    }
-    
-    contractYears.forEach(y => {
-      allocations[y.id] = { enabled: true, fte: 1 }
-    })
-    
-    setSubFormData({
-      partnerId: '',
-      newPartnerName: '',
-      companyName: '',
-      role: '',
-      laborCategory: '',
-      theirRate: 0,
-      markupPercent: 10,
-      allocations,
-    })
-    setSubDialogOpen(true)
-  }
 
   const handleEditSub = (sub: Subcontractor) => {
     setEditingSub(sub)
@@ -1381,10 +1339,28 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
     }).format(amount)
   }
 
-  const totalRecommendedFTE = recommendedRoles.reduce((sum, r) => sum + r.quantity, 0)
   const contractType = solicitation?.contractType || 'T&M'
 
   // ==================== RENDER ====================
+
+  const [isHydrated, setIsHydrated] = useState(false)
+  useEffect(() => { setIsHydrated(true) }, [])
+
+  if (!isHydrated) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="grid grid-cols-[1fr_400px] gap-6">
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-24 w-full rounded-lg" />
+            ))}
+          </div>
+          <Skeleton className="h-80 w-full rounded-lg" />
+        </div>
+      </div>
+    )
+  }
 
   return (
     <TooltipProvider>
@@ -1428,8 +1404,8 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           
           {/* Column 1: Roles From Estimate */}
-          <div className="border border-gray-200 rounded-lg bg-white flex flex-col max-h-[calc(100vh-220px)] shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex-shrink-0 p-4 border-b border-gray-200">
+          <div className="border border-gray-100 rounded-lg bg-white flex flex-col max-h-[calc(100vh-220px)]">
+            <div className="flex-shrink-0 p-4 border-b border-gray-100">
               <div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -1455,11 +1431,11 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
             <div className="flex-1 overflow-y-auto p-4">
               <div className="space-y-2">
                 {wbsHoursByRole.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg bg-white">
-                    <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-600 mb-1">No roles in Estimate yet</p>
-                    <p className="text-xs text-gray-500">Add WBS elements with labor hours in the Estimate tab</p>
-                  </div>
+                  <EmptyState
+                    icon={BarChart3}
+                    title="No roles in Estimate yet"
+                    description="Add WBS elements with labor hours in the Estimate tab"
+                  />
                 ) : (
                   wbsHoursByRole.map((wbsRole) => {
                     const assignment = getRoleAssignment(wbsRole.roleName)
@@ -1482,7 +1458,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                       <div
                         key={wbsRole.roleId}
                         className={`border rounded-lg p-3 transition-all ${
-                          assignment ? 'border-gray-200 bg-gray-50' : 'border-gray-200 bg-white hover:border-gray-200'
+                          assignment ? 'border-gray-100 bg-gray-50' : 'border-gray-100 bg-white hover:border-gray-200'
                         }`}
                       >
                         <div className="flex items-start justify-between mb-2">
@@ -1515,7 +1491,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           {isExpanded && (
                             <div className="mt-2 pt-2 border-t border-blue-100 space-y-1">
                               {wbsRole.wbsBreakdown.map((wbs, idx) => (
-                                <div key={idx} className="flex justify-between text-xs">
+                                <div key={idx} className="flex justify-between text-[10px]">
                                   <span className="text-gray-600">{wbs.wbsNumber} {wbs.wbsTitle}</span>
                                   <span className="text-gray-800 font-medium">{wbs.hours.toLocaleString()} hrs</span>
                                 </div>
@@ -1560,8 +1536,8 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
           </div>
 
           {/* Column 2: Team Summary */}
-          <div className="border border-gray-200 rounded-lg bg-white flex flex-col max-h-[calc(100vh-220px)] shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex-shrink-0 p-4 border-b border-gray-200">
+          <div className="border border-gray-100 rounded-lg bg-white flex flex-col max-h-[calc(100vh-220px)]">
+            <div className="flex-shrink-0 p-4 border-b border-gray-100">
               <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-gray-400" />
@@ -1591,7 +1567,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           </div>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium ${
+                              <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
                                 isCompliant 
                                   ? 'bg-green-50 text-green-700' 
                                   : 'bg-red-50 text-red-700'
@@ -1611,7 +1587,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                         </div>
                         <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
                           <div 
-                            className={`h-full transition-all ${isCompliant ? 'bg-blue-500' : 'bg-red-500'}`}
+                            className={`h-full transition-all ${isCompliant ? 'bg-blue-500' : 'bg-red-400'}`}
                             style={{ width: `${primePercent}%` }}
                           />
                       </div>
@@ -1635,23 +1611,22 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                 </div>
 
                 {teamRoles.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg bg-white">
-                    <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-600 mb-1">No prime roles added yet</p>
-                    <p className="text-xs text-gray-500">Assign roles from the WBS panel on the left</p>
+                  <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center">
+                    <Users className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                    <p className="text-xs text-gray-500">No prime roles added yet</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
                     {teamRoles.map((role) => (
                       <div
                         key={role.id}
-                        className="group border border-blue-200 rounded-lg p-4 bg-blue-50 hover:border-blue-300 hover:shadow-sm transition-all"
+                        className="group border border-blue-100 rounded-lg p-3 bg-blue-50/50 hover:border-blue-200 transition-all"
                       >
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <span className="font-medium text-sm text-gray-900">{role.title}</span>
                             <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                              <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">{role.icLevel}</Badge>
+                              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{role.icLevel}</Badge>
                               <span>×{role.quantity}</span>
                               <span>·</span>
                               <span>{role.ftePerPerson} FTE</span>
@@ -1668,6 +1643,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                   size="sm"
                                   onClick={() => handleEditRole(role)}
                                   className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                  aria-label="Edit role"
                                 >
                                   <Pencil className="w-3.5 h-3.5" />
                                 </Button>
@@ -1681,6 +1657,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                   size="sm"
                                   onClick={() => setSelectedRoleForBreakdown(role)}
                                   className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                  aria-label="View rate breakdown"
                                 >
                                   <Calculator className="w-3.5 h-3.5" />
                                 </Button>
@@ -1694,6 +1671,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                   size="sm"
                                   onClick={() => handleRemoveFromTeam(role.id)}
                                   className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                  aria-label="Delete role"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
                                 </Button>
@@ -1710,7 +1688,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                               <button
                                 key={year.id}
                                 onClick={() => toggleRoleYear(role.id, year.id)}
-                                className={`px-2 py-0.5 text-xs font-medium rounded transition-all ${
+                                className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
                                   isActive ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                                 }`}
                               >
@@ -1739,21 +1717,21 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           return (
                             <div className="mt-2 pt-2 border-t border-blue-100 flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <span className="text-xs text-gray-500">Rate Justification</span>
+                                <span className="text-[10px] text-gray-500">Rate Justification</span>
                                 {hasJustification ? (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-xs">
-                                    <CheckCircle2 className="w-3 h-3" />
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-green-50 text-green-700 rounded text-[10px]">
+                                    <CheckCircle2 className="w-2.5 h-2.5" />
                                     Documented
                                   </span>
                                 ) : percentile !== null && percentile >= 75 ? (
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-xs">
-                                    <AlertTriangle className="w-3 h-3" />
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px]">
+                                    <AlertTriangle className="w-2.5 h-2.5" />
                                     Needs justification
                                   </span>
                                 ) : null}
                               </div>
                               {percentile !== null && (
-                                <span className={`text-xs font-medium ${getPercentileColor(percentile)}`}>
+                                <span className={`text-[10px] font-medium ${getPercentileColor(percentile)}`}>
                                  {formatOrdinal(Math.round(percentile))} %ile
                                 </span>
                               )}
@@ -1767,7 +1745,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
               </div>
 
               {/* Subcontractors Section */}
-              <div className="space-y-2 pt-3 border-t border-gray-200">
+              <div className="space-y-2 pt-3 border-t border-gray-100">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <div className="w-1 h-4 bg-orange-500 rounded-full" />
@@ -1777,10 +1755,10 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                 </div>
 
                 {subcontractors.length === 0 ? (
-                  <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg bg-white">
-                    <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" />
-                    <p className="text-sm text-gray-600 mb-1">No subcontractors assigned</p>
-                    <p className="text-xs text-gray-500">Use "Sub" on a role to assign it</p>
+                  <div className="border border-dashed border-gray-200 rounded-lg p-6 text-center">
+                    <Building2 className="w-6 h-6 text-gray-300 mx-auto mb-2" />
+                    <p className="text-xs text-gray-600 mb-1">No subcontractors assigned</p>
+                    <p className="text-xs text-gray-500">Use &quot;Sub&quot; on a role to assign it</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -1800,13 +1778,13 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                       return (
                         <div
                           key={sub.id}
-                          className="group border border-orange-200 rounded-lg p-4 bg-orange-50 hover:border-orange-300 hover:shadow-sm transition-all"
+                          className="group border border-orange-100 rounded-lg p-3 bg-orange-50/50 hover:border-orange-200 transition-all"
                         >
                           <div className="flex items-start justify-between mb-2">
                             <div>
                               <div className="flex items-center gap-2">
                                 <span className="font-medium text-sm text-gray-900">{sub.role}</span>
-                                <Badge variant="outline" className="text-xs px-1.5 py-0 h-5 bg-orange-100 text-orange-700 border-orange-200">
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-4 bg-orange-100 text-orange-700 border-orange-200">
                                   Sub
                                 </Badge>
                               </div>
@@ -1828,6 +1806,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                     size="sm"
                                     onClick={() => handleEditSub(sub)}
                                     className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50"
+                                    aria-label="Edit subcontractor"
                                   >
                                     <Pencil className="w-3.5 h-3.5" />
                                   </Button>
@@ -1841,6 +1820,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                     size="sm"
                                     onClick={() => handleDeleteSub(sub.id)}
                                     className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50"
+                                    aria-label="Delete subcontractor"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </Button>
@@ -1860,7 +1840,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                 <button
                                   key={year.id}
                                   onClick={() => toggleSubYear(sub.id, year.id)}
-                                  className={`px-2 py-0.5 text-xs font-medium rounded transition-all ${
+                                  className={`px-2 py-0.5 text-[10px] font-medium rounded transition-all ${
                                     isActive ? 'bg-orange-600 text-white' : 'bg-gray-200 text-gray-600 hover:bg-gray-300'
                                   }`}
                                 >
@@ -1880,8 +1860,8 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
            </div>
 
          {/* Column 3: Contract Value */}
-          <div className="border border-gray-200 rounded-lg bg-white flex flex-col max-h-[calc(100vh-220px)] shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex-shrink-0 p-4 border-b border-gray-200">
+          <div className="border border-gray-100 rounded-lg bg-white flex flex-col max-h-[calc(100vh-220px)]">
+            <div className="flex-shrink-0 p-4 border-b border-gray-100">
               <div className="space-y-4">
               <div className="flex items-center gap-2">
                 <DollarSign className="w-4 h-4 text-gray-400" />
@@ -1918,13 +1898,13 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
               </div>
 
               {/* Labor Subtotal */}
-              <div className="flex items-center justify-between py-2 border-t border-gray-200">
+              <div className="flex items-center justify-between py-2 border-t border-gray-100">
                 <span className="text-sm text-gray-600">Labor Subtotal:</span>
                 <span className="font-medium text-gray-900">{formatCurrency(calculations.laborTotal)}</span>
               </div>
 
               {/* Subcontractors - Collapsible */}
-              <div className="border-t border-gray-200 pt-3">
+              <div className="border-t border-gray-100 pt-3">
                 <button
                   onClick={() => setShowSubsExpanded(!showSubsExpanded)}
                   className="w-full flex items-center justify-between py-1 hover:bg-gray-50 rounded -mx-1 px-1"
@@ -1959,7 +1939,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                               <span className="text-gray-400">
                                 ({group.roles.length} role{group.roles.length !== 1 ? 's' : ''})
                               </span>
-                              <Badge variant="outline" className="text-xs px-1.5 py-0 h-5">
+                              <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">
                                 +{Math.round(group.avgMarkup)}%
                               </Badge>
                             </div>
@@ -1970,7 +1950,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           </button>
                           
                           {isExpanded && (
-                            <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-200 pl-3">
+                            <div className="ml-4 mt-1 space-y-1 border-l-2 border-gray-100 pl-3">
                               {group.roles.map((sub) => {
                                 const baseFte = sub.allocations?.base?.enabled ? sub.allocations.base.fte : sub.fte
                                 const subTotalCost = calculateSubTotalContractCost(sub)
@@ -1987,19 +1967,21 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                     <div className="flex items-center gap-2">
                                       <span className="text-gray-700">{formatCurrency(subTotalCost)} total</span>
                                       <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Button 
-                                          variant="ghost" 
-                                          size="sm" 
-                                          onClick={() => handleEditSub(sub)} 
-                                          className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600"
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleEditSub(sub)}
+                                          className="h-5 w-5 p-0 text-gray-500 hover:text-blue-600"
+                                          aria-label="Edit subcontractor"
                                         >
                                           <Pencil className="w-3 h-3" />
                                         </Button>
-                                        <Button 
-                                          variant="ghost" 
-                                          size="sm" 
-                                          onClick={() => handleDeleteSub(sub.id)} 
-                                          className="h-7 w-7 p-0 text-gray-500 hover:text-red-600"
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => handleDeleteSub(sub.id)}
+                                          className="h-5 w-5 p-0 text-gray-500 hover:text-red-600"
+                                          aria-label="Delete subcontractor"
                                         >
                                           <Trash2 className="w-3 h-3" />
                                         </Button>
@@ -2018,7 +2000,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
               </div>
 
               {/* ODCs - Collapsible */}
-              <div className="border-t border-gray-200 pt-3">
+              <div className="border-t border-gray-100 pt-3">
                 <button
                   onClick={() => setShowOdcExpanded(!showOdcExpanded)}
                   className="w-full flex items-center justify-between py-1 hover:bg-gray-50 rounded -mx-1 px-1"
@@ -2039,26 +2021,28 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                       <div key={odc.id} className="group flex items-center justify-between text-xs">
                         <div className="flex items-center gap-2">
                           <span className="text-gray-600">{odc.description}</span>
-                          <Badge variant="outline" className="text-xs px-1.5 py-0 h-5">{odcCategoryLabels[odc.category]}</Badge>
+                          <Badge variant="outline" className="text-[9px] px-1 py-0 h-4">{odcCategoryLabels[odc.category]}</Badge>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-gray-700">
                             {odc.quantity > 1 ? `${odc.quantity} × ` : ''}{formatCurrency(odc.unitCost)}/yr
                           </span>
                           <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleEditOdc(odc)} 
-                              className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600"
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEditOdc(odc)}
+                              className="h-5 w-5 p-0 text-gray-500 hover:text-blue-600"
+                              aria-label="Edit ODC"
                             >
                               <Pencil className="w-3 h-3" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={() => handleDeleteOdc(odc.id)} 
-                              className="h-7 w-7 p-0 text-gray-500 hover:text-red-600"
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteOdc(odc.id)}
+                              className="h-5 w-5 p-0 text-gray-500 hover:text-red-600"
+                              aria-label="Delete ODC"
                             >
                               <Trash2 className="w-3 h-3" />
                             </Button>
@@ -2075,7 +2059,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
               </div>
 
               {/* Travel - Collapsible */}
-              <div className="border-t border-gray-200 pt-3">
+              <div className="border-t border-gray-100 pt-3">
                 <button
                   onClick={() => setShowTravelExpanded(!showTravelExpanded)}
                   className="w-full flex items-center justify-between py-1 hover:bg-gray-50 rounded -mx-1 px-1"
@@ -2099,19 +2083,21 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           <div className="flex items-center gap-2">
                             <span className="text-gray-900 font-medium">{formatCurrency(pd.totalCost)}/yr</span>
                             <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleEditTravel(pd)} 
-                                className="h-7 w-7 p-0 text-gray-500 hover:text-blue-600"
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditTravel(pd)}
+                                className="h-5 w-5 p-0 text-gray-500 hover:text-blue-600"
+                                aria-label="Edit travel"
                               >
                                 <Pencil className="w-3 h-3" />
                               </Button>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                onClick={() => handleDeleteTravel(pd.id)} 
-                                className="h-7 w-7 p-0 text-gray-500 hover:text-red-600"
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteTravel(pd.id)}
+                                className="h-5 w-5 p-0 text-gray-500 hover:text-red-600"
+                                aria-label="Delete travel"
                               >
                                 <Trash2 className="w-3 h-3" />
                               </Button>
@@ -2135,13 +2121,13 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
               <div className="pt-3 border-t border-gray-200">
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium text-gray-600">Total Contract:</span>
-                  <span className={`text-2xl font-semibold ${calculations.totalContract > 0 ? 'text-green-600' : 'text-gray-500'}`}>{formatCurrency(calculations.totalContract)}</span>
+                  <span className={`text-2xl font-semibold ${calculations.totalContract > 0 ? 'text-green-600' : 'text-gray-400'}`}>{formatCurrency(calculations.totalContract)}</span>
                 </div>
                 <p className="text-xs text-gray-500 mt-1">Labor + Subs + ODCs + Travel (with escalation)</p>
               </div>
 
               {/* Summary */}
-              <div className="pt-4 border-t border-gray-200">
+              <div className="pt-4 border-t border-gray-100">
                 <h3 className="text-sm font-medium text-gray-900 mb-3">Summary</h3>
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
@@ -2534,7 +2520,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                             <span className="flex items-center gap-2">
                               {partner.companyName}
                               {partner.businessSize === 'small' && (
-                                <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">SB</Badge>
+                                <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">SB</Badge>
                               )}
                             </span>
                           </SelectItem>
@@ -2725,7 +2711,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                 <div className="p-3 bg-orange-50 border border-orange-200 rounded-lg">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium text-sm text-gray-900">{assigningRole.name}</span>
-                    <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">{assigningRole.icLevel}</Badge>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">{assigningRole.icLevel}</Badge>
                   </div>
                   <p className="text-xs text-gray-600">
                     {assigningRole.quantity} position{assigningRole.quantity !== 1 ? 's' : ''}
@@ -2758,7 +2744,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                               <span className="flex items-center gap-2">
                                 {partner.companyName}
                                 {partner.businessSize === 'small' && (
-                                  <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">SB</Badge>
+                                  <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">SB</Badge>
                                 )}
                               </span>
                             </SelectItem>
@@ -2897,7 +2883,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
           <DialogContent className="max-w-lg">
             <DialogHeader>
               <DialogTitle>Add Role</DialogTitle>
-              <DialogDescription>Add a role that wasn't identified by AI analysis</DialogDescription>
+              <DialogDescription>Add a role that wasn&apos;t identified by AI analysis</DialogDescription>
             </DialogHeader>
 
             <div className="space-y-4 py-4">
@@ -3155,12 +3141,12 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
           <>
             <div className="fixed inset-0 bg-black/20 z-40" onClick={() => setSelectedRoleForBreakdown(null)} />
             <div className="fixed inset-y-0 right-0 w-[400px] bg-white shadow-2xl border-l border-gray-200 overflow-y-auto z-50 animate-in slide-in-from-right">
-              <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+              <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between">
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900">Rate Breakdown</h3>
                   <p className="text-sm text-gray-500 mt-0.5">{selectedRoleForBreakdown.title}</p>
                 </div>
-                <Button variant="ghost" size="sm" onClick={() => setSelectedRoleForBreakdown(null)} className="h-8 w-8 p-0">
+                <Button variant="ghost" size="sm" onClick={() => setSelectedRoleForBreakdown(null)} className="h-8 w-8 p-0" aria-label="Close">
                   <X className="w-4 h-4" />
                 </Button>
               </div>
@@ -3179,7 +3165,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           <span className="text-sm text-gray-600">÷ Standard Hours:</span>
                           <span className="font-medium text-gray-900">2,080</span>
                         </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                           <span className="text-sm font-medium text-gray-900">Direct Rate:</span>
                           <span className="font-semibold text-gray-900">{formatCurrency(breakdown.directRate)}/hr</span>
                         </div>
@@ -3199,7 +3185,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           <span className="text-sm text-gray-600">+ G&A ({rates.gAndA.toFixed(2)}%):</span>
                           <span className="font-medium text-gray-900">{formatCurrency(breakdown.gaAmount)}</span>
                         </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                           <span className="text-sm font-medium text-gray-900">Fully Loaded Rate:</span>
                           <span className="font-semibold text-gray-900">{formatCurrency(breakdown.fullyLoadedRate)}/hr</span>
                         </div>
@@ -3220,7 +3206,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                         </div>
                       </div>
 
-                      <div className="space-y-3 pt-4 border-t border-gray-200">
+                      <div className="space-y-3 pt-4 border-t border-gray-100">
                         <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Annual Cost (Base Year)</h4>
                         <div className="flex justify-between items-center">
                           <span className="text-sm text-gray-600">Billable Hours:</span>
@@ -3234,7 +3220,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                           <span className="text-sm text-gray-600">× FTE:</span>
                           <span className="font-medium text-gray-900">{selectedRoleForBreakdown.ftePerPerson}</span>
                         </div>
-                        <div className="flex justify-between items-center pt-2 border-t border-gray-200">
+                        <div className="flex justify-between items-center pt-2 border-t border-gray-100">
                           <span className="text-sm font-medium text-gray-900">Annual Cost:</span>
                           <span className="font-semibold text-green-600">
                             {formatCurrency(
@@ -3262,7 +3248,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                       {/* ================================================================ */}
                       {/* RATE JUSTIFICATION SECTION (Read-Only Summary)                  */}
                       {/* ================================================================ */}
-                      <div className="space-y-3 pt-4 border-t border-gray-200">
+                      <div className="space-y-3 pt-4 border-t border-gray-100">
                         {(() => {
                           const roleId = selectedRoleForBreakdown.id
                           const justification = rateJustifications[roleId]
@@ -3293,12 +3279,12 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                               <div className="flex items-center justify-between">
                                 <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide">Rate Justification</h4>
                                 {hasJustification ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700">
                                     <CheckCircle2 className="w-3 h-3" />
                                     Documented
                                   </span>
                                 ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-600">
                                     Not started
                                   </span>
                                 )}
@@ -3306,7 +3292,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                               
                               {/* BLS Market Position */}
                               {blsData && percentile !== null ? (
-                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
                                       <TrendingUp className="w-4 h-4 text-gray-400" />
@@ -3334,7 +3320,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                   </div>
                                 </div>
                               ) : (
-                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
                                   <p className="text-xs text-gray-500">
                                     No BLS data available for this role title.
                                   </p>
@@ -3348,40 +3334,40 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                   {justification.selectedReasons && Object.keys(justification.selectedReasons).filter(k => justification.selectedReasons?.[k]).length > 0 && (
                                     <div className="flex flex-wrap gap-1 mb-2">
                                       {justification.selectedReasons.clearance && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
-                                          <Shield className="w-3 h-3" />
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">
+                                          <Shield className="w-2.5 h-2.5" />
                                           {justification.selectedReasons.clearance}
                                         </span>
                                       )}
                                       {justification.selectedReasons.location && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
-                                          <MapPin className="w-3 h-3" />
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">
+                                          <MapPin className="w-2.5 h-2.5" />
                                           {justification.selectedReasons.location}
                                         </span>
                                       )}
                                       {justification.selectedReasons.experience && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
-                                          <Award className="w-3 h-3" />
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">
+                                          <Award className="w-2.5 h-2.5" />
                                           {justification.selectedReasons.experience}
                                         </span>
                                       )}
                                       {justification.selectedReasons.keyPersonnel && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">
                                           Key Personnel
                                         </span>
                                       )}
                                       {justification.selectedReasons.nicheSkills && (
-                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">
                                           Niche Skills
                                         </span>
                                       )}
                                     </div>
                                   )}
                                   {justification.notes && (
-                                    <p className="text-xs text-blue-700 line-clamp-2">{justification.notes}</p>
+                                    <p className="text-[10px] text-blue-700 line-clamp-2">{justification.notes}</p>
                                   )}
-                                  <p className="text-xs text-blue-600 mt-1">
-                                    Last updated {new Date(justification.savedAt).toLocaleDateString()}
+                                  <p className="text-[10px] text-blue-600 mt-1">
+                                    Last updated {formatDate(justification.savedAt)}
                                   </p>
                                 </div>
                               )}
@@ -3411,7 +3397,7 @@ setExpandedWbsRoles(prev => ({ ...prev, [roleId]: !prev[roleId] }))
                                     <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
                                     <div>
                                       <p className="text-xs font-medium text-amber-800">Premium rate needs justification</p>
-                                      <p className="text-xs text-amber-700 mt-0.5">
+                                      <p className="text-[10px] text-amber-700 mt-0.5">
                                         This rate is above the 75th percentile. Document justification for DCAA audit defense.
                                       </p>
                                     </div>

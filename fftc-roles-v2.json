@@ -1,0 +1,185 @@
+[
+  {
+    "title": "Back-end Developer",
+    "labor_category": "Software Developer",
+    "description": "Designs, develops, and maintains server-side applications, APIs, and databases. Responsible for application logic, performance, and integration with front-end systems.",
+    "soc_code": "15-1252",
+    "bls_occupation_title": "Software Developers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "4 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [87000, 89610] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [102000, 105060, 108212] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [120000, 123600, 127308] },
+      { "level": "IC4", "level_title": "Senior", "steps": [142000, 146260, 150648] },
+      { "level": "IC5", "level_title": "Staff", "steps": [170000, 175100, 180353, 185764, 191337] }
+    ]
+  },
+  {
+    "title": "Front-end Developer",
+    "labor_category": "Software Developer",
+    "description": "Builds and maintains user-facing web applications. Focuses on UI implementation, accessibility compliance, performance optimization, and integration with back-end APIs.",
+    "soc_code": "15-1252",
+    "bls_occupation_title": "Software Developers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "4 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [92000, 94760] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [108000, 111240, 114577] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [128000, 131840, 135795] },
+      { "level": "IC4", "level_title": "Senior", "steps": [143000, 147290, 151709] },
+      { "level": "IC5", "level_title": "Staff", "steps": [160000, 164800, 169744, 174836, 180081] }
+    ]
+  },
+  {
+    "title": "DevOps Engineer",
+    "labor_category": "DevOps / Infrastructure Engineer",
+    "description": "Manages CI/CD pipelines, cloud infrastructure, containerization, and deployment automation. Ensures system reliability, scalability, and security across development and production environments.",
+    "soc_code": "15-1244",
+    "bls_occupation_title": "Network and Computer Systems Administrators",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "4 years of experience",
+    "certifications": ["AWS Certified Solutions Architect", "AWS Certified DevOps Engineer"],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [87000, 89610] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [102000, 105060, 108212] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [120000, 123600, 127308] },
+      { "level": "IC4", "level_title": "Senior", "steps": [142000, 146260, 150648] },
+      { "level": "IC5", "level_title": "Staff", "steps": [170000, 175100, 180353, 185764, 191337] }
+    ]
+  },
+  {
+    "title": "QA Engineer",
+    "labor_category": "Software Quality Assurance Analyst",
+    "description": "Develops and executes test plans, automated test suites, and quality assurance processes. Identifies defects, ensures software meets requirements, and maintains quality standards across the development lifecycle.",
+    "soc_code": "15-1253",
+    "bls_occupation_title": "Software Quality Assurance Analysts and Testers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "4 years of experience",
+    "certifications": ["ISTQB Certified Tester"],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [75000, 77250] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [88000, 90640, 93359] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [103000, 106090, 109273] },
+      { "level": "IC4", "level_title": "Senior", "steps": [120000, 123600, 127308] },
+      { "level": "IC5", "level_title": "Staff", "steps": [142000, 146260, 150648, 155167, 159822] }
+    ]
+  },
+  {
+    "title": "Product Manager",
+    "labor_category": "Product Manager",
+    "description": "Defines product vision, strategy, and roadmap. Collaborates with engineering, design, and stakeholders to prioritize features, manage delivery, and ensure products meet user and mission needs.",
+    "soc_code": "15-2051",
+    "bls_occupation_title": "Data Scientists",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "6 years of experience",
+    "certifications": ["Certified Scrum Product Owner (CSPO)", "SAFe Product Owner/Product Manager"],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [90000, 92700] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [106000, 109180, 112455] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [125000, 128750, 132613] },
+      { "level": "IC4", "level_title": "Senior", "steps": [140000, 144200, 148526] },
+      { "level": "IC5", "level_title": "Staff", "steps": [158000, 162740, 167622, 172651, 177831] }
+    ]
+  },
+  {
+    "title": "Product Designer",
+    "labor_category": "UX/UI Designer",
+    "description": "Leads end-to-end product design including user research, information architecture, interaction design, and visual design. Creates accessible, user-centered interfaces for government digital services.",
+    "soc_code": "15-1255",
+    "bls_occupation_title": "Web and Digital Interface Designers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "4 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [85000, 87550] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [100000, 103000, 106090] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [118000, 121540, 125186] },
+      { "level": "IC4", "level_title": "Senior", "steps": [132000, 135960, 140039] },
+      { "level": "IC5", "level_title": "Staff", "steps": [148000, 152440, 157013, 161723, 166575] }
+    ]
+  },
+  {
+    "title": "UX Researcher",
+    "labor_category": "UX Researcher",
+    "description": "Plans and conducts user research including interviews, usability testing, surveys, and contextual inquiry. Synthesizes findings into actionable insights that inform product and design decisions.",
+    "soc_code": "15-1255",
+    "bls_occupation_title": "Web and Digital Interface Designers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "4 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [85000, 87550] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [100000, 103000, 106090] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [118000, 121540, 125186] },
+      { "level": "IC4", "level_title": "Senior", "steps": [132000, 135960, 140039] },
+      { "level": "IC5", "level_title": "Staff", "steps": [148000, 152440, 157013, 161723, 166575] }
+    ]
+  },
+  {
+    "title": "Content/UX Writer",
+    "labor_category": "Content Strategist / UX Writer",
+    "description": "Creates clear, accessible content for digital products including UI microcopy, help documentation, plain language guidance, and content strategy. Ensures government communications meet plain language and accessibility standards.",
+    "soc_code": "27-3043",
+    "bls_occupation_title": "Writers and Authors",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "4 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [69000, 71070] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [81000, 83430, 85933] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [95000, 97850, 100786] },
+      { "level": "IC4", "level_title": "Senior", "steps": [110000, 113300, 116699] },
+      { "level": "IC5", "level_title": "Staff", "steps": [130000, 133900, 137917, 142055, 146317] }
+    ]
+  },
+  {
+    "title": "Delivery Manager",
+    "labor_category": "Delivery Manager",
+    "description": "Manages delivery processes, sprint ceremonies, client relationships, reporting, and risk management. Ensures team health, removes blockers, and drives consistent delivery velocity.",
+    "soc_code": "15-1299",
+    "bls_occupation_title": "Computer Occupations, All Other",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "6 years of experience",
+    "certifications": ["Certified ScrumMaster (CSM)", "SAFe Agilist"],
+    "salary_levels": [
+      { "level": "IC1", "level_title": "Associate", "steps": [90000, 92700] },
+      { "level": "IC2", "level_title": "Intermediate", "steps": [106000, 109180, 112455] },
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [125000, 128750, 132613] },
+      { "level": "IC4", "level_title": "Senior", "steps": [140000, 144200, 148526] },
+      { "level": "IC5", "level_title": "Staff", "steps": [158000, 162740, 167622, 172651, 177831] }
+    ]
+  },
+  {
+    "title": "Technical Lead",
+    "labor_category": "Software Developer",
+    "description": "Provides technical architecture direction, code review, and engineering mentorship. Owns technical decisions, ensures code quality, and bridges engineering with product and design.",
+    "soc_code": "15-1252",
+    "bls_occupation_title": "Software Developers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "8 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [145000, 149350] },
+      { "level": "IC4", "level_title": "Senior", "steps": [165000, 169950, 175049] },
+      { "level": "IC5", "level_title": "Staff", "steps": [185000, 190550, 196267, 202155, 208219] }
+    ]
+  },
+  {
+    "title": "Design Lead",
+    "labor_category": "UX/UI Designer",
+    "description": "Provides design direction, design system consistency, and mentorship. Owns design decisions, ensures accessibility and usability standards, and bridges design with product and engineering.",
+    "soc_code": "15-1255",
+    "bls_occupation_title": "Web and Digital Interface Designers",
+    "education": "Bachelor's Degree",
+    "experience_substitution": "8 years of experience",
+    "certifications": [],
+    "salary_levels": [
+      { "level": "IC3", "level_title": "Mid-Level", "steps": [138000, 142140] },
+      { "level": "IC4", "level_title": "Senior", "steps": [155000, 159650, 164440] },
+      { "level": "IC5", "level_title": "Staff", "steps": [175000, 180250, 185658, 191227, 196964] }
+    ]
+  }
+]

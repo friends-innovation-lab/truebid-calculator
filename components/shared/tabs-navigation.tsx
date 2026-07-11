@@ -1,19 +1,22 @@
 'use client'
 
-import React, { useState, useCallback, useEffect } from 'react'
-import { 
-  Upload, 
-  Users, 
-  TrendingUp, 
-  Building2, 
-  FileDown, 
-  FileText, 
-  Clock, 
-  ChevronUp, 
-  ChevronDown, 
-  X, 
-  Pencil, 
-  Shield, 
+import React, { useState, useCallback, useEffect, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
+import Link from 'next/link'
+import dynamic from 'next/dynamic'
+import {
+  Upload,
+  Users,
+  Building2,
+  FileDown,
+  FileText,
+  Clock,
+  ChevronUp,
+  ChevronDown,
+  X,
+  Pencil,
+  PenLine,
+  Shield,
   AlertCircle,
   Layers,
   HelpCircle,
@@ -24,6 +27,7 @@ import {
   Save,
   RotateCcw,
   Trash2,
+  ClipboardCheck,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,13 +40,42 @@ import {
   TooltipProvider,
 } from '@/components/ui/tooltip'
 import { useAppContext } from '@/contexts/app-context'
-import { UploadTab } from '@/components/tabs/upload-tab'
-import { EstimateTab } from '@/components/tabs/estimate-tab'
-import { RolesAndPricingTab } from '@/components/tabs/roles-and-pricing-tab'
-import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
-import { TeamingPartnersTab } from '@/components/tabs/teaming-partners-tab'
-import { SubRatesTab } from '@/components/tabs/sub-rates-tab'
-import { ExportTab } from '@/components/tabs/export-tab'
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
+import { TabSkeleton } from '@/components/ui/skeletons'
+
+// Lazy-load heavy tab components to reduce initial bundle size
+const UploadTab = dynamic(
+  () => import('@/components/tabs/upload-tab').then(mod => ({ default: mod.UploadTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const EstimateTab = dynamic(
+  () => import('@/components/tabs/estimate-tab').then(mod => ({ default: mod.EstimateTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const RolesAndPricingTab = dynamic(
+  () => import('@/components/tabs/roles-and-pricing-tab').then(mod => ({ default: mod.RolesAndPricingTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const TeamingPartnersTab = dynamic(
+  () => import('@/components/tabs/teaming-partners-tab').then(mod => ({ default: mod.TeamingPartnersTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const SubRatesTab = dynamic(
+  () => import('@/components/tabs/sub-rates-tab').then(mod => ({ default: mod.SubRatesTab })),
+  { loading: () => <TabSkeleton /> }
+)
+const Outline = dynamic(
+  () => import('@/components/tabs/write/outline').then(mod => ({ default: mod.Outline })),
+  { loading: () => <TabSkeleton /> }
+)
+const ExportPage = dynamic(
+  () => import('@/components/tabs/export/export-page').then(mod => ({ default: mod.ExportPage })),
+  { loading: () => <TabSkeleton /> }
+)
+const ReviewPage = dynamic(
+  () => import('@/components/tabs/review/review-page').then(mod => ({ default: mod.ReviewPage })),
+  { loading: () => <TabSkeleton /> }
+)
 
 // ==================== CONSTANTS ====================
 
@@ -75,19 +108,14 @@ const CLEARANCE_LEVEL_LABELS: Record<string, string> = {
   'ts-sci': 'TS/SCI'
 } as const
 
-const EVALUATION_METHOD_LABELS: Record<string, string> = {
-  'LPTA': 'LPTA',
-  'best-value': 'Best Value',
-  'tradeoff': 'Tradeoff'
-} as const
-
 // Tab type definition - main flow only (utilities are separate)
-type TabType = 
-  | 'upload' 
+type TabType =
+  | 'upload'
   | 'estimate'
-  | 'roles' 
-  | 'rate-justification'
-  | 'teaming-partners' 
+  | 'roles'
+  | 'teaming-partners'
+  | 'write'
+  | 'review'
   | 'export'
 
 // Tab configuration with accessibility metadata
@@ -105,6 +133,7 @@ export function TabsNavigation() {
   const [isVersionsSlideoutOpen, setIsVersionsSlideoutOpen] = useState(false)
   const [newVersionName, setNewVersionName] = useState('')
   const [newVersionNotes, setNewVersionNotes] = useState('')
+  const [versionConfirm, setVersionConfirm] = useState<{ type: 'restore' | 'delete'; id: string } | null>(null)
   
   const { 
     solicitation, 
@@ -115,8 +144,6 @@ export function TabsNavigation() {
     // Tab Navigation from context
     activeMainTab,
     setActiveMainTab,
-    selectedRoleIdForJustification,
-    clearSelectedRoleForJustification,
     // Utility Tool from context
     activeUtilityTool,
     setActiveUtilityTool,
@@ -134,62 +161,74 @@ export function TabsNavigation() {
     setActiveUtilityTool(null) // Clear utility tool when switching to main tab
   }
 
+  // Read tab from URL params on mount
+  const searchParams = useSearchParams()
+  useEffect(() => {
+    const tabParam = searchParams.get('tab')
+    if (tabParam && ['upload', 'estimate', 'roles', 'teaming-partners', 'write', 'review', 'export'].includes(tabParam)) {
+      setActiveMainTab(tabParam as TabType)
+    }
+  }, [searchParams, setActiveMainTab])
+
   // Main bid flow tabs - ordered by workflow sequence
-  // Upload → Estimate → Roles & Pricing → Rate Justification → Teaming Partners → Export
-  const bidFlowTabs: TabConfig[] = [
-    { 
-      id: 'upload', 
-      label: 'Upload', 
+  // Upload → Estimate → Roles & Pricing → Teaming Partners → Write → Export
+  const bidFlowTabs: TabConfig[] = useMemo(() => [
+    {
+      id: 'upload',
+      label: 'Upload',
       icon: Upload,
       description: 'Upload and analyze RFP documents, select contract type'
     },
-    { 
+    {
       id: 'estimate',
       label: 'Estimate',
       icon: Layers,
       description: 'Build your Basis of Estimate with WBS elements and labor hours'
     },
-    { 
-      id: 'roles', 
-      label: 'Roles & Pricing', 
+    {
+      id: 'roles',
+      label: 'Roles & Pricing',
       icon: Users,
       description: 'Define team roles and calculate pricing'
     },
-    { 
-      id: 'rate-justification', 
-      label: 'Rate Justification', 
-      icon: TrendingUp,
-      description: 'Document rate justifications for audit defense'
-    },
-    { 
-      id: 'teaming-partners', 
-      label: 'Teaming Partners', 
+    {
+      id: 'teaming-partners',
+      label: 'Teaming Partners',
       icon: Building2,
       description: 'Manage subcontractor companies and teaming arrangements'
     },
-    { 
-      id: 'export', 
-      label: 'Export', 
+    {
+      id: 'write',
+      label: 'Write',
+      icon: PenLine,
+      description: 'Structure and write your technical volume content'
+    },
+    {
+      id: 'review',
+      label: 'Review',
+      icon: ClipboardCheck,
+      description: 'Pre-flight checklist before submission'
+    },
+    {
+      id: 'export',
+      label: 'Export',
       icon: FileDown,
       description: 'Generate proposal documents and exports'
     },
-  ]
+  ], [])
 
   // Check if a utility tool is active
   const isUtilityToolActive = activeUtilityTool !== null
 
   // ==================== DATE CALCULATIONS ====================
 
-  const getDaysUntilDue = useCallback(() => {
+  const daysUntilDue = useMemo(() => {
     if (!solicitation?.proposalDueDate) return null
     const due = new Date(solicitation.proposalDueDate)
     const now = new Date()
     const diffTime = due.getTime() - now.getTime()
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-    return diffDays
-  }, [solicitation?.proposalDueDate])
-
-  const daysUntilDue = getDaysUntilDue()
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  }, [solicitation])
   const isUrgent = daysUntilDue !== null && daysUntilDue <= 14 && daysUntilDue >= 0
   const isOverdue = daysUntilDue !== null && daysUntilDue < 0
 
@@ -224,7 +263,7 @@ export function TabsNavigation() {
 
   // ==================== TAB CHANGE HANDLER ====================
 
-  const handleTabChange = useCallback((tabId: TabType) => {
+  const handleTabChange = (tabId: TabType) => {
     setActiveTab(tabId)
     // Announce tab change to screen readers
     const tab = bidFlowTabs.find(t => t.id === tabId)
@@ -234,7 +273,7 @@ export function TabsNavigation() {
         announcement.textContent = `${tab.label} tab selected. ${tab.description}`
       }
     }
-  }, [bidFlowTabs])
+  }
 
   // ==================== UTILITY TOOL HANDLER ====================
 
@@ -252,17 +291,12 @@ export function TabsNavigation() {
   }, [newVersionName, newVersionNotes, saveProjectVersion])
 
   const handleRestoreVersion = useCallback((versionId: string) => {
-    if (confirm('Are you sure you want to restore this version? Current unsaved changes will be lost.')) {
-      restoreProjectVersion(versionId)
-      setIsVersionsSlideoutOpen(false)
-    }
-  }, [restoreProjectVersion])
+    setVersionConfirm({ type: 'restore', id: versionId })
+  }, [])
 
   const handleDeleteVersion = useCallback((versionId: string) => {
-    if (confirm('Are you sure you want to delete this version? This cannot be undone.')) {
-      deleteProjectVersion(versionId)
-    }
-  }, [deleteProjectVersion])
+    setVersionConfirm({ type: 'delete', id: versionId })
+  }, [])
 
   const formatVersionDate = (dateString: string): string => {
     const date = new Date(dateString)
@@ -300,13 +334,13 @@ export function TabsNavigation() {
           <div className="flex items-center justify-between h-12">
             {/* Left: Breadcrumb */}
             <nav className="flex items-center gap-2 min-w-0" aria-label="Breadcrumb">
-              <a 
+              <Link
                 href="/dashboard"
                 className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white transition-colors shrink-0"
               >
                 <ChevronLeft className="w-4 h-4" aria-hidden="true" />
                 <span>Dashboard</span>
-              </a>
+              </Link>
               <span className="text-gray-300 dark:text-gray-600" aria-hidden="true">/</span>
               <span className="text-sm font-medium text-gray-900 dark:text-white truncate">
                 {proposalName}
@@ -745,6 +779,26 @@ export function TabsNavigation() {
       )}
 
       {/* Versions History Slideout */}
+      <ConfirmDialog
+        open={!!versionConfirm}
+        title={versionConfirm?.type === 'restore' ? 'Restore version?' : 'Delete version?'}
+        body={versionConfirm?.type === 'restore'
+          ? 'Are you sure you want to restore this version? Current unsaved changes will be lost.'
+          : 'Are you sure you want to delete this version? This cannot be undone.'}
+        confirmLabel={versionConfirm?.type === 'restore' ? 'Restore' : 'Delete'}
+        destructive
+        onConfirm={() => {
+          if (versionConfirm?.type === 'restore') {
+            restoreProjectVersion(versionConfirm.id)
+            setIsVersionsSlideoutOpen(false)
+          } else if (versionConfirm?.type === 'delete') {
+            deleteProjectVersion(versionConfirm.id)
+          }
+          setVersionConfirm(null)
+        }}
+        onCancel={() => setVersionConfirm(null)}
+      />
+
       {isVersionsSlideoutOpen && (
         <VersionsSlideout
           versions={projectVersions}
@@ -776,9 +830,10 @@ export function TabsNavigation() {
             {activeTab === 'upload' && <UploadTab onContinue={() => handleTabChange('estimate')} />}
             {activeTab === 'estimate' && <EstimateTab />}
             {activeTab === 'roles' && <RolesAndPricingTab />}
-            {activeTab === 'rate-justification' && <RateJustificationTab />}
             {activeTab === 'teaming-partners' && <TeamingPartnersTab />}
-            {activeTab === 'export' && <ExportTab />}
+            {activeTab === 'write' && <Outline />}
+            {activeTab === 'review' && <ReviewPage />}
+            {activeTab === 'export' && <ExportPage />}
           </div>
         )}
       </main>

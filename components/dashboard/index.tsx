@@ -3,55 +3,24 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppContext } from '@/contexts/app-context'
+import { useAuth } from '@/contexts/auth-context'
+import { migrateLocalStorageToSupabase } from '@/hooks/use-proposal-sync'
+import { NewProposalModal } from '@/components/new-proposal-modal'
+import { toast } from 'sonner'
+import { proposalsApi } from '@/lib/api'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuLabel,
-  DropdownMenuCheckboxItem,
-} from '@/components/ui/dropdown-menu'
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { CardSkeletonGrid } from '@/components/ui/skeletons'
-import {
-  Plus,
-  Search,
   FileText,
-  Clock,
-  DollarSign,
-  TrendingUp,
-  Calendar,
-  Building2,
-  Check,
-  Send,
-  Trash2,
-  Copy,
-  Users,
-  AlertCircle,
-  Grid3X3,
-  List,
-  ChevronDown,
   ChevronRight,
-  Archive,
-  ArchiveRestore,
-  Upload,
-  Sparkles,
-  ArrowUpDown,
-  Kanban,
-  CalendarDays,
-  Settings2,
-  SlidersHorizontal,
-  Eye,
+  Trash2,
 } from 'lucide-react'
 
 // ============================================================================
@@ -59,14 +28,14 @@ import {
 // ============================================================================
 
 type ProposalStatus = 'draft' | 'in-review' | 'submitted' | 'won' | 'lost' | 'no-bid'
-type ViewMode = 'grid' | 'list' | 'kanban' | 'calendar'
-type SortOption = 'dueDate' | 'value' | 'updatedAt' | 'title' | 'status'
+type ProposalPhase = 'Scope' | 'Staff' | 'Write' | 'Deliver'
 
 interface Proposal {
   id: string
   title: string
   solicitation: string
   client: string
+  agency: string
   status: ProposalStatus
   totalValue: number
   dueDate: string | null
@@ -76,126 +45,31 @@ interface Proposal {
   progress: number
   starred: boolean
   archived: boolean
-  contractType: 'tm' | 'ffp' | 'hybrid'
+  contractType: 'tm' | 'ffp' | 'cpff' | 'hybrid'
   periodOfPerformance: string
+  role: 'prime' | 'sub' | 'jv'
+  phase: ProposalPhase
+  complianceGapCount: number
+  lowestCoachingScore: number | null
 }
 
-// Card display settings - what shows on proposal cards
-interface CardDisplaySettings {
-  showStatus: boolean
-  showContractType: boolean
-  showDueDate: boolean
-  showValue: boolean
-  showClient: boolean
-  showTeamSize: boolean
-  showSolicitation: boolean
-  showProgress: boolean
-  showLastUpdated: boolean
+interface AttentionItem {
+  id: string
+  proposalId: string
+  proposalTitle: string
+  type: 'coaching' | 'compliance' | 'expiring-link' | 'missing-roles' | 'no-bid-decision'
+  severity: 'critical' | 'warning' | 'info'
+  title: string
+  description: string
 }
 
-const DEFAULT_CARD_SETTINGS: CardDisplaySettings = {
-  showStatus: true,
-  showContractType: true,
-  showDueDate: true,
-  showValue: true,
-  showClient: true,
-  showTeamSize: true,
-  showSolicitation: true,
-  showProgress: true,
-  showLastUpdated: true,
+interface ActivityItem {
+  id: string
+  proposalId: string
+  text: string
+  timestamp: string
+  dotColor: string
 }
-
-// ============================================================================
-// MOCK DATA
-// ============================================================================
-
-const MOCK_PROPOSALS: Proposal[] = [
-  {
-    id: 'prop-1',
-    title: 'CAMP Modernization Services',
-    solicitation: '19AQMM25Q0273',
-    client: 'General Services Administration',
-    status: 'draft',
-    totalValue: 1247500,
-    dueDate: '2025-12-20',
-    updatedAt: '2025-12-13T10:30:00Z',
-    createdAt: '2025-12-01T09:00:00Z',
-    teamSize: 6,
-    progress: 65,
-    starred: true,
-    archived: false,
-    contractType: 'tm',
-    periodOfPerformance: '1 Base + 2 OYs',
-  },
-  {
-    id: 'prop-2',
-    title: 'Data Analytics Platform',
-    solicitation: 'HHS-2025-0142',
-    client: 'Department of Health and Human Services',
-    status: 'in-review',
-    totalValue: 2100000,
-    dueDate: '2025-12-28',
-    updatedAt: '2025-12-12T14:20:00Z',
-    createdAt: '2025-11-15T08:00:00Z',
-    teamSize: 8,
-    progress: 90,
-    starred: true,
-    archived: false,
-    contractType: 'ffp',
-    periodOfPerformance: '1 Base + 4 OYs',
-  },
-  {
-    id: 'prop-3',
-    title: 'Cloud Migration Support',
-    solicitation: 'VA-IT-2025-0089',
-    client: 'Department of Veterans Affairs',
-    status: 'won',
-    totalValue: 1890000,
-    dueDate: null,
-    updatedAt: '2025-12-10T16:45:00Z',
-    createdAt: '2025-10-20T11:00:00Z',
-    teamSize: 5,
-    progress: 100,
-    starred: false,
-    archived: false,
-    contractType: 'hybrid',
-    periodOfPerformance: '1 Base + 2 OYs',
-  },
-  {
-    id: 'prop-4',
-    title: 'Cybersecurity Assessment',
-    solicitation: 'DHS-CYBER-2025-012',
-    client: 'Department of Homeland Security',
-    status: 'lost',
-    totalValue: 750000,
-    dueDate: null,
-    updatedAt: '2025-12-08T09:15:00Z',
-    createdAt: '2025-10-05T14:00:00Z',
-    teamSize: 4,
-    progress: 100,
-    starred: false,
-    archived: false,
-    contractType: 'ffp',
-    periodOfPerformance: '1 Base + 1 OY',
-  },
-  {
-    id: 'prop-5',
-    title: 'Case Management System',
-    solicitation: 'DOJ-CMS-2025-001',
-    client: 'Department of Justice',
-    status: 'submitted',
-    totalValue: 3500000,
-    dueDate: null,
-    updatedAt: '2025-12-11T11:30:00Z',
-    createdAt: '2025-09-15T10:00:00Z',
-    teamSize: 12,
-    progress: 100,
-    starred: true,
-    archived: false,
-    contractType: 'tm',
-    periodOfPerformance: '1 Base + 4 OYs',
-  },
-]
 
 // ============================================================================
 // UTILITIES
@@ -217,11 +91,17 @@ const getDaysUntilDue = (dueDate: string | null): number | null => {
   const due = new Date(dueDate)
   const now = new Date()
   const diffTime = due.getTime() - now.getTime()
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
-  return diffDays
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 }
 
-const formatRelativeTime = (dateString: string): string => {
+const getTimeBasedGreeting = (): string => {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
+const getRelativeTime = (dateString: string): string => {
   const date = new Date(dateString)
   const now = new Date()
   const diffMs = now.getTime() - date.getTime()
@@ -236,22 +116,19 @@ const formatRelativeTime = (dateString: string): string => {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-const getStatusConfig = (status: ProposalStatus) => {
-  const configs = {
-    'draft': { label: 'Draft', bgColor: 'bg-gray-100 text-gray-700', dotColor: 'bg-gray-400' },
-    'in-review': { label: 'In Review', bgColor: 'bg-yellow-100 text-yellow-700', dotColor: 'bg-yellow-500' },
-    'submitted': { label: 'Submitted', bgColor: 'bg-blue-100 text-blue-700', dotColor: 'bg-blue-500' },
-    'won': { label: 'Won', bgColor: 'bg-green-100 text-green-700', dotColor: 'bg-green-500' },
-    'lost': { label: 'Lost', bgColor: 'bg-red-100 text-red-700', dotColor: 'bg-red-500' },
-    'no-bid': { label: 'No Bid', bgColor: 'bg-gray-100 text-gray-500', dotColor: 'bg-gray-400' },
-  }
-  return configs[status]
+const getUrgencyColor = (daysUntilDue: number | null): string => {
+  if (daysUntilDue === null) return '#E8E7E2'
+  if (daysUntilDue < 30) return '#A32D2D'
+  if (daysUntilDue <= 60) return '#BA7517'
+  return '#639922'
 }
 
-// Get unique agencies from proposals
-const getUniqueAgencies = (proposals: Proposal[]): string[] => {
-  const agencies = new Set(proposals.map(p => p.client).filter(c => c))
-  return Array.from(agencies).sort()
+const getSeverityColor = (severity: 'critical' | 'warning' | 'info'): string => {
+  switch (severity) {
+    case 'critical': return '#A32D2D'
+    case 'warning': return '#BA7517'
+    case 'info': return '#C4C3BE'
+  }
 }
 
 // ============================================================================
@@ -259,710 +136,578 @@ const getUniqueAgencies = (proposals: Proposal[]): string[] => {
 // ============================================================================
 
 const PROPOSALS_STORAGE_KEY = 'truebid-proposals'
-const RECENTLY_VIEWED_KEY = 'truebid-recently-viewed'
-const CARD_SETTINGS_KEY = 'truebid-card-display-settings'
-
-const STATUS_OPTIONS: { value: ProposalStatus | 'all'; label: string }[] = [
-  { value: 'all', label: 'All Statuses' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'in-review', label: 'In Review' },
-  { value: 'submitted', label: 'Submitted' },
-  { value: 'won', label: 'Won' },
-  { value: 'lost', label: 'Lost' },
-  { value: 'no-bid', label: 'No Bid' },
-]
-
-const CONTRACT_TYPE_OPTIONS: { value: string; label: string }[] = [
-  { value: 'all', label: 'All Types' },
-  { value: 'tm', label: 'T&M' },
-  { value: 'ffp', label: 'FFP' },
-  { value: 'hybrid', label: 'Hybrid' },
-]
-
-const SORT_OPTIONS: { value: SortOption; label: string }[] = [
-  { value: 'dueDate', label: 'Due Date' },
-  { value: 'updatedAt', label: 'Last Updated' },
-  { value: 'value', label: 'Value' },
-  { value: 'title', label: 'Alphabetical' },
-  { value: 'status', label: 'Status' },
-]
 
 // ============================================================================
-// CARD DISPLAY SETTINGS DROPDOWN
+// COMPONENTS
 // ============================================================================
 
-function CardSettingsDropdown({
-  settings,
-  onSettingsChange,
+// Greeting Section
+function Greeting({
+  firstName,
+  proposalCount,
+  mostUrgentProposal,
+  pipelineValue,
 }: {
-  settings: CardDisplaySettings
-  onSettingsChange: (settings: CardDisplaySettings) => void
+  firstName: string
+  proposalCount: number
+  mostUrgentProposal: string | null
+  pipelineValue: number
 }) {
-  const toggleSetting = (key: keyof CardDisplaySettings) => {
-    onSettingsChange({
-      ...settings,
-      [key]: !settings[key],
-    })
+  const greeting = getTimeBasedGreeting()
+
+  let subtitle = ''
+  if (proposalCount > 0) {
+    const parts = []
+    parts.push(`${proposalCount} proposal${proposalCount !== 1 ? 's' : ''} in progress`)
+    if (mostUrgentProposal) {
+      parts.push(`${mostUrgentProposal} is your most urgent`)
+    }
+    parts.push(`${formatCurrency(pipelineValue)} in pipeline`)
+    subtitle = parts.join(' · ')
   }
 
-  const settingsOptions: { key: keyof CardDisplaySettings; label: string }[] = [
-    { key: 'showStatus', label: 'Status' },
-    { key: 'showContractType', label: 'Contract Type' },
-    { key: 'showDueDate', label: 'Due Date' },
-    { key: 'showValue', label: 'Contract Value' },
-    { key: 'showClient', label: 'Agency / Client' },
-    { key: 'showTeamSize', label: 'Team Size' },
-    { key: 'showSolicitation', label: 'Solicitation #' },
-    { key: 'showProgress', label: 'Progress Bar' },
-    { key: 'showLastUpdated', label: 'Last Updated' },
-  ]
-
-  const enabledCount = Object.values(settings).filter(Boolean).length
-  const totalCount = Object.keys(settings).length
-
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="h-9 gap-1.5"
-          title="Show/hide card fields"
+    <div className="mb-6">
+      <h1
+        className="font-extrabold text-[30px] tracking-[-0.8px]"
+        style={{ color: 'var(--ink)' }}
+      >
+        {greeting}, {firstName}.
+      </h1>
+      {subtitle && (
+        <p
+          className="text-[14px] mt-[5px]"
+          style={{ color: 'var(--text-tertiary)' }}
         >
-          <Eye className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">Fields</span>
-          <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-            {enabledCount}/{totalCount}
-          </Badge>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-52">
-        <DropdownMenuLabel className="text-xs text-gray-500">
-          Show on cards
-        </DropdownMenuLabel>
-        <DropdownMenuSeparator />
-        {settingsOptions.map((option) => (
-          <DropdownMenuCheckboxItem
-            key={option.key}
-            checked={settings[option.key]}
-            onCheckedChange={() => toggleSetting(option.key)}
-          >
-            {option.label}
-          </DropdownMenuCheckboxItem>
-        ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          onClick={() => onSettingsChange(DEFAULT_CARD_SETTINGS)}
-          className="text-xs text-gray-500 justify-center"
-        >
-          Reset to defaults
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          {subtitle}
+        </p>
+      )}
+    </div>
   )
 }
 
-// ============================================================================
-// PROPOSAL CARD COMPONENT
-// ============================================================================
+// Alert Banner
+function AlertBanner({
+  title,
+  description,
+  onFix,
+}: {
+  title: string
+  description: string
+  onFix: () => void
+}) {
+  return (
+    <div
+      className="flex items-center gap-4 mb-4 rounded-r-lg"
+      style={{
+        backgroundColor: '#FFFFFF',
+        border: '0.5px solid #E8E7E2',
+        borderLeft: '3px solid #A32D2D',
+        borderRadius: '0 8px 8px 0',
+        padding: '14px 20px',
+      }}
+    >
+      <div className="flex-1 flex items-start gap-3">
+        <div
+          className="w-2 h-2 rounded-full mt-1.5 shrink-0"
+          style={{ backgroundColor: '#A32D2D' }}
+        />
+        <div>
+          <p className="text-[13px] font-semibold" style={{ color: 'var(--ink)' }}>
+            {title}
+          </p>
+          <p className="text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+            {description}
+          </p>
+        </div>
+      </div>
+      <button
+        onClick={onFix}
+        className="text-[12px] font-bold shrink-0"
+        style={{ color: '#A32D2D' }}
+      >
+        Fix now →
+      </button>
+    </div>
+  )
+}
 
+// Attention Card
+function AttentionCard({
+  item,
+  onClick,
+}: {
+  item: AttentionItem
+  onClick: () => void
+}) {
+  const severityColor = getSeverityColor(item.severity)
+
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-2.5 p-3 text-left transition-all"
+      style={{
+        backgroundColor: '#FFFFFF',
+        border: '0.5px solid #E8E7E2',
+        borderLeft: `2px solid ${severityColor}`,
+        borderRadius: '8px',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = '#D4D3CE'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = '#E8E7E2'
+        e.currentTarget.style.borderLeftColor = severityColor
+      }}
+    >
+      <div
+        className="w-[7px] h-[7px] rounded-full shrink-0"
+        style={{ backgroundColor: severityColor }}
+      />
+      <div className="flex-1 min-w-0">
+        <p
+          className="text-[12px] font-semibold truncate"
+          style={{ color: 'var(--ink)' }}
+        >
+          {item.title}
+        </p>
+        <p
+          className="text-[11px] line-clamp-2"
+          style={{ color: 'var(--text-tertiary)', lineHeight: '1.4' }}
+        >
+          {item.description}
+        </p>
+      </div>
+      <ChevronRight
+        className="w-[13px] h-[13px] shrink-0"
+        style={{ color: '#D4D3CE' }}
+      />
+    </button>
+  )
+}
+
+// Attention Strip
+function AttentionStrip({
+  items,
+  onItemClick,
+}: {
+  items: AttentionItem[]
+  onItemClick: (item: AttentionItem) => void
+}) {
+  if (items.length === 0) return null
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mb-7">
+      {items.slice(0, 3).map((item) => (
+        <AttentionCard
+          key={item.id}
+          item={item}
+          onClick={() => onItemClick(item)}
+        />
+      ))}
+    </div>
+  )
+}
+
+// Proposal Card
 function ProposalCard({
   proposal,
-  onOpen,
-  onDuplicate,
+  onClick,
   onDelete,
-  onToggleArchive,
-  onStatusChange,
-  isRecentlyViewed,
-  displaySettings,
 }: {
   proposal: Proposal
-  onOpen: () => void
-  onDuplicate: () => void
+  onClick: () => void
   onDelete: () => void
-  onToggleArchive: () => void
-  onStatusChange: (status: ProposalStatus) => void
-  isRecentlyViewed?: boolean
-  displaySettings: CardDisplaySettings
 }) {
-  const [showStatusMenu, setShowStatusMenu] = useState(false)
-  const statusConfig = getStatusConfig(proposal.status)
   const daysUntilDue = getDaysUntilDue(proposal.dueDate)
-  const isUrgent = daysUntilDue !== null && daysUntilDue <= 7 && daysUntilDue >= 0
-  const canArchive = ['won', 'lost', 'no-bid'].includes(proposal.status)
+  const urgencyColor = getUrgencyColor(daysUntilDue)
+  const isActive = ['draft', 'in-review'].includes(proposal.status)
 
-  const allStatuses: { id: ProposalStatus; label: string }[] = [
-    { id: 'draft', label: 'Draft' },
-    { id: 'in-review', label: 'In Review' },
-    { id: 'submitted', label: 'Submitted' },
-    { id: 'won', label: 'Won' },
-    { id: 'lost', label: 'Lost' },
-    { id: 'no-bid', label: 'No Bid' },
-  ]
-
-  // Check if we have any metadata to show in footer
-  const hasFooterContent = displaySettings.showSolicitation || 
-    displaySettings.showValue || 
-    displaySettings.showDueDate || 
-    displaySettings.showTeamSize || 
-    displaySettings.showLastUpdated ||
-    displaySettings.showProgress
+  // Due date chip styling
+  const getDueDateChipStyle = () => {
+    if (daysUntilDue === null) return { bg: '#F4F3EF', color: '#6B6A65' }
+    if (daysUntilDue < 30) return { bg: '#FAEEDA', color: '#412402' }
+    return { bg: '#F4F3EF', color: '#6B6A65' }
+  }
+  const dueDateStyle = getDueDateChipStyle()
 
   return (
     <div
-      className={`
-        group border rounded-lg p-4 
-        hover:shadow-[0_2px_8px_rgba(0,0,0,0.08)] 
-        transition-all cursor-pointer bg-white
-        ${proposal.archived ? 'opacity-60 border-gray-200' : ''}
-        ${isUrgent && !proposal.archived && displaySettings.showDueDate
-          ? 'border-l-4 border-l-amber-400 border-t-gray-200 border-r-gray-200 border-b-gray-200' 
-          : 'border-gray-200 hover:border-blue-400'
-        }
-      `}
-      onClick={onOpen}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          onOpen()
-        }
+      onClick={onClick}
+      className="cursor-pointer transition-all group"
+      style={{
+        backgroundColor: '#FFFFFF',
+        border: '0.5px solid #E8E7E2',
+        borderRadius: '10px',
+        overflow: 'hidden',
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.borderColor = '#D4D3CE'
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.borderColor = '#E8E7E2'
       }}
     >
-      {/* Tags row - Recently viewed & Due soon */}
-      {(isRecentlyViewed || (isUrgent && displaySettings.showDueDate)) && !proposal.archived && (
-        <div className="flex items-center gap-2 mb-2">
-          {isRecentlyViewed && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium">
-              Recently viewed
-            </span>
-          )}
-          {isUrgent && displaySettings.showDueDate && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded font-medium flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              Due in {daysUntilDue}d
-            </span>
-          )}
-        </div>
-      )}
+      {/* Top Section */}
+      <div className="flex gap-3 p-4 pb-3">
+        {/* Urgency Bar */}
+        <div
+          className="w-[3px] rounded-sm shrink-0 self-stretch"
+          style={{ backgroundColor: urgencyColor }}
+        />
 
-      {/* Header with title and actions */}
-      <div className="flex items-start justify-between mb-2">
+        {/* Main Content */}
         <div className="flex-1 min-w-0">
-          {/* Title */}
-          <h3 className="font-medium text-sm text-gray-900 leading-tight line-clamp-2 mb-1.5">
+          <h3
+            className="text-[15px] font-bold tracking-[-0.2px] leading-[1.3] line-clamp-2 mb-1"
+            style={{ color: 'var(--ink)' }}
+          >
             {proposal.title}
           </h3>
-          
-          {/* Badges */}
-          {(displaySettings.showStatus || displaySettings.showContractType || proposal.archived) && (
-            <div className="flex items-center gap-1.5 mb-2">
-              {/* Clickable Status Badge */}
-              {displaySettings.showStatus && (
-                <div className="relative">
-                  <button
-                    onClick={(e) => { 
-                      e.stopPropagation(); 
-                      setShowStatusMenu(!showStatusMenu); 
-                    }}
-                    className={`
-                      inline-flex items-center text-[10px] px-1.5 py-0.5 h-5 rounded-md border-0 
-                      font-medium transition-all hover:ring-2 hover:ring-blue-200
-                      ${statusConfig.bgColor}
-                    `}
-                  >
-                    <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${statusConfig.dotColor}`} />
-                    {statusConfig.label}
-                    <ChevronDown className="w-3 h-3 ml-1 opacity-60" />
-                  </button>
-                  
-                  {/* Status Dropdown */}
-                  {showStatusMenu && (
-                    <>
-                      <div 
-                        className="fixed inset-0 z-10" 
-                        onClick={(e) => { e.stopPropagation(); setShowStatusMenu(false); }}
-                      />
-                      <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 py-1 min-w-[140px]">
-                        {allStatuses.map((status) => {
-                          const config = getStatusConfig(status.id)
-                          const isSelected = proposal.status === status.id
-                          return (
-                            <button
-                              key={status.id}
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                onStatusChange(status.id)
-                                setShowStatusMenu(false)
-                              }}
-                              className={`
-                                w-full flex items-center gap-2 px-3 py-1.5 text-xs text-left
-                                hover:bg-gray-50 transition-colors
-                                ${isSelected ? 'bg-gray-50 font-medium' : ''}
-                              `}
-                            >
-                              <span className={`w-2 h-2 rounded-full ${config.dotColor}`} />
-                              {status.label}
-                              {isSelected && <Check className="w-3 h-3 ml-auto text-blue-600" />}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {displaySettings.showContractType && (
-                <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-[10px] px-1.5 py-0 h-5">
-                  {(proposal.contractType || 'tm').toUpperCase()}
-                </Badge>
-              )}
-              {proposal.archived && (
-                <Badge variant="outline" className="bg-gray-50 text-gray-500 border-gray-200 text-[10px] px-1.5 py-0 h-5">
-                  Archived
-                </Badge>
-              )}
-            </div>
-          )}
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
+              {proposal.agency || proposal.client}
+            </span>
+            {proposal.contractType && (
+              <>
+                <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>·</span>
+                <span className="text-[12px]" style={{ color: 'var(--text-tertiary)' }}>
+                  {proposal.contractType.toUpperCase()}
+                </span>
+              </>
+            )}
+            {proposal.role && (
+              <span
+                className="text-[11px] font-semibold px-1.5 py-[1px] rounded-[3px]"
+                style={{ backgroundColor: '#F4F3EF', color: 'var(--text-secondary)' }}
+              >
+                {proposal.role === 'prime' ? 'Prime' : proposal.role === 'sub' ? 'Sub' : 'JV'}
+              </span>
+            )}
+          </div>
         </div>
-        
-        {/* Action buttons - visible on hover */}
-        <div className="flex gap-1 ml-2">
-          {canArchive && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={(e) => { e.stopPropagation(); onToggleArchive(); }}
-              className="text-gray-400 hover:text-purple-600 hover:bg-purple-50 
-                         h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+
+        {/* Right Side */}
+        <div className="flex flex-col items-end gap-1.5 shrink-0">
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete() }}
+            className="opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: 'none', cursor: 'pointer', borderRadius: 4 }}
+            aria-label="Delete proposal"
+            title="Delete proposal"
+          >
+            <Trash2 className="w-3.5 h-3.5" style={{ color: '#C4C3BE' }} />
+          </button>
+          {proposal.dueDate && isActive && (
+            <span
+              className="text-[11px] font-semibold px-2 py-[3px] rounded-[3px]"
+              style={{ backgroundColor: dueDateStyle.bg, color: dueDateStyle.color }}
             >
-              {proposal.archived ? (
-                <ArchiveRestore className="w-3.5 h-3.5" />
-              ) : (
-                <Archive className="w-3.5 h-3.5" />
-              )}
-            </Button>
+              {daysUntilDue !== null && daysUntilDue >= 0
+                ? `${daysUntilDue}d`
+                : daysUntilDue !== null
+                  ? 'Overdue'
+                  : new Date(proposal.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+              }
+            </span>
           )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); onDuplicate(); }}
-            className="text-gray-400 hover:text-blue-600 hover:bg-blue-50 
-                       h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            <Copy className="w-3.5 h-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="text-gray-400 hover:text-red-600 hover:bg-red-50 
-                       h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </Button>
+          <span className="text-[13px] font-bold" style={{ color: 'var(--ink)' }}>
+            {formatCurrency(proposal.totalValue)}
+          </span>
         </div>
       </div>
 
-      {/* Client */}
-      {displaySettings.showClient && (
-        <div className="flex items-center gap-2 text-xs text-gray-600 mb-3">
-          <Building2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-          <span className="truncate">{proposal.client || 'No agency specified'}</span>
-        </div>
-      )}
+      {/* Bottom Section */}
+      {isActive && (
+        <div
+          className="flex items-center gap-3 px-4 py-2.5"
+          style={{
+            borderTop: '0.5px solid #F4F3EF',
+            paddingLeft: '35px', // Aligns with content above bar
+          }}
+        >
+          <span
+            className="text-[11px] shrink-0"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            {proposal.phase || 'Scope'}
+          </span>
 
-      {/* Metadata footer */}
-      {hasFooterContent && (
-        <div className="space-y-1.5 text-xs border-t border-gray-100 pt-3">
-          {displaySettings.showSolicitation && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">Solicitation</span>
-              <span className="font-mono text-gray-700">{proposal.solicitation || '—'}</span>
+          {/* Progress Bar */}
+          <div className="flex-1 flex items-center gap-2">
+            <div
+              className="flex-1 h-[3px] rounded-sm"
+              style={{ backgroundColor: '#F0EDE6' }}
+            >
+              <div
+                className="h-full rounded-sm"
+                style={{
+                  width: `${proposal.progress}%`,
+                  backgroundColor: isActive ? '#F5C200' : '#E8E7E2',
+                }}
+              />
             </div>
-          )}
-          {displaySettings.showValue && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">Value</span>
-              <span className="font-semibold text-gray-900">{formatCurrency(proposal.totalValue)}</span>
-            </div>
-          )}
-          {displaySettings.showDueDate && proposal.dueDate && ['draft', 'in-review'].includes(proposal.status) && !isUrgent && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">Due</span>
-              <span className="text-gray-700">
-                {new Date(proposal.dueDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              </span>
-            </div>
-          )}
-          {displaySettings.showTeamSize && (
-            <div className="flex items-center justify-between">
-              <span className="text-gray-500">Team</span>
-              <span className="flex items-center gap-1 text-gray-700">
-                <Users className="w-3 h-3" />
-                {proposal.teamSize} members
-              </span>
-            </div>
-          )}
-          
-          {/* Last updated */}
-          {displaySettings.showLastUpdated && (
-            <div className="flex items-center justify-between pt-1 border-t border-gray-50">
-              <span className="text-gray-400">Updated</span>
-              <span className="text-gray-400">{formatRelativeTime(proposal.updatedAt)}</span>
-            </div>
-          )}
-          
-          {/* Progress bar for active proposals */}
-          {displaySettings.showProgress && ['draft', 'in-review'].includes(proposal.status) && (
-            <div className="pt-2">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-gray-500">Progress</span>
-                <span className="text-gray-700">{proposal.progress}%</span>
-              </div>
-              <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-full rounded-full transition-all ${
-                    proposal.progress >= 90 ? 'bg-green-500' :
-                    proposal.progress >= 50 ? 'bg-blue-500' :
-                    'bg-yellow-500'
-                  }`}
-                  style={{ width: `${proposal.progress}%` }}
-                />
-              </div>
-            </div>
-          )}
+            <span
+              className="text-[11px] shrink-0"
+              style={{ color: 'var(--text-tertiary)' }}
+            >
+              {proposal.progress}%
+            </span>
+          </div>
         </div>
       )}
     </div>
   )
 }
 
-// ============================================================================
-// KANBAN VIEW - with Drag & Drop
-// ============================================================================
-
-function KanbanView({
-  proposals,
-  onOpen,
-  onStatusChange,
+// Win Rate Panel
+function WinRatePanel({
+  winRate,
+  won,
+  lost,
+  noAward,
 }: {
-  proposals: Proposal[]
-  onOpen: (id: string) => void
-  onStatusChange: (id: string, status: ProposalStatus) => void
+  winRate: number | null
+  won: number
+  lost: number
+  noAward: number
 }) {
-  const [draggedId, setDraggedId] = useState<string | null>(null)
-  const [dragOverColumn, setDragOverColumn] = useState<ProposalStatus | null>(null)
-
-  const columns: { status: ProposalStatus; label: string; color: string }[] = [
-    { status: 'draft', label: 'Draft', color: 'border-gray-300' },
-    { status: 'in-review', label: 'In Review', color: 'border-yellow-400' },
-    { status: 'submitted', label: 'Submitted', color: 'border-blue-400' },
-    { status: 'won', label: 'Won', color: 'border-green-400' },
-    { status: 'lost', label: 'Lost', color: 'border-red-400' },
-  ]
-
-  const handleDragStart = (e: React.DragEvent, proposalId: string) => {
-    setDraggedId(proposalId)
-    e.dataTransfer.effectAllowed = 'move'
-    e.dataTransfer.setData('text/plain', proposalId)
-  }
-
-  const handleDragEnd = () => {
-    setDraggedId(null)
-    setDragOverColumn(null)
-  }
-
-  const handleDragOver = (e: React.DragEvent, status: ProposalStatus) => {
-    e.preventDefault()
-    e.dataTransfer.dropEffect = 'move'
-    setDragOverColumn(status)
-  }
-
-  const handleDragLeave = () => {
-    setDragOverColumn(null)
-  }
-
-  const handleDrop = (e: React.DragEvent, newStatus: ProposalStatus) => {
-    e.preventDefault()
-    const proposalId = e.dataTransfer.getData('text/plain')
-    if (proposalId && draggedId) {
-      onStatusChange(proposalId, newStatus)
-    }
-    setDraggedId(null)
-    setDragOverColumn(null)
-  }
+  const total = won + lost
+  const rate = total > 0 ? Math.round((won / total) * 100) : null
 
   return (
-    <div className="flex gap-4 overflow-x-auto pb-4">
-      {columns.map((column) => {
-        const columnProposals = proposals.filter(p => p.status === column.status && !p.archived)
-        const totalValue = columnProposals.reduce((sum, p) => sum + p.totalValue, 0)
-        const isDropTarget = dragOverColumn === column.status
-        
-        return (
-          <div 
-            key={column.status}
-            className={`
-              flex-shrink-0 w-72 rounded-lg border-t-4 transition-colors
-              ${column.color}
-              ${isDropTarget ? 'bg-blue-50 ring-2 ring-blue-300' : 'bg-gray-50'}
-            `}
-            onDragOver={(e) => handleDragOver(e, column.status)}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, column.status)}
+    <div
+      className="p-[18px_20px]"
+      style={{
+        backgroundColor: '#FFFFFF',
+        border: '0.5px solid #E8E7E2',
+        borderRadius: '10px',
+      }}
+    >
+      <h3
+        className="text-[12px] font-bold tracking-[-0.1px] mb-3.5"
+        style={{ color: 'var(--ink)' }}
+      >
+        Win Rate
+      </h3>
+
+      {rate !== null ? (
+        <>
+          <p
+            className="text-[44px] font-extrabold tracking-[-2px] leading-none"
+            style={{ color: 'var(--ink)' }}
           >
-            <div className="p-3 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="font-medium text-sm text-gray-900">{column.label}</h3>
-                <Badge variant="secondary" className="text-xs">
-                  {columnProposals.length}
-                </Badge>
-              </div>
-              <p className="text-xs text-gray-500 mt-1">
-                {formatCurrency(totalValue)} total
+            {rate}%
+          </p>
+          <p
+            className="text-[11px] uppercase tracking-[1px] mt-[3px] mb-3.5"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            {won} of {total} awarded
+          </p>
+
+          {/* Progress bar */}
+          <div
+            className="h-[5px] rounded-[3px] mb-3"
+            style={{ backgroundColor: '#F0EDE6' }}
+          >
+            <div
+              className="h-full rounded-[3px]"
+              style={{ width: `${rate}%`, backgroundColor: '#F5C200' }}
+            />
+          </div>
+
+          {/* Won / Lost / N/A row */}
+          <div className="flex justify-between">
+            <div>
+              <p
+                className="text-[17px] font-extrabold"
+                style={{ color: '#639922' }}
+              >
+                {won}
+              </p>
+              <p
+                className="text-[9px] uppercase tracking-[1px]"
+                style={{ color: '#C4C3BE' }}
+              >
+                Won
               </p>
             </div>
-            
-            <div className="p-2 space-y-2 max-h-[calc(100vh-300px)] overflow-y-auto min-h-[100px]">
-              {columnProposals.map((proposal) => (
-                <div
-                  key={proposal.id}
-                  draggable
-                  onDragStart={(e) => handleDragStart(e, proposal.id)}
-                  onDragEnd={handleDragEnd}
-                  onClick={() => onOpen(proposal.id)}
-                  className={`
-                    bg-white p-3 rounded-lg border border-gray-200 
-                    hover:border-blue-400 hover:shadow-sm cursor-grab active:cursor-grabbing
-                    transition-all select-none
-                    ${draggedId === proposal.id ? 'opacity-50 ring-2 ring-blue-400' : ''}
-                  `}
-                >
-                  <h4 className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">
-                    {proposal.title}
-                  </h4>
-                  <p className="text-xs text-gray-500 mb-2">{proposal.client}</p>
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-semibold text-gray-900">
-                      {formatCurrency(proposal.totalValue)}
-                    </span>
-                    {proposal.dueDate && getDaysUntilDue(proposal.dueDate) !== null && (
-                      <span className={`flex items-center gap-1 ${
-                        getDaysUntilDue(proposal.dueDate)! <= 7 ? 'text-amber-600' : 'text-gray-500'
-                      }`}>
-                        <Clock className="w-3 h-3" />
-                        {getDaysUntilDue(proposal.dueDate)}d
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-              
-              {columnProposals.length === 0 && (
-                <div className={`
-                  text-center py-8 text-sm rounded-lg border-2 border-dashed
-                  ${isDropTarget ? 'border-blue-300 text-blue-500 bg-blue-50' : 'border-gray-200 text-gray-400'}
-                `}>
-                  {isDropTarget ? 'Drop here' : 'No proposals'}
-                </div>
-              )}
+            <div>
+              <p
+                className="text-[17px] font-extrabold"
+                style={{ color: '#A32D2D' }}
+              >
+                {lost}
+              </p>
+              <p
+                className="text-[9px] uppercase tracking-[1px]"
+                style={{ color: '#C4C3BE' }}
+              >
+                Lost
+              </p>
+            </div>
+            <div>
+              <p
+                className="text-[17px] font-extrabold"
+                style={{ color: 'var(--text-tertiary)' }}
+              >
+                {noAward}
+              </p>
+              <p
+                className="text-[9px] uppercase tracking-[1px]"
+                style={{ color: '#C4C3BE' }}
+              >
+                N/A
+              </p>
             </div>
           </div>
-        )
-      })}
+        </>
+      ) : (
+        <div className="text-center py-4">
+          <p
+            className="text-[44px] font-extrabold tracking-[-2px] leading-none"
+            style={{ color: 'var(--text-disabled)' }}
+          >
+            --
+          </p>
+          <p
+            className="text-[11px] mt-2"
+            style={{ color: 'var(--text-tertiary)' }}
+          >
+            Coming soon
+          </p>
+        </div>
+      )}
     </div>
   )
 }
 
-// ============================================================================
-// CALENDAR VIEW
-// ============================================================================
-
-function CalendarView({
-  proposals,
-  onOpen,
+// Pipeline Panel
+function PipelinePanel({
+  tracking,
+  pursuing,
+  submitted,
+  wonYtd,
 }: {
-  proposals: Proposal[]
-  onOpen: (id: string) => void
+  tracking: { count: number; value: number }
+  pursuing: { count: number; value: number }
+  submitted: { count: number; value: number }
+  wonYtd: { count: number; value: number }
 }) {
-  const today = new Date()
-  const currentMonth = today.getMonth()
-  const currentYear = today.getFullYear()
-  
-  // Get proposals with due dates this month
-  const proposalsWithDates = proposals.filter(p => {
-    if (!p.dueDate || p.archived) return false
-    const dueDate = new Date(p.dueDate)
-    return dueDate.getMonth() === currentMonth && dueDate.getFullYear() === currentYear
-  })
-
-  // Generate calendar days
-  const firstDay = new Date(currentYear, currentMonth, 1)
-  const lastDay = new Date(currentYear, currentMonth + 1, 0)
-  const daysInMonth = lastDay.getDate()
-  const startingDay = firstDay.getDay()
-  
-  const days = []
-  for (let i = 0; i < startingDay; i++) {
-    days.push(null)
-  }
-  for (let i = 1; i <= daysInMonth; i++) {
-    days.push(i)
-  }
-
-  const getProposalsForDay = (day: number) => {
-    return proposalsWithDates.filter(p => {
-      const dueDate = new Date(p.dueDate!)
-      return dueDate.getDate() === day
-    })
-  }
-
-  const monthName = firstDay.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+  const rows = [
+    { label: 'Tracking', dot: '#C4C3BE', ...tracking },
+    { label: 'Pursuing', dot: '#BA7517', ...pursuing },
+    { label: 'Submitted', dot: '#185FA5', ...submitted },
+    { label: 'Won YTD', dot: '#639922', ...wonYtd },
+  ]
 
   return (
-    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      <div className="p-4 border-b border-gray-200">
-        <h3 className="font-semibold text-gray-900">{monthName}</h3>
-        <p className="text-sm text-gray-500 mt-1">
-          {proposalsWithDates.length} proposal{proposalsWithDates.length !== 1 ? 's' : ''} due this month
-        </p>
-      </div>
-      
-      {/* Calendar Header */}
-      <div className="grid grid-cols-7 border-b border-gray-200">
-        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => (
-          <div key={day} className="p-2 text-center text-xs font-medium text-gray-500 bg-gray-50">
-            {day}
+    <div
+      className="p-[18px_20px]"
+      style={{
+        backgroundColor: '#FFFFFF',
+        border: '0.5px solid #E8E7E2',
+        borderRadius: '10px',
+      }}
+    >
+      <h3
+        className="text-[12px] font-bold tracking-[-0.1px] mb-3.5"
+        style={{ color: 'var(--ink)' }}
+      >
+        Pipeline
+      </h3>
+
+      {rows.map((row, i) => (
+        <div
+          key={row.label}
+          className="flex items-center justify-between py-[7px]"
+          style={{
+            borderBottom: i < rows.length - 1 ? '0.5px solid #F4F3EF' : 'none',
+          }}
+        >
+          <div className="flex items-center gap-2">
+            <div
+              className="w-1.5 h-1.5 rounded-full"
+              style={{ backgroundColor: row.dot }}
+            />
+            <span className="text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+              {row.label}
+            </span>
           </div>
-        ))}
-      </div>
-      
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7">
-        {days.map((day, i) => {
-          const dayProposals = day ? getProposalsForDay(day) : []
-          const isToday = day === today.getDate()
-          
-          return (
-            <div 
-              key={i} 
-              className={`
-                min-h-[100px] p-1 border-b border-r border-gray-100
-                ${day ? 'bg-white' : 'bg-gray-50'}
-                ${isToday ? 'ring-2 ring-inset ring-blue-500' : ''}
-              `}
+          <div className="flex items-center gap-2">
+            <span
+              className="text-[13px] font-bold"
+              style={{ color: 'var(--ink)' }}
             >
-              {day && (
-                <>
-                  <div className={`text-xs font-medium p-1 ${isToday ? 'text-blue-600' : 'text-gray-600'}`}>
-                    {day}
-                  </div>
-                  <div className="space-y-1">
-                    {dayProposals.slice(0, 2).map((proposal) => (
-                      <div
-                        key={proposal.id}
-                        onClick={() => onOpen(proposal.id)}
-                        className={`
-                          text-[10px] p-1 rounded truncate cursor-pointer
-                          ${proposal.status === 'draft' ? 'bg-gray-100 text-gray-700 hover:bg-gray-200' : ''}
-                          ${proposal.status === 'in-review' ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' : ''}
-                          ${proposal.status === 'submitted' ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : ''}
-                        `}
-                      >
-                        {proposal.title}
-                      </div>
-                    ))}
-                    {dayProposals.length > 2 && (
-                      <div className="text-[10px] text-gray-500 pl-1">
-                        +{dayProposals.length - 2} more
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          )
-        })}
-      </div>
+              {row.count}
+            </span>
+            <span className="text-[11px]" style={{ color: 'var(--text-tertiary)' }}>
+              {formatCurrency(row.value)}
+            </span>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
 
-// ============================================================================
-// EMPTY STATES
-// ============================================================================
-
-function EmptyState({
-  companyName,
-  onImportRFP,
-  onExploreSample,
+// Recent Activity Panel
+function RecentActivityPanel({
+  activities,
 }: {
-  companyName: string
-  onImportRFP: () => void
-  onExploreSample: () => void
+  activities: ActivityItem[]
 }) {
   return (
-    <div className="py-16 px-4">
-      <div className="max-w-lg mx-auto text-center">
-        <div className="w-16 h-16 bg-blue-100 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <FileText className="w-8 h-8 text-blue-600" />
-        </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-2">
-          Welcome, {companyName}
-        </h2>
-        <p className="text-gray-600 mb-8">
-          Your proposal workspace is ready. How would you like to get started?
+    <div
+      className="p-[18px_20px]"
+      style={{
+        backgroundColor: '#FFFFFF',
+        border: '0.5px solid #E8E7E2',
+        borderRadius: '10px',
+      }}
+    >
+      <h3
+        className="text-[12px] font-bold tracking-[-0.1px] mb-3.5"
+        style={{ color: 'var(--ink)' }}
+      >
+        Recent Activity
+      </h3>
+
+      {activities.length === 0 ? (
+        <p className="text-[12px] py-4 text-center" style={{ color: 'var(--text-tertiary)' }}>
+          No recent activity
         </p>
-        
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-md mx-auto">
-          <button
-            onClick={onImportRFP}
-            className="group p-6 bg-black border-2 border-black rounded-xl hover:bg-gray-800 transition-all text-left"
+      ) : (
+        activities.slice(0, 4).map((activity, i) => (
+          <div
+            key={activity.id}
+            className="flex gap-2.5 py-1.5"
+            style={{
+              borderBottom: i < Math.min(activities.length, 4) - 1 ? '0.5px solid #F4F3EF' : 'none',
+            }}
           >
-            <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center mb-4">
-              <Upload className="w-5 h-5 text-white" />
+            <div
+              className="w-1.5 h-1.5 rounded-full mt-1.5 shrink-0"
+              style={{ backgroundColor: activity.dotColor }}
+            />
+            <div>
+              <p
+                className="text-[12px] leading-[1.4]"
+                style={{ color: 'var(--text-secondary)' }}
+              >
+                {activity.text}
+              </p>
+              <p
+                className="text-[10px] mt-0.5"
+                style={{ color: '#C4C3BE' }}
+              >
+                {getRelativeTime(activity.timestamp)}
+              </p>
             </div>
-            <h3 className="font-semibold text-white mb-1">Upload an RFP</h3>
-            <p className="text-sm text-white/70">
-              Our AI will analyze and extract requirements, roles, and estimates.
-            </p>
-          </button>
-          
-          <button
-            onClick={onExploreSample}
-            className="group p-6 bg-white border-2 border-gray-200 rounded-xl hover:border-blue-400 hover:shadow-lg transition-all text-left"
-          >
-            <div className="w-10 h-10 bg-purple-50 rounded-lg flex items-center justify-center mb-4 group-hover:bg-purple-100 transition-colors">
-              <Sparkles className="w-5 h-5 text-purple-600" />
-            </div>
-            <h3 className="font-semibold text-gray-900 mb-1">Explore a sample</h3>
-            <p className="text-sm text-gray-500">
-              See how TrueBid works with pre-filled example data.
-            </p>
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function FilteredEmptyState({
-  icon: Icon,
-  title,
-  description,
-}: {
-  icon: React.ComponentType<{ className?: string }>
-  title: string
-  description: string
-}) {
-  return (
-    <div className="text-center py-12">
-      <Icon className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-      <h3 className="text-sm font-medium text-gray-900 mb-1">{title}</h3>
-      <p className="text-sm text-gray-500">{description}</p>
+          </div>
+        ))
+      )}
     </div>
   )
 }
@@ -971,746 +716,477 @@ function FilteredEmptyState({
 // MAIN DASHBOARD
 // ============================================================================
 
-export function Dashboard() {
+export interface DashboardProps {
+  initialProposals?: Proposal[]
+}
+
+export function Dashboard({ initialProposals }: DashboardProps = {}) {
   const router = useRouter()
-  const { companyProfile, setActiveUtilityTool } = useAppContext()
-  
-  // Core state
-  const [proposals, setProposals] = useState<Proposal[]>([])
-  const [isLoaded, setIsLoaded] = useState(false)
-  
-  // View state
-  const [searchQuery, setSearchQuery] = useState('')
-  const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [showArchived, setShowArchived] = useState(false)
-  
-  // Filter state
-  const [statusFilter, setStatusFilter] = useState<ProposalStatus | 'all'>('all')
-  const [typeFilter, setTypeFilter] = useState<string>('all')
-  const [agencyFilter, setAgencyFilter] = useState<string>('all')
-  
-  // Sort state
-  const [sortBy, setSortBy] = useState<SortOption>('dueDate')
-  const [sortDesc, setSortDesc] = useState(true)
-  
-  // Recently viewed
-  const [recentlyViewed, setRecentlyViewed] = useState<string[]>([])
+  const { user } = useAuth()
+  const { setActiveUtilityTool } = useAppContext()
 
-  // Card display settings
-  const [cardSettings, setCardSettings] = useState<CardDisplaySettings>(DEFAULT_CARD_SETTINGS)
+  // Core state - use initialProposals if provided (from SSR)
+  const [proposals, setProposals] = useState<Proposal[]>(initialProposals || [])
+  const [isLoaded, setIsLoaded] = useState(!!initialProposals)
+  const [proposalToDelete, setProposalToDelete] = useState<string | null>(null)
 
-  // Load proposals from localStorage
+  // Load proposals from API
   useEffect(() => {
-    const stored = localStorage.getItem(PROPOSALS_STORAGE_KEY)
-    if (stored) {
+    async function loadProposals() {
       try {
-        setProposals(JSON.parse(stored))
-      } catch (e) {
-        console.error('Failed to parse stored proposals:', e)
-        setProposals(MOCK_PROPOSALS)
+        const response = await proposalsApi.list() as { proposals: Record<string, unknown>[] }
+        // Transform API response to match our Proposal interface
+        const transformed = (response.proposals || []).map((p) => ({
+          id: p.id as string,
+          title: p.title as string,
+          solicitation: (p.solicitation as string) || '',
+          client: (p.client as string) || '',
+          agency: (p.agency as string) || (p.client as string) || '',
+          status: (p.status as ProposalStatus) || 'draft',
+          totalValue: (p.totalValue as number) || 0,
+          dueDate: (p.dueDate as string) || null,
+          updatedAt: (p.updatedAt as string) || new Date().toISOString(),
+          createdAt: (p.createdAt as string) || new Date().toISOString(),
+          teamSize: (p.teamSize as number) || 0,
+          progress: (p.progress as number) || 0,
+          starred: (p.starred as boolean) || false,
+          archived: (p.archived as boolean) || false,
+          contractType: (p.contractType as 'tm' | 'ffp' | 'cpff' | 'hybrid') || 'tm',
+          periodOfPerformance: (p.periodOfPerformance as string) || '',
+          role: (p.role as 'prime' | 'sub' | 'jv') || 'prime',
+          phase: (p.phase as ProposalPhase) || 'Scope',
+          complianceGapCount: (p.complianceGapCount as number) || 0,
+          lowestCoachingScore: (p.lowestCoachingScore as number) || null,
+        })) as Proposal[]
+        setProposals(transformed)
+      } catch (error) {
+        console.error('Failed to load proposals from API:', error)
+        const cached = localStorage.getItem(PROPOSALS_STORAGE_KEY)
+        if (cached) {
+          try {
+            setProposals(JSON.parse(cached))
+          } catch (e) {
+            console.error('Failed to parse cached proposals:', e)
+            setProposals([])
+          }
+        } else {
+          setProposals([])
+        }
       }
-    } else {
-      setProposals([])
-    }
-    
-    // Load recently viewed
-    const recentStored = localStorage.getItem(RECENTLY_VIEWED_KEY)
-    if (recentStored) {
-      try {
-        setRecentlyViewed(JSON.parse(recentStored))
-      } catch (e) {
-        console.error('Failed to parse recently viewed:', e)
-      }
+
+      migrateLocalStorageToSupabase().catch(e =>
+        console.warn('[Dashboard] localStorage migration failed:', e)
+      )
+
+      setIsLoaded(true)
     }
 
-    // Load card display settings
-    const cardSettingsStored = localStorage.getItem(CARD_SETTINGS_KEY)
-    if (cardSettingsStored) {
-      try {
-        setCardSettings({ ...DEFAULT_CARD_SETTINGS, ...JSON.parse(cardSettingsStored) })
-      } catch (e) {
-        console.error('Failed to parse card settings:', e)
-      }
-    }
-    
-    setIsLoaded(true)
+    loadProposals()
   }, [])
 
-  // Save proposals when they change
+  // Cache proposals to localStorage
   useEffect(() => {
-    if (isLoaded) {
+    if (isLoaded && proposals.length > 0) {
       localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(proposals))
     }
   }, [proposals, isLoaded])
 
-  // Save recently viewed when it changes
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(RECENTLY_VIEWED_KEY, JSON.stringify(recentlyViewed))
+  // Get first name from user
+  const firstName = useMemo(() => {
+    if (user?.user_metadata?.full_name) {
+      return user.user_metadata.full_name.split(' ')[0]
     }
-  }, [recentlyViewed, isLoaded])
-
-  // Save card settings when they change
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(CARD_SETTINGS_KEY, JSON.stringify(cardSettings))
+    if (user?.email) {
+      return user.email.split('@')[0]
     }
-  }, [cardSettings, isLoaded])
+    return 'there'
+  }, [user])
 
-  // Auto-switch back from archive view if no archived proposals
-  useEffect(() => {
-    if (showArchived && proposals.filter(p => p.archived).length === 0) {
-      setShowArchived(false)
-    }
-  }, [showArchived, proposals])
+  // Active proposals (not archived, in progress)
+  const activeProposals = useMemo(() => {
+    return proposals.filter(p => !p.archived && ['draft', 'in-review'].includes(p.status))
+  }, [proposals])
 
-  // Unique agencies for filter
-  const uniqueAgencies = useMemo(() => getUniqueAgencies(proposals), [proposals])
+  // Most urgent proposal
+  const mostUrgentProposal = useMemo(() => {
+    const withDates = activeProposals.filter(p => p.dueDate)
+    if (withDates.length === 0) return null
 
-  // Filter and sort proposals
-  const filteredProposals = useMemo(() => {
-    let result = proposals
-
-    // Archive filter
-    result = result.filter(p => showArchived ? p.archived : !p.archived)
-
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase()
-      result = result.filter(p =>
-        p.title.toLowerCase().includes(query) ||
-        p.solicitation.toLowerCase().includes(query) ||
-        p.client.toLowerCase().includes(query)
-      )
-    }
-
-    // Status filter
-    if (statusFilter !== 'all') {
-      result = result.filter(p => p.status === statusFilter)
-    }
-
-    // Type filter
-    if (typeFilter !== 'all') {
-      result = result.filter(p => p.contractType === typeFilter)
-    }
-
-    // Agency filter
-    if (agencyFilter !== 'all') {
-      result = result.filter(p => p.client === agencyFilter)
-    }
-
-    // Sort
-    result = [...result].sort((a, b) => {
-      let comparison = 0
-      switch (sortBy) {
-        case 'dueDate':
-          if (!a.dueDate && !b.dueDate) comparison = 0
-          else if (!a.dueDate) comparison = 1
-          else if (!b.dueDate) comparison = -1
-          else comparison = new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime()
-          break
-        case 'updatedAt':
-          comparison = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-          break
-        case 'value':
-          comparison = a.totalValue - b.totalValue
-          break
-        case 'title':
-          comparison = a.title.localeCompare(b.title)
-          break
-        case 'status':
-          const statusOrder = ['draft', 'in-review', 'submitted', 'won', 'lost', 'no-bid']
-          comparison = statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)
-          break
-      }
-
-      return sortDesc ? -comparison : comparison
+    const sorted = [...withDates].sort((a, b) => {
+      const daysA = getDaysUntilDue(a.dueDate)
+      const daysB = getDaysUntilDue(b.dueDate)
+      if (daysA === null) return 1
+      if (daysB === null) return -1
+      return daysA - daysB
     })
 
-    return result
-  }, [proposals, showArchived, searchQuery, statusFilter, typeFilter, agencyFilter, sortBy, sortDesc])
+    return sorted[0]?.title || null
+  }, [activeProposals])
 
-  // Stats calculations
-  const stats = useMemo(() => {
-    const active = proposals.filter(p => !p.archived && ['draft', 'in-review'].includes(p.status))
+  // Pipeline value
+  const pipelineValue = useMemo(() => {
+    return activeProposals.reduce((sum, p) => sum + (p.totalValue || 0), 0)
+  }, [activeProposals])
+
+  // Attention items
+  const attentionItems = useMemo(() => {
+    const items: AttentionItem[] = []
+
+    // Check for coaching scores below 2.5
+    activeProposals.forEach(p => {
+      if (p.lowestCoachingScore !== null && p.lowestCoachingScore < 2.5) {
+        items.push({
+          id: `coaching-${p.id}`,
+          proposalId: p.id,
+          proposalTitle: p.title,
+          type: 'coaching',
+          severity: p.lowestCoachingScore < 2.0 ? 'critical' : 'warning',
+          title: `Low coaching score on ${p.title}`,
+          description: `Coaching score is ${p.lowestCoachingScore.toFixed(1)} — review feedback and improve sections.`,
+        })
+      }
+    })
+
+    // Check for compliance gaps
+    activeProposals.forEach(p => {
+      if (p.complianceGapCount > 0) {
+        items.push({
+          id: `compliance-${p.id}`,
+          proposalId: p.id,
+          proposalTitle: p.title,
+          type: 'compliance',
+          severity: 'critical',
+          title: `${p.complianceGapCount} compliance gap${p.complianceGapCount !== 1 ? 's' : ''} on ${p.title}`,
+          description: 'Requirements are not linked to WBS elements.',
+        })
+      }
+    })
+
+    // Sort by severity
+    return items.sort((a, b) => {
+      const severityOrder = { critical: 0, warning: 1, info: 2 }
+      return severityOrder[a.severity] - severityOrder[b.severity]
+    })
+  }, [activeProposals])
+
+  // Alert (most urgent issue)
+  const alertItem = useMemo(() => {
+    // Check for past due proposals
+    const pastDue = activeProposals.find(p => {
+      const days = getDaysUntilDue(p.dueDate)
+      return days !== null && days < 0
+    })
+    if (pastDue) {
+      return {
+        title: `${pastDue.title} is past due`,
+        description: 'This proposal missed its deadline. Update status or extend the due date.',
+        proposalId: pastDue.id,
+      }
+    }
+
+    // Check for compliance gaps
+    const withGaps = activeProposals.find(p => p.complianceGapCount > 0)
+    if (withGaps) {
+      return {
+        title: `${withGaps.complianceGapCount} unlinked requirement${withGaps.complianceGapCount !== 1 ? 's' : ''} on ${withGaps.title}`,
+        description: 'Link requirements to WBS elements to ensure compliance.',
+        proposalId: withGaps.id,
+      }
+    }
+
+    return null
+  }, [activeProposals])
+
+  // Pipeline stats
+  const pipelineStats = useMemo(() => {
+    const tracking = proposals.filter(p => !p.archived && p.status === 'draft' && p.progress < 20)
+    const pursuing = proposals.filter(p => !p.archived && ['draft', 'in-review'].includes(p.status) && p.progress >= 20)
     const submitted = proposals.filter(p => !p.archived && p.status === 'submitted')
-    
-    // Win rate includes ALL won/lost (including archived) for accurate historical rate
-    const allWon = proposals.filter(p => p.status === 'won')
-    const allLost = proposals.filter(p => p.status === 'lost')
-    
-    const pipelineValue = active.reduce((sum, p) => sum + p.totalValue, 0) +
-                          submitted.reduce((sum, p) => sum + p.totalValue, 0)
-    
-    const winRate = allWon.length + allLost.length > 0
-      ? Math.round((allWon.length / (allWon.length + allLost.length)) * 100)
-      : 0
+    const wonYtd = proposals.filter(p => {
+      if (p.status !== 'won') return false
+      const updated = new Date(p.updatedAt)
+      const thisYear = new Date().getFullYear()
+      return updated.getFullYear() === thisYear
+    })
 
     return {
-      active: active.length,
-      pipelineValue,
-      submitted: submitted.length,
-      winRate,
+      tracking: {
+        count: tracking.length,
+        value: tracking.reduce((sum, p) => sum + (p.totalValue || 0), 0),
+      },
+      pursuing: {
+        count: pursuing.length,
+        value: pursuing.reduce((sum, p) => sum + (p.totalValue || 0), 0),
+      },
+      submitted: {
+        count: submitted.length,
+        value: submitted.reduce((sum, p) => sum + (p.totalValue || 0), 0),
+      },
+      wonYtd: {
+        count: wonYtd.length,
+        value: wonYtd.reduce((sum, p) => sum + (p.totalValue || 0), 0),
+      },
     }
   }, [proposals])
 
+  // Win/loss stats
+  const winLossStats = useMemo(() => {
+    const won = proposals.filter(p => p.status === 'won').length
+    const lost = proposals.filter(p => p.status === 'lost').length
+    const noAward = proposals.filter(p => p.status === 'no-bid').length
+    return { won, lost, noAward }
+  }, [proposals])
+
+  // Recent activity (mock for now - would come from API)
+  const recentActivity: ActivityItem[] = useMemo(() => {
+    // Generate from recent proposal updates
+    return activeProposals
+      .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+      .slice(0, 4)
+      .map(p => ({
+        id: `activity-${p.id}`,
+        proposalId: p.id,
+        text: `${p.title} was updated`,
+        timestamp: p.updatedAt,
+        dotColor: '#185FA5',
+      }))
+  }, [activeProposals])
+
   // Handlers
-  const handleImportRFP = () => {
+  const [showNewProposalModal, setShowNewProposalModal] = useState(false)
+  const handleNewProposal = () => {
     setActiveUtilityTool(null)
-    const newId = `prop-${Date.now()}`
-    
-    // Create and save the proposal
-    const newProposal = {
-      id: newId,
-      title: 'New Proposal',
-      solicitation: '',
-      client: '',
-      status: 'draft',
-      totalValue: 0,
-      dueDate: null,
-      updatedAt: new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      teamSize: 0,
-      progress: 0,
-      starred: false,
-      archived: false,
-      contractType: 'tm',
-      periodOfPerformance: '',
-    }
-    
-    const existing = localStorage.getItem(PROPOSALS_STORAGE_KEY)
-    const existingProposals = existing ? JSON.parse(existing) : []
-    existingProposals.unshift(newProposal)
-    localStorage.setItem(PROPOSALS_STORAGE_KEY, JSON.stringify(existingProposals))
-    
-    router.push(`/${newId}?tab=upload`)
+    setShowNewProposalModal(true)
   }
 
   const handleOpenProposal = (proposalId: string) => {
     setActiveUtilityTool(null)
-    // Add to recently viewed
-    setRecentlyViewed(prev => {
-      const filtered = prev.filter(id => id !== proposalId)
-      return [proposalId, ...filtered].slice(0, 10)
-    })
-    router.push(`/${proposalId}`)
+    router.push(`/${proposalId}?tab=estimate`)
   }
 
-  const handleToggleArchive = (proposalId: string) => {
-    setProposals(prev =>
-      prev.map(p => p.id === proposalId ? { ...p, archived: !p.archived } : p)
-    )
+  const handleAttentionClick = (item: AttentionItem) => {
+    router.push(`/${item.proposalId}?tab=estimate`)
   }
 
-  const handleDuplicate = (proposalId: string) => {
-    const original = proposals.find(p => p.id === proposalId)
-    if (!original) return
-    
-    const duplicate: Proposal = {
-      ...original,
-      id: `prop-${Date.now()}`,
-      title: `${original.title} (Copy)`,
-      status: 'draft',
-      starred: false,
-      archived: false,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      progress: 0,
-    }
-    setProposals(prev => [duplicate, ...prev])
+  const handleAlertFix = (proposalId: string) => {
+    router.push(`/${proposalId}?tab=estimate`)
   }
-
-  const handleDelete = (proposalId: string) => {
-    if (confirm('Are you sure you want to delete this proposal?')) {
-      setProposals(prev => prev.filter(p => p.id !== proposalId))
-    }
-  }
-
-  const handleStatusChange = (proposalId: string, newStatus: ProposalStatus) => {
-    setProposals(prev =>
-      prev.map(p => p.id === proposalId ? { ...p, status: newStatus, updatedAt: new Date().toISOString() } : p)
-    )
-  }
-
-  const handleStatClick = (stat: 'active' | 'pipeline' | 'submitted' | 'winRate') => {
-    // Clear other filters first
-    setSearchQuery('')
-    setTypeFilter('all')
-    setAgencyFilter('all')
-    setShowArchived(false)
-    
-    switch (stat) {
-      case 'active':
-        setStatusFilter('all') // Will show draft and in-review naturally
-        break
-      case 'pipeline':
-        setStatusFilter('all')
-        break
-      case 'submitted':
-        setStatusFilter('submitted')
-        break
-      case 'winRate':
-        setStatusFilter('won')
-        break
-    }
-  }
-
-  const companyName = companyProfile?.name || 'TrueBid'
-  const archivedCount = proposals.filter(p => p.archived).length
-  const hasActiveFilters = statusFilter !== 'all' || typeFilter !== 'all' || agencyFilter !== 'all'
 
   // Loading state
   if (!isLoaded) {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <main className="max-w-7xl mx-auto px-6 py-6">
-          {/* Header skeleton */}
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <div className="h-6 w-32 bg-gray-200 rounded animate-pulse mb-2" />
-              <div className="h-4 w-64 bg-gray-200 rounded animate-pulse" />
-            </div>
-            <div className="h-9 w-32 bg-gray-200 rounded animate-pulse" />
+      <div
+        className="min-h-screen py-9 px-10"
+        style={{ backgroundColor: 'var(--canvas)' }}
+      >
+        <div className="max-w-[1280px] mx-auto">
+          {/* Skeleton greeting */}
+          <div className="mb-6">
+            <div className="h-9 w-64 bg-surface-2 rounded animate-pulse mb-2" />
+            <div className="h-5 w-96 bg-surface-2 rounded animate-pulse" />
           </div>
 
-          {/* Stats skeleton */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white p-4 rounded-lg border border-gray-200">
-                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse mb-2" />
-                <div className="h-8 w-16 bg-gray-200 rounded animate-pulse mb-1" />
-                <div className="h-3 w-20 bg-gray-200 rounded animate-pulse" />
-              </div>
+          {/* Skeleton attention strip */}
+          <div className="grid grid-cols-3 gap-2 mb-7">
+            {[1, 2, 3].map(i => (
+              <div key={i} className="h-20 bg-surface-2 rounded-lg animate-pulse" />
             ))}
           </div>
 
-          {/* Cards skeleton */}
-          <CardSkeletonGrid count={6} />
-        </main>
+          {/* Skeleton content */}
+          <div className="flex gap-6">
+            <div className="flex-1 space-y-2">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className="h-32 bg-surface-2 rounded-lg animate-pulse" />
+              ))}
+            </div>
+            <div className="w-[300px] space-y-3">
+              <div className="h-48 bg-surface-2 rounded-lg animate-pulse" />
+              <div className="h-48 bg-surface-2 rounded-lg animate-pulse" />
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Empty state
+  if (proposals.length === 0) {
+    return (
+      <div
+        className="min-h-screen py-9 px-10"
+        style={{ backgroundColor: 'var(--canvas)' }}
+      >
+        <div className="max-w-[1280px] mx-auto">
+          {/* Greeting with empty subtitle */}
+          <div className="mb-6">
+            <h1 className="font-extrabold text-[30px] tracking-[-0.8px]" style={{ color: 'var(--ink)' }}>
+              {getTimeBasedGreeting()}, {firstName}.
+            </h1>
+            <p className="text-[14px] mt-[5px]" style={{ color: '#6B6A65' }}>
+              Ready to start your first proposal?
+            </p>
+          </div>
+
+          {/* Empty state */}
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', textAlign: 'center' }}>
+            <div style={{ width: 48, height: 48, borderRadius: 12, background: '#F4F3EF', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+              <FileText size={22} color="#C4C3BE" />
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: '#111110', letterSpacing: '-0.2px', marginBottom: 6 }}>
+              No proposals yet
+            </div>
+            <div style={{ fontSize: 13, color: '#6B6A65', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
+              Create your first proposal to get started. Upload an RFP and TrueBid will extract requirements, build your WBS, and help you write a winning response.
+            </div>
+            <button
+              onClick={handleNewProposal}
+              style={{ background: '#111110', color: '#FFFFFF', fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 7, border: 'none', cursor: 'pointer', letterSpacing: '-0.1px' }}
+            >
+              + New Proposal
+            </button>
+          </div>
+        </div>
+
+        <NewProposalModal open={showNewProposalModal} onClose={() => setShowNewProposalModal(false)} />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-6">
-        {proposals.length === 0 ? (
-          <EmptyState
-            companyName={companyName}
-            onImportRFP={handleImportRFP}
-            onExploreSample={() => setProposals(MOCK_PROPOSALS)}
+    <div
+      className="min-h-screen py-9 px-10 md:px-10"
+      style={{ backgroundColor: 'var(--canvas)' }}
+    >
+      <div className="max-w-[1280px] mx-auto">
+        {/* Greeting */}
+        <Greeting
+          firstName={firstName}
+          proposalCount={activeProposals.length}
+          mostUrgentProposal={mostUrgentProposal}
+          pipelineValue={pipelineValue}
+        />
+
+        {/* Alert Banner — hide when no active proposals */}
+        {alertItem && activeProposals.length > 0 && (
+          <AlertBanner
+            title={alertItem.title}
+            description={alertItem.description}
+            onFix={() => handleAlertFix(alertItem.proposalId)}
           />
-        ) : (
-          <>
-            {/* Archive View Banner */}
-            {showArchived && (
-              <div className="flex items-center justify-between bg-gray-100 border border-gray-200 rounded-lg px-4 py-2 mb-4">
-                <div className="flex items-center gap-2 text-sm text-gray-600">
-                  <Archive className="w-4 h-4" />
-                  <span>Viewing archived proposals</span>
+        )}
+
+        {/* Attention Strip — hide when no active proposals */}
+        {activeProposals.length > 0 && (
+          <AttentionStrip
+            items={attentionItems}
+            onItemClick={handleAttentionClick}
+          />
+        )}
+
+        {/* Two-column layout */}
+        <div className="flex gap-6 flex-col lg:flex-row">
+          {/* Proposals Column */}
+          <div className="flex-1">
+            {activeProposals.length === 0 ? (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 24px', textAlign: 'center' }}>
+                <div style={{ width: 48, height: 48, borderRadius: 12, background: '#F4F3EF', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                  <FileText size={22} color="#C4C3BE" />
                 </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowArchived(false)}
-                  className="h-7 px-2 text-gray-500 hover:text-gray-700"
+                <div style={{ fontSize: 16, fontWeight: 700, color: '#111110', letterSpacing: '-0.2px', marginBottom: 6 }}>
+                  No active proposals
+                </div>
+                <div style={{ fontSize: 13, color: '#6B6A65', lineHeight: 1.6, maxWidth: 280, marginBottom: 24 }}>
+                  Create your first proposal to get started. Upload an RFP and TrueBid will extract requirements, build your WBS, and help you write a winning response.
+                </div>
+                <button
+                  onClick={handleNewProposal}
+                  style={{ background: '#111110', color: '#FFFFFF', fontSize: 13, fontWeight: 600, padding: '9px 20px', borderRadius: 7, border: 'none', cursor: 'pointer', letterSpacing: '-0.1px' }}
                 >
-                  Back to all proposals
-                </Button>
+                  + New Proposal
+                </button>
               </div>
-            )}
-
-            {/* Page Header with New Proposal CTA */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h1 className="text-xl font-semibold text-gray-900">Proposals</h1>
-                <p className="text-sm text-gray-500">Manage and track your government contract proposals</p>
-              </div>
-              <Button onClick={handleImportRFP} className="gap-2">
-                <Plus className="w-4 h-4" />
-                New Proposal
-              </Button>
-            </div>
-
-            {/* Stats Row - Clickable (hidden in archive view) */}
-            {!showArchived && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              <button
-                onClick={() => handleStatClick('active')}
-                className="bg-white p-4 rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-sm transition-all text-left"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-blue-600">Active Proposals</span>
-                  <FileText className="w-4 h-4 text-blue-400" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{stats.active}</div>
-                <div className="text-xs text-gray-500">In progress</div>
-              </button>
-
-              <button
-                onClick={() => handleStatClick('pipeline')}
-                className="bg-white p-4 rounded-lg border border-gray-200 hover:border-green-400 hover:shadow-sm transition-all text-left"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-green-600">Pipeline Value</span>
-                  <DollarSign className="w-4 h-4 text-green-400" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{formatCurrency(stats.pipelineValue)}</div>
-                <div className="text-xs text-gray-500">Total potential</div>
-              </button>
-
-              <button
-                onClick={() => handleStatClick('submitted')}
-                className="bg-white p-4 rounded-lg border border-gray-200 hover:border-yellow-400 hover:shadow-sm transition-all text-left"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-yellow-600">Submitted</span>
-                  <Send className="w-4 h-4 text-yellow-400" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{stats.submitted}</div>
-                <div className="text-xs text-gray-500">Awaiting decision</div>
-              </button>
-
-              <button
-                onClick={() => handleStatClick('winRate')}
-                className="bg-white p-4 rounded-lg border border-gray-200 hover:border-purple-400 hover:shadow-sm transition-all text-left"
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-medium text-purple-600">Win Rate</span>
-                  <TrendingUp className="w-4 h-4 text-purple-400" />
-                </div>
-                <div className="text-2xl font-bold text-gray-900">{stats.winRate}%</div>
-                <div className="text-xs text-gray-500">Historical</div>
-              </button>
-            </div>
-            )}
-
-            {/* Toolbar - Sticky */}
-            <div className="sticky top-14 z-20 bg-gray-50 py-3 -mx-6 px-6 mb-4 border-b border-gray-200">
-              <div className="flex flex-wrap items-center gap-3">
-                {/* Search */}
-                <div className="flex-1 min-w-[200px] relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <Input
-                    id="search-input"
-                    placeholder="Search proposals..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9 h-9"
-                  />
-                </div>
-
-                {/* Status Filter */}
-                <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as ProposalStatus | 'all')}>
-                  <SelectTrigger className="w-[140px] h-9">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUS_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Type Filter */}
-                <Select value={typeFilter} onValueChange={setTypeFilter}>
-                  <SelectTrigger className="w-[120px] h-9">
-                    <SelectValue placeholder="Type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CONTRACT_TYPE_OPTIONS.map((opt) => (
-                      <SelectItem key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Agency Filter */}
-                <Select value={agencyFilter} onValueChange={setAgencyFilter}>
-                  <SelectTrigger className="w-[180px] h-9">
-                    <SelectValue placeholder="Agency" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Agencies</SelectItem>
-                    {uniqueAgencies.filter(agency => agency).map((agency) => (
-                      <SelectItem key={agency} value={agency}>
-                        {agency.length > 30 ? agency.substring(0, 30) + '...' : agency}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                {/* Clear Filters */}
-                {hasActiveFilters && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setStatusFilter('all')
-                      setTypeFilter('all')
-                      setAgencyFilter('all')
-                    }}
-                    className="h-9 text-xs text-gray-500"
-                  >
-                    Clear filters
-                  </Button>
-                )}
-
-                {/* Spacer */}
-                <div className="flex-1" />
-
-                {/* Card Display Settings */}
-                {(viewMode === 'grid' || viewMode === 'list') && (
-                  <CardSettingsDropdown
-                    settings={cardSettings}
-                    onSettingsChange={setCardSettings}
-                  />
-                )}
-
-                {/* Sort */}
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9 gap-1.5">
-                      <ArrowUpDown className="w-3.5 h-3.5" />
-                      Sort
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuLabel className="text-xs">Sort by</DropdownMenuLabel>
-                    {SORT_OPTIONS.map((opt) => (
-                      <DropdownMenuCheckboxItem
-                        key={opt.value}
-                        checked={sortBy === opt.value}
-                        onCheckedChange={() => setSortBy(opt.value)}
-                      >
-                        {opt.label}
-                      </DropdownMenuCheckboxItem>
-                    ))}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuCheckboxItem
-                      checked={sortDesc}
-                      onCheckedChange={() => setSortDesc(!sortDesc)}
-                    >
-                      Descending
-                    </DropdownMenuCheckboxItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {/* View Toggle */}
-                <div className="flex gap-1 border border-gray-200 rounded-md p-0.5 bg-white">
-                  <Button
-                    variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('grid')}
-                    className="px-2 h-8"
-                    title="Grid view"
-                  >
-                    <Grid3X3 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('list')}
-                    className="px-2 h-8"
-                    title="List view"
-                  >
-                    <List className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'kanban' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('kanban')}
-                    className="px-2 h-8"
-                    title="Kanban view"
-                    disabled={showArchived}
-                  >
-                    <Kanban className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant={viewMode === 'calendar' ? 'secondary' : 'ghost'}
-                    size="sm"
-                    onClick={() => setViewMode('calendar')}
-                    className="px-2 h-8"
-                    title="Calendar view"
-                    disabled={showArchived}
-                  >
-                    <CalendarDays className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Archive Toggle */}
-                <Button
-                  variant={showArchived ? 'secondary' : 'outline'}
-                  size="sm"
-                  onClick={() => {
-                    const newShowArchived = !showArchived
-                    setShowArchived(newShowArchived)
-                    // Reset to grid view when entering archive (kanban/calendar don't apply)
-                    if (newShowArchived && (viewMode === 'kanban' || viewMode === 'calendar')) {
-                      setViewMode('grid')
-                    }
-                  }}
-                  className="h-9 gap-1.5"
-                  title="Toggle archive"
-                  disabled={archivedCount === 0 && !showArchived}
+            ) : (
+              <>
+                <p
+                  className="text-[10px] font-bold tracking-[2px] uppercase mb-2.5"
+                  style={{ color: '#C4C3BE' }}
                 >
-                  <Archive className="w-4 h-4" />
-                  Archive
-                  {archivedCount > 0 && (
-                    <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-[10px]">
-                      {archivedCount}
-                    </Badge>
-                  )}
-                </Button>
-              </div>
-            </div>
-
-            {/* Results count - only for grid/list views */}
-            {(viewMode === 'grid' || viewMode === 'list') && (
-              <p className="text-xs text-gray-500 mb-4">
-                {showArchived 
-                  ? `Showing ${filteredProposals.length} archived proposal${filteredProposals.length !== 1 ? 's' : ''}`
-                  : `Showing ${filteredProposals.length} of ${proposals.filter(p => !p.archived).length} proposals`
-                }
-                {hasActiveFilters && ' (filtered)'}
-              </p>
-            )}
-
-            {/* Main Content Area */}
-            <div>
-              {viewMode === 'grid' && filteredProposals.length > 0 && (
-                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-                  {filteredProposals.map((proposal) => (
+                  Active proposals
+                </p>
+                <div className="flex flex-col gap-2">
+                  {activeProposals.map(proposal => (
                     <ProposalCard
                       key={proposal.id}
                       proposal={proposal}
-                      onOpen={() => handleOpenProposal(proposal.id)}
-                      onToggleArchive={() => handleToggleArchive(proposal.id)}
-                      onDuplicate={() => handleDuplicate(proposal.id)}
-                      onDelete={() => handleDelete(proposal.id)}
-                      onStatusChange={(status) => handleStatusChange(proposal.id, status)}
-                      isRecentlyViewed={recentlyViewed[0] === proposal.id}
-                      displaySettings={cardSettings}
+                      onClick={() => handleOpenProposal(proposal.id)}
+                      onDelete={() => setProposalToDelete(proposal.id)}
                     />
                   ))}
                 </div>
-              )}
+              </>
+            )}
+          </div>
 
-              {viewMode === 'list' && filteredProposals.length > 0 && (
-                <div className="space-y-2">
-                  {filteredProposals.map((proposal) => {
-                    const daysUntilDue = getDaysUntilDue(proposal.dueDate)
-                    const isUrgent = daysUntilDue !== null && daysUntilDue <= 7 && daysUntilDue >= 0
-                    const isRecent = recentlyViewed[0] === proposal.id
-                    
-                    return (
-                      <div
-                        key={proposal.id}
-                        onClick={() => handleOpenProposal(proposal.id)}
-                        className={`
-                          flex items-center gap-4 p-4 bg-white border rounded-lg 
-                          hover:shadow-sm cursor-pointer transition-all
-                          ${isUrgent && !proposal.archived && cardSettings.showDueDate
-                            ? 'border-l-4 border-l-amber-400 border-t-gray-200 border-r-gray-200 border-b-gray-200'
-                            : 'border-gray-200 hover:border-blue-400'
-                          }
-                        `}
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className="font-medium text-sm text-gray-900 truncate">{proposal.title}</h3>
-                            {isRecent && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded font-medium shrink-0">
-                                Recently viewed
-                              </span>
-                            )}
-                            {isUrgent && cardSettings.showDueDate && (
-                              <span className="text-[10px] px-1.5 py-0.5 bg-amber-50 text-amber-700 rounded font-medium flex items-center gap-1 shrink-0">
-                                <Clock className="w-3 h-3" />
-                                Due in {daysUntilDue}d
-                              </span>
-                            )}
-                          </div>
-                          {cardSettings.showClient && (
-                            <p className="text-xs text-gray-500 truncate">{proposal.client}</p>
-                          )}
-                        </div>
-                        {cardSettings.showStatus && (
-                          <Badge className={`shrink-0 ${getStatusConfig(proposal.status).bgColor}`}>
-                            {getStatusConfig(proposal.status).label}
-                          </Badge>
-                        )}
-                        {cardSettings.showValue && (
-                          <span className="text-sm font-semibold text-gray-900 shrink-0 w-20 text-right">
-                            {formatCurrency(proposal.totalValue)}
-                          </span>
-                        )}
-                        {cardSettings.showLastUpdated && (
-                          <span className="text-xs text-gray-500 shrink-0 w-24 text-right">
-                            {formatRelativeTime(proposal.updatedAt)}
-                          </span>
-                        )}
-                        <ChevronRight className="w-4 h-4 text-gray-300 shrink-0" />
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
+          {/* Right Panel — hide when no active proposals */}
+          {activeProposals.length > 0 && <div className="w-full lg:w-[300px] shrink-0 flex flex-col gap-3">
+            <WinRatePanel
+              winRate={null}
+              won={winLossStats.won}
+              lost={winLossStats.lost}
+              noAward={winLossStats.noAward}
+            />
 
-              {viewMode === 'kanban' && (
-                <KanbanView
-                  proposals={proposals}
-                  onOpen={handleOpenProposal}
-                  onStatusChange={handleStatusChange}
-                />
-              )}
+            <PipelinePanel
+              tracking={pipelineStats.tracking}
+              pursuing={pipelineStats.pursuing}
+              submitted={pipelineStats.submitted}
+              wonYtd={pipelineStats.wonYtd}
+            />
 
-              {viewMode === 'calendar' && (
-                <CalendarView
-                  proposals={proposals}
-                  onOpen={handleOpenProposal}
-                />
-              )}
+            <RecentActivityPanel activities={recentActivity} />
+          </div>}
+        </div>
+      </div>
 
-              {/* Empty States */}
-              {filteredProposals.length === 0 && viewMode !== 'kanban' && viewMode !== 'calendar' && (
-                showArchived ? (
-                  <FilteredEmptyState
-                    icon={Archive}
-                    title="No archived proposals"
-                    description="Completed proposals will appear here when archived"
-                  />
-                ) : searchQuery || hasActiveFilters ? (
-                  <FilteredEmptyState
-                    icon={Search}
-                    title="No matching proposals"
-                    description="Try adjusting your search or filters"
-                  />
-                ) : proposals.length === 0 ? (
-                  // Brand new user - no proposals at all
-                  <div className="text-center py-16 bg-gray-50 border border-dashed border-gray-200 rounded-lg">
-                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <FileText className="w-8 h-8 text-gray-400" />
-                    </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No proposals yet</h3>
-                    <p className="text-sm text-gray-500 mb-6 max-w-md mx-auto">
-                      Upload an RFP to get started. TrueBid will extract key details and help you build a competitive proposal.
-                    </p>
-                    <Button onClick={handleImportRFP} className="gap-2">
-                      <Plus className="w-4 h-4" />
-                      Create Your First Proposal
-                    </Button>
-                  </div>
-                ) : null
-              )}
-            </div>
-          </>
-        )}
-      </main>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!proposalToDelete} onOpenChange={(open) => { if (!open) setProposalToDelete(null) }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this proposal?</DialogTitle>
+            <DialogDescription>
+              This will permanently delete the proposal and all its data.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setProposalToDelete(null)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (proposalToDelete) {
+                  try {
+                    await proposalsApi.delete(proposalToDelete)
+                    setProposals(prev => prev.filter(p => p.id !== proposalToDelete))
+                    toast.success('Proposal deleted')
+                  } catch {
+                    toast.error('Failed to delete proposal')
+                  }
+                }
+                setProposalToDelete(null)
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <NewProposalModal open={showNewProposalModal} onClose={() => setShowNewProposalModal(false)} />
     </div>
   )
 }

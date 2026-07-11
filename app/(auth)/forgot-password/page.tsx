@@ -70,14 +70,14 @@ export default function ForgotPasswordPage() {
           <div className="space-y-2">
             <p className="text-gray-600 dark:text-gray-400">
               If an account exists for <span className="font-medium text-gray-900 dark:text-white">{email}</span>, 
-              you'll receive an email with instructions to reset your password.
+              you&apos;ll receive an email with instructions to reset your password.
             </p>
           </div>
 
           {/* Tips */}
           <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-4 text-left">
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              <strong className="text-gray-900 dark:text-white">Didn't receive an email?</strong>
+              <strong className="text-gray-900 dark:text-white">Didn&apos;t receive an email?</strong>
               <br />
               Check your spam folder, or make sure you entered the email address associated with your account.
             </p>

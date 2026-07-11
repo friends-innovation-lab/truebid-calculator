@@ -39,6 +39,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useAppContext, RoleJustification } from '@/contexts/app-context'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
 
 // ==================== TYPES ====================
 
@@ -609,6 +611,29 @@ export function RateJustificationTab() {
 
   // ==================== RENDER ====================
 
+  const [isHydrated, setIsHydrated] = useState(false)
+  useEffect(() => { setIsHydrated(true) }, [])
+
+  if (!isHydrated) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="grid grid-cols-2 gap-6">
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
+          </div>
+          <div className="space-y-3">
+            {[1, 2, 3].map(i => (
+              <Skeleton key={i} className="h-16 w-full rounded-lg" />
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -714,15 +739,11 @@ export function RateJustificationTab() {
 
             {/* Role Cards */}
             {filteredRoles.length === 0 ? (
-              <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg bg-white">
-                <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" aria-hidden="true" />
-                <p className="text-sm text-gray-600 mb-2">
-                  {roles.length === 0 ? 'No roles added to your team yet' : 'No roles match your search'}
-                </p>
-                <p className="text-xs text-gray-500">
-                  {roles.length === 0 ? 'Add roles in Roles & Pricing to see market comparisons' : 'Try a different search term'}
-                </p>
-              </div>
+              <EmptyState
+                icon={Users}
+                title={roles.length === 0 ? 'No roles added to your team yet' : 'No roles match your search'}
+                description={roles.length === 0 ? 'Add roles in Roles & Pricing to see market comparisons' : 'Try a different search term'}
+              />
             ) : (
               <div className="space-y-3" role="list" aria-label="Roles with market position analysis">
                 {filteredRoles.map((role) => {
@@ -894,12 +915,10 @@ export function RateJustificationTab() {
 
             {/* Grouped Competitors */}
             {Object.keys(groupedGSACompetitors).length === 0 ? (
-              <div className="text-center py-12 border border-dashed border-gray-200 rounded-lg bg-white">
-                <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-3" aria-hidden="true" />
-                <p className="text-sm text-gray-600 mb-2">
-                  {roles.length === 0 ? 'Add roles in Roles & Pricing to see competitor data' : 'No competitors match your filters'}
-                </p>
-              </div>
+              <EmptyState
+                icon={Building2}
+                title={roles.length === 0 ? 'Add roles in Roles & Pricing to see competitor data' : 'No competitors match your filters'}
+              />
             ) : (
               <div className="space-y-3">
                 {Object.entries(groupedGSACompetitors).map(([category, competitors]) => {

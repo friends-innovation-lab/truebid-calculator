@@ -6,7 +6,9 @@ import Link from 'next/link'
 import { AuthLayout } from '@/components/auth/auth-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
+import { createClient } from '@/lib/supabase/client'
 
 // OAuth provider icons
 function GoogleIcon({ className }: { className?: string }) {
@@ -61,25 +63,31 @@ export default function LoginPage() {
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    
+
     if (!password) {
       setError('Please enter your password')
       return
     }
-    
+
     setIsLoading(true)
-    
+
     try {
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      if (email === 'demo@truebid.com' && password === 'demo123') {
-        router.push('/dashboard')
-      } else {
-        setError('Invalid email or password. Try demo@truebid.com / demo123')
+      const supabase = createClient()
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+
+      if (error) {
+        setError(error.message)
+        setIsLoading(false)
+        return
       }
+
+      // Successful login - redirect happens via middleware
+      router.push('/dashboard')
     } catch (err) {
       setError('An unexpected error occurred. Please try again.')
-    } finally {
       setIsLoading(false)
     }
   }
@@ -96,9 +104,8 @@ export default function LoginPage() {
   return (
     <AuthLayout title="Log in to TrueBid" showSignUp>
       {error && (
-        <div className="flex items-start gap-3 p-3 bg-red-50 border border-red-200 rounded-lg mb-6" role="alert">
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700">{error}</p>
+        <div className="mb-6">
+          <ErrorAlert message={error} />
         </div>
       )}
 
@@ -207,7 +214,7 @@ export default function LoginPage() {
       )}
 
       <p className="text-center text-sm text-gray-500 mt-8">
-        Don't have an account?{' '}
+        Don&apos;t have an account?{' '}
         <Link href="/signup" className="text-blue-600 hover:text-blue-700">
           Sign Up
         </Link>

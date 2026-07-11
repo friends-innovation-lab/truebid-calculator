@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Eye, EyeOff, Loader2, AlertCircle, Check, X, CheckCircle2, ArrowLeft } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
 
 interface PasswordRequirement {
   id: string
@@ -215,10 +216,7 @@ function ResetPasswordContent() {
     <AuthLayout title="Create new password" subtitle="Enter a new password for your account">
       <form onSubmit={handleSubmit} className="space-y-5">
         {error && (
-          <div className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-lg" role="alert">
-            <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
-            <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
-          </div>
+          <ErrorAlert message={error} />
         )}
 
         <div className="space-y-2">

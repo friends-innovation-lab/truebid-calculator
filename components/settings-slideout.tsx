@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
-import { useAppContext, CompanyRole, IndirectRates, CompanySettings } from '@/contexts/app-context';
+import { useAppContext, CompanyRole, IndirectRates } from '@/contexts/app-context';
 import {
   Building2,
   DollarSign,
@@ -24,7 +24,6 @@ import {
   Briefcase,
   Award,
   ExternalLink,
-  AlertCircle,
   CheckCircle,
 } from 'lucide-react';
 
@@ -111,9 +110,10 @@ export function SettingsSlideout({ isOpen, onClose }: SettingsSlideoutProps) {
   // Reset to first tab when slideout opens
   useEffect(() => {
     if (isOpen) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional reset on prop change
       setActiveTab('company');
     }
-  }, [isOpen]);
+  }, [isOpen, setActiveTab]);
 
   if (!isOpen) return null;
 
@@ -835,10 +835,9 @@ function RatesAndMarginsTab() {
 // ==================== LABOR CATEGORIES TAB ====================
 
 function LaborCategoriesTab() {
-  const { 
-    companyRoles, 
-    addCompanyRole, 
-    updateCompanyRole, 
+  const {
+    companyRoles,
+    addCompanyRole,
     removeCompanyRole,
     companySettings,
     updateCompanySettings,

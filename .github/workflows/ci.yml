@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm test -- --ci --passWithNoTests
+
+  migration-check:
+    name: Migration Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start Supabase (local)
+        run: |
+          supabase init --workdir . || true
+          supabase start --workdir .
+
+      - name: Apply all migrations from scratch
+        run: |
+          # Reset database and apply all migrations (000 → current)
+          # This catches migrations that only work against pre-existing state
+          supabase db reset --workdir .
+
+      - name: Verify migration chain
+        run: echo "Migration check passed - all migrations apply cleanly from scratch"
+
+      - name: Stop Supabase
+        if: always()
+        run: supabase stop --workdir .
+
+  working-data-check:
+    name: working_data Freeze Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for working_data violations
+        run: |
+          chmod +x scripts/check-working-data.sh
+          ./scripts/check-working-data.sh

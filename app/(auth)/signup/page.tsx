@@ -7,7 +7,9 @@ import { AuthLayout } from '@/components/auth/auth-layout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Eye, EyeOff, Loader2, AlertCircle, Check, X } from 'lucide-react'
+import { Eye, EyeOff, Loader2, Check, X } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
+import { createClient } from '@/lib/supabase/client'
 
 // OAuth provider icons
 function GoogleIcon({ className }: { className?: string }) {
@@ -128,31 +130,50 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    
+
     if (!password) {
       setError('Please create a password')
       return
     }
-    
+
     if (!passwordIsValid) {
       setError('Password does not meet requirements')
       return
     }
-    
+
     if (!agreedToTerms) {
       setError('Please agree to the terms to continue')
       return
     }
-    
+
     setIsLoading(true)
-    
+
     try {
-      // TODO: Replace with actual Supabase auth
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      router.push(`/signup/verify?email=${encodeURIComponent(email)}`)
+      const supabase = createClient()
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/signup/verify`,
+        },
+      })
+
+      if (error) {
+        setError(error.message)
+        setIsLoading(false)
+        return
+      }
+
+      // Check if email confirmation is required
+      if (data.user && !data.session) {
+        // Email confirmation required
+        router.push(`/signup/verify?email=${encodeURIComponent(email)}`)
+      } else {
+        // Auto-confirmed (for dev) - go to onboarding
+        router.push('/onboarding')
+      }
     } catch (err) {
       setError('An unexpected error occurred. Please try again.')
-    } finally {
       setIsLoading(false)
     }
   }
@@ -176,12 +197,8 @@ export default function SignupPage() {
     >
       {/* Error message */}
       {error && (
-        <div 
-          className="flex items-start gap-3 p-3 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900 rounded-lg mb-6"
-          role="alert"
-        >
-          <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-          <p className="text-sm text-red-700 dark:text-red-400">{error}</p>
+        <div className="mb-6">
+          <ErrorAlert message={error} />
         </div>
       )}
 

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { User, Mail, Lock, LogOut, Camera, Check, X } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -20,6 +21,8 @@ import {
   AvatarImage,
 } from '@/components/ui/avatar'
 import { toast } from 'sonner'
+import { userApi } from '@/lib/api'
+import { useAuth } from '@/contexts/auth-context'
 
 interface UserProfile {
   fullName: string
@@ -29,17 +32,18 @@ interface UserProfile {
 
 function ProfilePage() {
   const router = useRouter()
+  const { refreshUser } = useAuth()
   const [profile, setProfile] = useState<UserProfile>({
     fullName: '',
     email: '',
     avatarUrl: null,
   })
   const [isLoading, setIsLoading] = useState(true)
-  
+
   // Editing states
   const [editingName, setEditingName] = useState(false)
   const [nameBuffer, setNameBuffer] = useState('')
-  
+
   // Password dialog
   const [showPasswordDialog, setShowPasswordDialog] = useState(false)
   const [passwordForm, setPasswordForm] = useState({
@@ -48,51 +52,45 @@ function ProfilePage() {
     confirmPassword: '',
   })
   const [passwordError, setPasswordError] = useState('')
-  
-  // Load profile from localStorage
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const fileInputRef = React.useRef<HTMLInputElement>(null)
+
+  // Load profile from API
   useEffect(() => {
-    const companyProfile = localStorage.getItem('truebid-company-profile')
-    if (companyProfile) {
+    async function loadProfile() {
       try {
-        const parsed = JSON.parse(companyProfile)
-        setProfile({
-          fullName: parsed.userName || 'Demo User',
-          email: parsed.userEmail || 'demo@truebid.com',
-          avatarUrl: parsed.avatarUrl || null,
-        })
-      } catch {
-        // Use defaults
-        setProfile({
-          fullName: 'Demo User',
-          email: 'demo@truebid.com',
-          avatarUrl: null,
-        })
+        const response = await userApi.getProfile() as { user: { fullName: string; email: string; avatarUrl: string | null } }
+        if (response.user) {
+          setProfile({
+            fullName: response.user.fullName || '',
+            email: response.user.email || '',
+            avatarUrl: response.user.avatarUrl,
+          })
+        }
+      } catch (e) {
+        console.warn('Failed to load profile from API:', e)
+        // Fallback to empty profile - user will see they need to set up
       }
-    } else {
-      setProfile({
-        fullName: 'Demo User',
-        email: 'demo@truebid.com',
-        avatarUrl: null,
-      })
+      setIsLoading(false)
     }
-    setIsLoading(false)
+    loadProfile()
   }, [])
   
-  // Save profile to localStorage
-  const saveProfile = (updates: Partial<UserProfile>) => {
+  // Save profile to API
+  const saveProfile = async (updates: Partial<UserProfile>) => {
     const newProfile = { ...profile, ...updates }
     setProfile(newProfile)
-    
-    const companyProfile = localStorage.getItem('truebid-company-profile')
-    const existing = companyProfile ? JSON.parse(companyProfile) : {}
-    localStorage.setItem('truebid-company-profile', JSON.stringify({
-      ...existing,
-      userName: newProfile.fullName,
-      userEmail: newProfile.email,
-      avatarUrl: newProfile.avatarUrl,
-    }))
-    
-    toast.success('Profile saved')
+
+    try {
+      await userApi.updateProfile({
+        fullName: newProfile.fullName,
+        avatarUrl: newProfile.avatarUrl || undefined,
+      })
+      toast.success('Profile saved')
+    } catch (e) {
+      console.warn('Failed to save profile to API:', e)
+      toast.error('Failed to save profile')
+    }
   }
   
   const handleStartEditName = () => {
@@ -106,7 +104,30 @@ function ProfilePage() {
     }
     setEditingName(false)
   }
-  
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingAvatar(true)
+    try {
+      const response = await userApi.uploadAvatar(file) as { avatarUrl: string }
+      setProfile(prev => ({ ...prev, avatarUrl: response.avatarUrl }))
+      // Refresh auth context so header shows new avatar
+      await refreshUser()
+      toast.success('Avatar updated')
+    } catch (err) {
+      console.error('Avatar upload error:', err)
+      toast.error('Failed to upload avatar')
+    } finally {
+      setUploadingAvatar(false)
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
   const handlePasswordChange = () => {
     setPasswordError('')
     
@@ -172,11 +193,23 @@ function ProfilePage() {
                 {getInitials(profile.fullName)}
               </AvatarFallback>
             </Avatar>
-            <button 
-              className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-              onClick={() => {/* TODO: Avatar upload */}}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              onChange={handleAvatarUpload}
+              className="hidden"
+            />
+            <button
+              className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity disabled:cursor-not-allowed"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingAvatar}
             >
-              <Camera className="w-6 h-6 text-white" />
+              {uploadingAvatar ? (
+                <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Camera className="w-6 h-6 text-white" />
+              )}
             </button>
           </div>
           <div>
@@ -303,7 +336,7 @@ function ProfilePage() {
               />
             </div>
             {passwordError && (
-              <p className="text-sm text-red-600">{passwordError}</p>
+              <ErrorAlert variant="inline" message={passwordError} />
             )}
           </div>
           <DialogFooter>

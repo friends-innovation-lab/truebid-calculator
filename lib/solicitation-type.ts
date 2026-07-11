@@ -119,24 +119,40 @@ export const getSolicitationDisplayName = (sol: SolicitationInfo): string => {
   return 'Untitled Solicitation'
 }
 
-// Contract type display names
+// Contract type display names (keys: both lowercase API values and uppercase context values)
 export const contractTypeLabels: Record<string, string> = {
+  'ffp': 'Firm Fixed Price',
   'FFP': 'Firm Fixed Price',
+  'tm': 'Time & Materials',
   'T&M': 'Time & Materials',
+  'cpff': 'Cost Plus Fixed Fee',
   'CPFF': 'Cost Plus Fixed Fee',
+  'cpaf': 'Cost Plus Award Fee',
   'CPAF': 'Cost Plus Award Fee',
+  'idiq': 'IDIQ',
   'IDIQ': 'Indefinite Delivery/Indefinite Quantity',
+  'bpa': 'Blanket Purchase Agreement',
   'BPA': 'Blanket Purchase Agreement',
-  'hybrid': 'Hybrid'
+  'hybrid': 'Hybrid',
+  'unknown': 'Not Specified',
 }
 
-// Set-aside display names
+// Set-aside display names (keys: both slug and display forms for flexible lookup)
 export const setAsideLabels: Record<string, string> = {
   'full-open': 'Full & Open Competition',
+  'Full & Open': 'Full & Open Competition',
   'small-business': 'Small Business Set-Aside',
+  'Small Business': 'Small Business Set-Aside',
   '8a': '8(a) Set-Aside',
+  '8(a)': '8(a) Set-Aside',
   'hubzone': 'HUBZone Set-Aside',
+  'HUBZone': 'HUBZone Set-Aside',
   'sdvosb': 'SDVOSB Set-Aside',
+  'SDVOSB': 'SDVOSB Set-Aside',
   'wosb': 'WOSB Set-Aside',
-  'edwosb': 'EDWOSB Set-Aside'
+  'WOSB': 'WOSB Set-Aside',
+  'edwosb': 'EDWOSB Set-Aside',
+  'EDWOSB': 'EDWOSB Set-Aside',
+  'N/A': 'Not Specified',
+  'unrestricted': 'Unrestricted',
 }

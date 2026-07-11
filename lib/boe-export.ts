@@ -1,4 +1,3 @@
-// @ts-nocheck
 // BOE (Basis of Estimate) Document Export Utility
 // Uses docx library to generate professional Word documents
 
@@ -107,18 +106,27 @@ function getRiskScore(risk: WBSRisk): number {
   return risk.probability * risk.impact
 }
 
+// Reusable type for alignment values from the AlignmentType enum
+type Alignment = (typeof AlignmentType)[keyof typeof AlignmentType]
+
+// Reusable type for cell shading
+interface CellShading {
+  fill: string
+  type: typeof ShadingType.CLEAR
+}
+
 // Table styling constants
 const tableBorder = { style: BorderStyle.SINGLE, size: 1, color: 'CCCCCC' }
 const cellBorders = { top: tableBorder, bottom: tableBorder, left: tableBorder, right: tableBorder }
-const headerShading = { fill: 'E8F4FD', type: ShadingType.CLEAR }
-const altRowShading = { fill: 'F9FAFB', type: ShadingType.CLEAR }
+const headerShading: CellShading = { fill: 'E8F4FD', type: ShadingType.CLEAR }
+const altRowShading: CellShading = { fill: 'F9FAFB', type: ShadingType.CLEAR }
 
 // Create standard cell
 function createCell(content: string, options: {
   bold?: boolean
   width?: number
   shading?: { fill: string; type: typeof ShadingType.CLEAR }
-  alignment?: typeof AlignmentType.LEFT
+  alignment?: Alignment
 } = {}): TableCell {
   return new TableCell({
     borders: cellBorders,
@@ -138,6 +146,7 @@ function createNumberCell(value: number, options: {
   width?: number
   shading?: { fill: string; type: typeof ShadingType.CLEAR }
   bold?: boolean
+  alignment?: Alignment
 } = {}): TableCell {
   return new TableCell({
     borders: cellBorders,
@@ -497,7 +506,7 @@ export async function generateBOEDocument(options: BOEExportOptions): Promise<Bl
           const elementHours = getElementTotalHours(element)
           const linkedReqs = requirements.filter(r => r.linkedWbsIds.includes(element.id))
 
-          const content: Paragraph[] = []
+          const content: (Paragraph | Table)[] = []
 
           // Page break before each WBS (except first which follows summary)
           if (idx > 0) {

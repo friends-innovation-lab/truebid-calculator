@@ -1,27 +1,22 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { useAppContext, UtilityToolType } from '@/contexts/app-context'
+import { useAppContext } from '@/contexts/app-context'
+import { useAuth } from '@/contexts/auth-context'
 import { Button } from '@/components/ui/button'
+import { createClient } from '@/lib/supabase/client'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-  DropdownMenuLabel,
 } from '@/components/ui/dropdown-menu'
 import {
-  ChevronDown,
   HelpCircle,
   Wrench,
-  Calculator,
-  DollarSign,
-  Building2,
-  FileText,
-  ExternalLink,
   LogOut,
   LayoutDashboard,
   Settings,
@@ -33,32 +28,42 @@ import {
 type Theme = 'light' | 'dark' | 'system'
 
 export function AppHeader() {
-  const pathname = usePathname()
   const router = useRouter()
-  const { companyProfile, setActiveUtilityTool } = useAppContext()
-  
+  const { companyProfile } = useAppContext()
+  const { user } = useAuth()
+
   const [theme, setTheme] = useState<Theme>('system')
   const [userProfile, setUserProfile] = useState({
     name: 'User',
     email: 'user@company.com',
     avatarUrl: '',
   })
-  
-  const companyName = companyProfile?.name || 'TrueBid'
-  const isHome = pathname === '/'
 
-  // Load user profile from localStorage
+  const companyName = companyProfile?.name || 'TrueBid'
+
+  // Load user profile - prefer Supabase user, fall back to localStorage
   useEffect(() => {
-    const stored = localStorage.getItem('truebid-company-profile')
-    if (stored) {
-      const data = JSON.parse(stored)
+    if (user) {
+      // Use authenticated user's email
+      const emailName = user.email?.split('@')[0] || 'User'
       setUserProfile({
-        name: data.userName || 'User',
-        email: data.userEmail || 'user@company.com',
-        avatarUrl: data.avatarUrl || '',
+        name: user.user_metadata?.full_name || emailName,
+        email: user.email || 'user@company.com',
+        avatarUrl: user.user_metadata?.avatar_url || '',
       })
+    } else {
+      // Fall back to localStorage
+      const stored = localStorage.getItem('truebid-company-profile')
+      if (stored) {
+        const data = JSON.parse(stored)
+        setUserProfile({
+          name: data.userName || 'User',
+          email: data.userEmail || 'user@company.com',
+          avatarUrl: data.avatarUrl || '',
+        })
+      }
     }
-  }, [])
+  }, [user])
 
   // Load theme preference
   useEffect(() => {
@@ -88,14 +93,9 @@ export function AppHeader() {
     }
   }
 
-  const handleToolSelect = (tool: string) => {
-    setActiveUtilityTool(tool as UtilityToolType)
-    if (isHome) {
-      router.push('/tools')
-    }
-  }
-
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
     router.push('/login')
   }
 
@@ -110,26 +110,26 @@ export function AppHeader() {
   }
 
   return (
-    <header className="h-14 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+    <header className="h-14 bg-slate-900 border-b-2 border-emerald-500 sticky top-0 z-50">
       <div className="h-full max-w-7xl mx-auto px-4 md:px-6 flex items-center justify-between">
         {/* Left: Logo + Breadcrumb */}
         <div className="flex items-center gap-3">
           {/* TrueBid Logo */}
-          <Link 
+          <Link
             href="/dashboard"
-            className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-lg hover:from-blue-700 hover:to-blue-800 transition-all shadow-sm"
+            className="flex items-center justify-center w-8 h-8 bg-emerald-500 rounded-lg hover:bg-emerald-600 transition-all shadow-sm"
             aria-label="Go to dashboard"
           >
             <span className="text-white font-bold text-sm">T</span>
           </Link>
 
           {/* Separator */}
-          <span className="text-gray-300 dark:text-gray-600 text-lg font-light">/</span>
+          <span className="text-slate-600 text-lg font-light">/</span>
 
           {/* Company Name */}
-          <Link 
+          <Link
             href="/dashboard"
-            className="text-sm font-medium text-gray-900 dark:text-white hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            className="text-sm font-medium text-white hover:text-slate-300 transition-colors"
           >
             {companyName}
           </Link>
@@ -137,56 +137,16 @@ export function AppHeader() {
 
         {/* Right: Tools, Help, User Menu */}
         <div className="flex items-center gap-2">
-          {/* Tools Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
-                <Wrench className="w-4 h-4" />
-                <span className="hidden sm:inline">Tools</span>
-                <ChevronDown className="w-3.5 h-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuLabel className="text-xs text-gray-500">
-                Utility Tools
-              </DropdownMenuLabel>
-              <DropdownMenuItem onClick={() => handleToolSelect('sub-rates')}>
-                <DollarSign className="w-4 h-4 mr-2 text-green-600" />
-                Sub Rates Calculator
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleToolSelect('rate-builder')} disabled>
-                <Calculator className="w-4 h-4 mr-2 text-blue-600" />
-                Rate Builder
-                <span className="ml-auto text-[10px] text-gray-400">Soon</span>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => handleToolSelect('wrap-rate')} disabled>
-                <Building2 className="w-4 h-4 mr-2 text-purple-600" />
-                Wrap Rate Analyzer
-                <span className="ml-auto text-[10px] text-gray-400">Soon</span>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuLabel className="text-xs text-gray-500">
-                Resources
-              </DropdownMenuLabel>
-              <DropdownMenuItem asChild>
-                <a href="https://sam.gov" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                  <FileText className="w-4 h-4 mr-2 text-gray-500" />
-                  SAM.gov
-                  <ExternalLink className="w-3 h-3 ml-auto text-gray-400" />
-                </a>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <a href="https://www.gsa.gov/buy-through-us/purchasing-programs/gsa-multiple-award-schedule" target="_blank" rel="noopener noreferrer" className="flex items-center">
-                  <FileText className="w-4 h-4 mr-2 text-gray-500" />
-                  GSA Schedules
-                  <ExternalLink className="w-3 h-3 ml-auto text-gray-400" />
-                </a>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Tools Link */}
+          <Link href="/tools">
+            <Button variant="ghost" size="sm" className="gap-1.5 text-slate-400 hover:text-white hover:bg-slate-800">
+              <Wrench className="w-4 h-4" />
+              <span className="hidden sm:inline">Tools</span>
+            </Button>
+          </Link>
 
           {/* Help */}
-          <Button variant="ghost" size="sm" className="gap-1.5 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+          <Button variant="ghost" size="sm" className="gap-1.5 text-slate-400 hover:text-white hover:bg-slate-800">
             <HelpCircle className="w-4 h-4" />
             <span className="hidden sm:inline">Help</span>
           </Button>
@@ -194,15 +154,15 @@ export function AppHeader() {
           {/* User Menu (Avatar) */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="flex items-center gap-2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors">
+              <button className="flex items-center gap-2 p-0.5 rounded-full hover:ring-2 hover:ring-emerald-500 transition-all" aria-label="Account menu">
                 {userProfile.avatarUrl ? (
-                  <img 
-                    src={userProfile.avatarUrl} 
+                  <img
+                    src={userProfile.avatarUrl}
                     alt={userProfile.name}
                     className="w-8 h-8 rounded-full object-cover"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white text-xs font-medium">
+                  <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-white text-xs font-medium">
                     {getInitials(userProfile.name)}
                   </div>
                 )}
@@ -210,16 +170,16 @@ export function AppHeader() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-64">
               {/* User Identity */}
-              <div className="px-3 py-3 border-b border-gray-100 dark:border-gray-800">
+              <div className="px-3 py-3 border-b border-gray-100">
                 <div className="flex items-center gap-3">
                   {userProfile.avatarUrl ? (
-                    <img 
-                      src={userProfile.avatarUrl} 
+                    <img
+                      src={userProfile.avatarUrl}
                       alt={userProfile.name}
                       className="w-10 h-10 rounded-full object-cover"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gray-700 to-gray-900 flex items-center justify-center text-white text-sm font-medium">
+                    <div className="w-10 h-10 rounded-full bg-slate-700 flex items-center justify-center text-white text-sm font-medium">
                       {getInitials(userProfile.name)}
                     </div>
                   )}

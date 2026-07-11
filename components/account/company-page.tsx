@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { useAppContext } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,11 +8,14 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import {
   Plus,
-  Trash2,
   X,
   FileText,
 } from 'lucide-react'
+import { Card } from '@/components/ui/card'
+import { SaveStatus } from '@/components/ui/save-status'
 import { toast } from 'sonner'
+import { WritingGuideForm, WritingGuide, defaultWritingGuide, TagInput } from './writing-guide-form'
+import { settingsApi } from '@/lib/api'
 
 // IDIQ Contract type
 interface IDIQContract {
@@ -24,7 +27,73 @@ interface IDIQContract {
 }
 
 export function CompanyPage() {
-  const { companyProfile, setCompanyProfile } = useAppContext()
+  const { companyProfile, setCompanyProfile, saveCompanyProfile } = useAppContext()
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveTimeout = useRef<NodeJS.Timeout | null>(null)
+  const latestProfile = useRef(companyProfile)
+  const isInitialMount = useRef(true)
+
+  // Writing guide state
+  const [writingGuide, setWritingGuide] = useState<WritingGuide | undefined>(undefined)
+  const [writingGuideLoaded, setWritingGuideLoaded] = useState(false)
+
+  // Load writing guide from settings API
+  useEffect(() => {
+    async function loadWritingGuide() {
+      try {
+        const response = await settingsApi.get() as {
+          settings?: { writing_guide?: WritingGuide }
+        }
+        if (response.settings?.writing_guide) {
+          setWritingGuide(response.settings.writing_guide)
+        }
+      } catch {
+        // Silently fail - will use defaults
+      }
+      setWritingGuideLoaded(true)
+    }
+    loadWritingGuide()
+  }, [])
+
+  // Save writing guide to settings API
+  const handleSaveWritingGuide = useCallback(async (guide: WritingGuide) => {
+    try {
+      await settingsApi.save({ writing_guide: guide })
+      // Don't call setWritingGuide here - it causes infinite loop
+      // WritingGuideForm manages its own state
+    } catch (err) {
+      console.error('[CompanyPage] Failed to save writing guide:', err)
+      throw err // Re-throw so the form shows error state
+    }
+  }, [])
+
+  // Keep ref in sync
+  useEffect(() => { latestProfile.current = companyProfile }, [companyProfile])
+
+  // Auto-save when companyProfile changes (debounced)
+  // This handles changes from both this component and child components (like IDIQContracts)
+  useEffect(() => {
+    // Skip initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    setSaveStatus('saving')
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    saveTimeout.current = setTimeout(async () => {
+      try {
+        await saveCompanyProfile(latestProfile.current)
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 1000)
+
+    return () => {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    }
+  }, [companyProfile, saveCompanyProfile])
 
   const handleChange = (field: string, value: string | boolean | string[] | number) => {
     setCompanyProfile({ ...companyProfile, [field]: value })
@@ -32,13 +101,16 @@ export function CompanyPage() {
 
   return (
     <div className="space-y-8 max-w-2xl">
-      <div>
-        <h2 className="text-xl font-semibold text-gray-900">Company Profile</h2>
-        <p className="text-sm text-gray-600 mt-1">Company identity and registration information for proposals</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold text-gray-900">Company Profile</h2>
+          <p className="text-sm text-gray-600 mt-1">Company identity and registration information for proposals</p>
+        </div>
+        <SaveStatus status={saveStatus} />
       </div>
 
       {/* Basic Info Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <Card>
         <h3 className="text-sm font-semibold text-gray-900">Basic Information</h3>
         
         <div className="grid grid-cols-2 gap-4">
@@ -87,10 +159,10 @@ export function CompanyPage() {
             </label>
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Address Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <Card>
         <h3 className="text-sm font-semibold text-gray-900">Address</h3>
         
         <div className="space-y-2">
@@ -132,10 +204,10 @@ export function CompanyPage() {
             />
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Government Registrations Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <Card>
         <h3 className="text-sm font-semibold text-gray-900">Government Registrations</h3>
         
         <div className="grid grid-cols-2 gap-4">
@@ -184,19 +256,18 @@ export function CompanyPage() {
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="naics-codes">NAICS Codes</Label>
-          <Input
-            id="naics-codes"
-            value={(companyProfile.naicsCodes || []).join(', ')}
-            onChange={(e) => handleChange('naicsCodes', e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
-            placeholder="541511, 541512, 541519"
+          <Label>NAICS Codes</Label>
+          <TagInput
+            tags={companyProfile.naicsCodes || []}
+            onChange={(tags) => handleChange('naicsCodes', tags)}
+            placeholder="Type a NAICS code and press Enter"
           />
-          <p className="text-xs text-gray-500">Comma-separated list of your registered NAICS codes</p>
+          <p className="text-xs text-gray-500">Press Enter or comma to add each code (e.g., 541511, 541512)</p>
         </div>
-      </div>
+      </Card>
 
       {/* Contract Vehicles Card */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+      <Card>
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Contract Vehicles</h3>
@@ -225,7 +296,15 @@ export function CompanyPage() {
 
         {/* Other IDIQs */}
         <IDIQContracts />
-      </div>
+      </Card>
+
+      {/* Writing Guide Card */}
+      {writingGuideLoaded && (
+        <WritingGuideForm
+          initialGuide={writingGuide || defaultWritingGuide}
+          onSave={handleSaveWritingGuide}
+        />
+      )}
     </div>
   )
 }

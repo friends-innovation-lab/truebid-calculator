@@ -1,0 +1,22 @@
+# working_data Allowlist
+#
+# Phase 1 Freeze: No new writers to working_data may be introduced.
+# No new keys may be added.
+#
+# This file lists the ONLY files permitted to write to working_data.
+# All new persistence must use normalized tables + commands.
+#
+# Existing writers (to be migrated in Phases 2-3):
+
+# Proposal sync and persistence
+app/api/proposals/[id]/route.ts
+hooks/use-proposal-sync.ts
+
+# AI extraction results (temporary storage)
+app/api/extract-rfp/route.ts
+
+# Legacy imports/exports
+app/api/proposals/route.ts
+
+# Context state persistence
+contexts/app-context.tsx

@@ -1,6 +1,13 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, SetStateAction } from 'react';
+import { rolesApi, settingsApi, companiesApi } from '@/lib/api';
+import {
+  calculateFullyBurdenedRate as pricingEngineRate,
+  calculateEscalatedRate as pricingEngineEscalation,
+  resolveProfitRateWithFallback,
+  type ContractType as PricingContractType,
+} from '@/lib/pricing';
 
 // ==================== LOCALSTORAGE KEYS ====================
 
@@ -63,6 +70,9 @@ export interface ExtractedRequirement {
   type: 'delivery' | 'reporting' | 'staffing' | 'compliance' | 'governance' | 'transition' | 'other'
   sourceSection: string
   pageNumber: number | null  // ← Must exist
+  reference_number?: string  // Optional: from API
+  description?: string       // Optional: from API
+  source?: string            // Optional: from API
 }
 
 // ==================== ESTIMATE TAB TYPES (BOE Support) ====================
@@ -206,6 +216,9 @@ export interface EstimateWBSElement {
   // Metadata
   createdAt?: string;
   updatedAt?: string;
+
+  // Requirement links
+  requirementLinks?: string[];
 }
 
 // ==================== QUALITY CALCULATION UTILITY ====================
@@ -306,6 +319,19 @@ export const calculateWBSQuality = (element: WBSElement): QualityResult => {
   
   return { grade, score: Math.max(0, score), issues };
 };
+
+// ==================== PROPOSAL SETUP TYPE ====================
+
+export interface ProposalSetup {
+  contractType: 'tm' | 'ffp' | 'cpff';
+  optionYears: number;
+  setAside: string;
+  billableHoursPerYear: number;
+  escalationRate: number;
+  profitMargin: number;  // Percent (e.g., 10 for 10%)
+  proposalDueDate?: string;
+  wordsPerPage?: number;
+}
 
 // ==================== PRICING SETTINGS TYPE ====================
 
@@ -748,7 +774,6 @@ export interface ProfitTargets {
   tmDefault: number;
   ffpLowRisk: number;
   ffpMediumRisk: number;
-  ffpHighRisk: number;
   gsaDefault: number;
 }
 
@@ -846,6 +871,30 @@ export interface Role {
   annualCost?: number;
   billableHours?: number;
   hourlyRate?: number;
+  selectedLevel?: string;
+  selectedLevelTitle?: string;
+  selectedStep?: number;
+  currentSalary?: number;
+  billRateBase?: number;
+  profitMargin?: number;
+  laborCategory?: string | null;
+  socCode?: string | null;
+  hoursByYear?: {
+    baseYear: number;
+    oy1: number;
+    oy2: number;
+    oy3: number;
+    oy4: number;
+  };
+  totalHoursFromWBS?: number;
+  isManual?: boolean;
+  type?: 'prime' | 'sub';
+  subcontractorName?: string | null;
+  subRate?: number;
+  subMarkup?: number;
+  hoursPerMonth?: number; // Utilization-based: hours worked per month
+  gsaLaborCategory?: string; // GSA MAS labor category for rate lookup
+  gsaHourlyRate?: number; // GSA rate per hour (from schedule)
 }
 
 // ==================== SUBCONTRACTORS ====================
@@ -933,6 +982,82 @@ export interface TeamingPartner {
   updatedAt: string;
 }
 
+// ==================== TEAM MEMBERS ====================
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  type: 'prime' | 'sub' | 'partner';
+  contactName: string | null;
+  workShare: number;
+  uei: string | null;
+  agreementStatus: 'signed' | 'pending' | 'none';
+  agreementType: string | null;
+  notes: string | null;
+}
+
+// ==================== DIRECTORS ====================
+
+export interface Director {
+  id: string;
+  name: string;
+  role: string;
+  email: string;
+  token: string | null;
+  tokenExpiry: string | null;
+  lastViewed: string | null;
+  createdAt: string;
+}
+
+// ==================== OUTLINE ====================
+
+export type OutlineSectionStatus = 'not_started' | 'in_progress' | 'draft' | 'review'
+
+export interface OutlineSubsection {
+  id: string
+  number: string
+  title: string
+  pageTarget: number | null
+  status: OutlineSectionStatus
+  statusOverride?: boolean // true if user manually set the status
+}
+
+export interface OutlineSection {
+  id: string
+  number: string
+  title: string
+  description: string | null
+  pageTarget: number | null
+  status: OutlineSectionStatus
+  assignee: string | null
+  complianceRefs: string[]
+  requirementRefs: string[]
+  subsections: OutlineSubsection[]
+}
+
+export interface OutlineVolume {
+  id: string
+  title: string
+  description: string | null
+  maxPages: number | null
+  complianceRef: string | null
+  sections: OutlineSection[]
+}
+
+export interface ProposalOutline {
+  volumes: OutlineVolume[]
+}
+
+// ==================== SECTION CONTENT ====================
+
+export interface SectionContent {
+  sectionId: string
+  content: string
+  lastSaved: string
+  wordCount: number
+  status: 'not_started' | 'in_progress' | 'draft' | 'review'
+}
+
 // ==================== ODCs ====================
 
 export interface ODCItem {
@@ -998,12 +1123,14 @@ export interface GSAContractInfo {
 // Note: 'sub-rates' is now a utility tool in the Tools menu, not a main tab
 // Note: 'gsa-bid' functionality merged into Upload tab (contract type selection)
 // Workflow order: Upload → Estimate → Roles → Teaming → Rate Justification → Export
-export type MainTabId = 
-  | 'upload' 
+export type MainTabId =
+  | 'upload'
   | 'estimate'
   | 'roles'  // Roles & Pricing
   | 'teaming-partners'
-  | 'rate-justification' 
+  | 'rate-justification'
+  | 'write'  // Technical Volume Outline
+  | 'review'  // Pre-flight checklist
   | 'export';
 
   // Utility tool type - accessed via Tools menu in header
@@ -1059,13 +1186,18 @@ interface AppContextType {
   isSolicitationEditorOpen: boolean;
   openSolicitationEditor: () => void;
   closeSolicitationEditor: () => void;
-  
+
+  // Proposal Setup (persists contract type, option years, etc.)
+  proposalSetup: ProposalSetup | null;
+  setProposalSetup: (setup: ProposalSetup | null) => void;
+
   // Helper to get pricing settings with defaults
   getPricingSettings: () => PricingSettings;
   
   // Company Profile (SaaS)
   companyProfile: CompanyProfile;
   setCompanyProfile: (profile: CompanyProfile) => void;
+  saveCompanyProfile: (profile: CompanyProfile) => Promise<void>;
   
   // Company Settings
   companySettings: CompanySettings;
@@ -1075,6 +1207,7 @@ interface AppContextType {
   // Indirect Rates (Audit-Ready)
   indirectRates: IndirectRates;
   setIndirectRates: (rates: IndirectRates) => void;
+  indirectRatesConfigured: boolean; // false = NULL rates, setup required before pricing
   
   // Profit Targets
   profitTargets: ProfitTargets;
@@ -1143,7 +1276,23 @@ interface AppContextType {
   getOrCreatePartnerByName: (companyName: string) => TeamingPartner;
   getPartnerById: (id: string) => TeamingPartner | undefined;
   getSubcontractorsByPartnerId: (partnerId: string) => Subcontractor[];
-  
+
+  // Team Members (proposal-specific team)
+  teamMembers: TeamMember[];
+  setTeamMembers: (members: SetStateAction<TeamMember[]>) => void;
+
+  // Directors (internal reviewers)
+  directors: Director[];
+  setDirectors: (directors: SetStateAction<Director[]>) => void;
+
+  // Outline
+  outline: ProposalOutline | null;
+  setOutline: (outline: SetStateAction<ProposalOutline | null>) => void;
+
+  // Section Content
+  sectionContent: Record<string, SectionContent>;
+  setSectionContent: (content: SetStateAction<Record<string, SectionContent>>) => void;
+
   // Rate Justifications (persist across tab switches)
   rateJustifications: Record<string, RoleJustification>;
   setRateJustifications: (justifications: Record<string, RoleJustification>) => void;
@@ -1424,6 +1573,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
+  // ==================== PROPOSAL SETUP STATE ====================
+  const [proposalSetup, setProposalSetup] = useState<ProposalSetup | null>(null);
+
   // ==================== SOLICITATION EDITOR SLIDEOUT CONTROL ====================
   const [isSolicitationEditorOpen, setIsSolicitationEditorOpen] = useState(false);
   
@@ -1435,39 +1587,162 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return solicitation.pricingSettings ?? defaultPricingSettings;
   };
 
-  // ==================== COMPANY SETTINGS (with localStorage) ====================
+  // ==================== COMPANY SETTINGS (API with localStorage cache) ====================
   const [companySettings, setCompanySettings] = useState<CompanySettings>(getInitialCompanySettings);
-  
-  // Persist companySettings to localStorage whenever it changes
+  const companySettingsLoaded = React.useRef(false);
+
+  // Load company settings from API on mount (localStorage is just initial/cache)
+  useEffect(() => {
+    async function loadCompanySettings() {
+      if (typeof window === 'undefined') return;
+      try {
+        const response = await settingsApi.get() as { settings: Record<string, unknown> | null };
+        if (response.settings) {
+          const s = response.settings;
+          const fromApi: Partial<CompanySettings> = {};
+          if (s.salary_structure) fromApi.salaryStructure = s.salary_structure as CompanySettings['salaryStructure'];
+          if (s.step_increase_percent != null) fromApi.stepIncreasePercent = s.step_increase_percent as number;
+          if (Object.keys(fromApi).length > 0) {
+            setCompanySettings(prev => ({ ...prev, ...fromApi }));
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load company settings from API, using localStorage cache:', e);
+      }
+      companySettingsLoaded.current = true;
+    }
+    loadCompanySettings();
+  }, []);
+
+  // Persist to localStorage (cache) and API when settings change
   useEffect(() => {
     if (typeof window !== 'undefined') {
       try {
         localStorage.setItem(STORAGE_KEYS.COMPANY_SETTINGS, JSON.stringify(companySettings));
       } catch (e) {
-        console.warn('Failed to save company settings to localStorage:', e);
+        console.warn('Failed to cache company settings to localStorage:', e);
       }
     }
+
+    // Don't save to API until initial load is complete
+    if (!companySettingsLoaded.current) return;
+
+    settingsApi.save({
+      salary_structure: companySettings.salaryStructure,
+      step_increase_percent: companySettings.stepIncreasePercent,
+    }).catch(e => {
+      console.warn('Failed to save company settings to API:', e);
+    });
   }, [companySettings]);
-  
+
   const updateCompanySettings = (updates: Partial<CompanySettings>) => {
     setCompanySettings(prev => ({ ...prev, ...updates }));
   };
 
   // ==================== COMPANY PROFILE (SaaS) ====================
-  const [companyProfile, setCompanyProfile] = useState<CompanyProfile>({
-    id: 'fftc-001',
-    name: 'Friends From The City',
-    legalName: 'Friends From The City, LLC',
-    samUei: 'RA62AG44CFZ8',
+  const [companyProfile, setCompanyProfileState] = useState<CompanyProfile>({
+    id: '',
+    name: '',
+    legalName: '',
+    samUei: '',
     cageCode: '',
     businessSize: 'small',
-    naicsCodes: ['541511', '541512', '541519', '541611'],
-    gsaContractNumber: '47QTCA23D0076',
-    gsaMasSchedule: true,
+    naicsCodes: [],
+    gsaContractNumber: '',
+    gsaMasSchedule: false,
   });
+  const [companyProfileLoaded, setCompanyProfileLoaded] = useState(false);
+
+  // Load company profile from API on mount
+  useEffect(() => {
+    async function loadCompanyProfile() {
+      if (typeof window === 'undefined') return;
+
+      try {
+        const response = await companiesApi.get() as { company: Record<string, unknown> | null };
+        if (response.company) {
+          const c = response.company;
+          const gsaConfig = (c.gsa_config as Record<string, unknown>) || {};
+          setCompanyProfileState({
+            id: (c.id as string) || '',
+            name: (c.name as string) || '',
+            legalName: (c.legal_name as string) || '',
+            samUei: (c.sam_uei as string) || '',
+            cageCode: (c.cage_code as string) || '',
+            businessSize: ((c.address as Record<string, unknown>)?.businessSize as 'small' | 'other-than-small') || 'small',
+            naicsCodes: (c.naics_codes as string[]) || [],
+            gsaContractNumber: (gsaConfig.gsaContractNumber as string) || '',
+            gsaMasSchedule: (gsaConfig.gsaMasSchedule as boolean) || false,
+            gsaEscalationRate: (gsaConfig.gsaEscalationRate as number) || 0.052,
+            gsaBaseYear: (gsaConfig.gsaBaseYear as number) || new Date().getFullYear(),
+            gsaSins: (gsaConfig.gsaSins as GSASin[]) || [],
+            streetAddress: ((c.address as Record<string, unknown>)?.street as string) || '',
+            city: ((c.address as Record<string, unknown>)?.city as string) || '',
+            state: ((c.address as Record<string, unknown>)?.state as string) || '',
+            zipCode: ((c.address as Record<string, unknown>)?.zip as string) || '',
+            dunsNumber: (c.duns as string) || '',
+            ein: (c.ein as string) || '',
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to load company profile from API:', e);
+      }
+      setCompanyProfileLoaded(true);
+    }
+
+    loadCompanyProfile();
+  }, []);
+
+  // Update local state immediately (no API call)
+  const setCompanyProfile = (profile: CompanyProfile) => {
+    setCompanyProfileState(profile);
+  };
+
+  // Save company profile to API (call this after debouncing)
+  const saveCompanyProfile = async (profile: CompanyProfile) => {
+    if (!companyProfileLoaded) return;
+
+    const apiData = {
+      name: profile.name,
+      legal_name: profile.legalName,
+      sam_uei: profile.samUei,
+      cage_code: profile.cageCode,
+      duns: profile.dunsNumber,
+      ein: profile.ein,
+      naics_codes: profile.naicsCodes,
+      address: {
+        street: profile.streetAddress,
+        city: profile.city,
+        state: profile.state,
+        zip: profile.zipCode,
+        businessSize: profile.businessSize,
+      },
+      gsa_config: {
+        gsaMasSchedule: profile.gsaMasSchedule,
+        gsaContractNumber: profile.gsaContractNumber,
+        gsaEscalationRate: profile.gsaEscalationRate,
+        gsaBaseYear: profile.gsaBaseYear,
+        gsaSins: profile.gsaSins,
+      },
+    };
+
+    try {
+      if (profile.id) {
+        await companiesApi.update(apiData);
+      } else {
+        const response = await companiesApi.create(apiData) as { company: { id: string } };
+        if (response.company?.id) {
+          setCompanyProfileState(prev => ({ ...prev, id: response.company.id }));
+        }
+      }
+    } catch (err) {
+      console.error('[AppContext] Failed to save company profile:', err);
+      throw err;
+    }
+  };
 
   // ==================== INDIRECT RATES (From Accountant) ====================
-  const [indirectRates, setIndirectRates] = useState<IndirectRates>({
+  const [indirectRates, setIndirectRatesState] = useState<IndirectRates>({
     fringe: 0.211562,
     overhead: 0.342588,
     ga: 0.19831,
@@ -1477,15 +1752,106 @@ export function AppProvider({ children }: { children: ReactNode }) {
     source: 'FFTC Rate Model 202511',
     lastUpdated: '2025-11-25',
   });
+  const [indirectRatesLoaded, setIndirectRatesLoaded] = useState(false);
+  // Tracks whether real rates are configured vs fallback defaults
+  // NULL rates from DB = not configured, must be set before pricing
+  const [indirectRatesConfigured, setIndirectRatesConfigured] = useState(true);
+
+  // Load indirect rates and profit targets from API on mount
+  useEffect(() => {
+    async function loadSettings() {
+      if (typeof window === 'undefined') return;
+
+      try {
+        const response = await settingsApi.get() as { settings: Record<string, unknown> | null };
+        if (response.settings) {
+          const s = response.settings;
+          // Check if rates are configured (not NULL in database)
+          const hasConfiguredRates =
+            s.fringe_rate != null &&
+            s.overhead_rate != null &&
+            s.ga_rate != null;
+
+          setIndirectRatesConfigured(hasConfiguredRates);
+
+          // Load indirect rates - use DB values if present, else keep fallback defaults
+          // Note: if rates are NULL, indirectRatesConfigured=false signals "setup required"
+          if (hasConfiguredRates) {
+            setIndirectRatesState(prev => ({
+              ...prev,
+              fringe: s.fringe_rate as number,
+              overhead: s.overhead_rate as number,
+              ga: s.ga_rate as number,
+            }));
+          }
+          // Load profit targets if present
+          if (s.profit_targets && typeof s.profit_targets === 'object') {
+            const pt = s.profit_targets as Record<string, number>;
+            setProfitTargetsState(prev => ({
+              ...prev,
+              tmDefault: pt.tm ?? prev.tmDefault,
+              ffpLowRisk: pt.ffp ?? prev.ffpLowRisk,
+              gsaDefault: pt.gsa ?? prev.gsaDefault,
+            }));
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to load settings from API:', e);
+      }
+      setIndirectRatesLoaded(true);
+    }
+
+    loadSettings();
+  }, []);
+
+  // Wrapper to save indirect rates to API when they change
+  const setIndirectRates = async (rates: IndirectRates) => {
+    setIndirectRatesState(rates);
+
+    // Don't save until initial load is complete
+    if (!indirectRatesLoaded) return;
+
+    try {
+      await settingsApi.save({
+        fringe_rate: rates.fringe,
+        overhead_rate: rates.overhead,
+        ga_rate: rates.ga,
+      });
+    } catch (e) {
+      console.warn('Failed to save indirect rates to API:', e);
+    }
+  };
 
   // ==================== PROFIT TARGETS ====================
-  const [profitTargets, setProfitTargets] = useState<ProfitTargets>({
-    tmDefault: 0.10,
-    ffpLowRisk: 0.12,
-    ffpMediumRisk: 0.15,
-    ffpHighRisk: 0.20,
-    gsaDefault: 0.10,
+  const [profitTargetsState, setProfitTargetsState] = useState<ProfitTargets>({
+    tmDefault: 0.08,      // Time & Materials: 8%
+    ffpLowRisk: 0.10,     // FFP Low risk: 10% (resolver default)
+    ffpMediumRisk: 0.12,  // FFP Medium risk: 12% (explicit only)
+    gsaDefault: 0.08,     // GSA Schedule: 8%
   });
+
+  // Alias for reading (components use profitTargets)
+  const profitTargets = profitTargetsState;
+
+  // Wrapper to save profit targets to API when they change
+  const setProfitTargets = async (targets: ProfitTargets) => {
+    setProfitTargetsState(targets);
+
+    // Don't save until initial load is complete
+    if (!indirectRatesLoaded) return;
+
+    try {
+      await settingsApi.save({
+        profit_targets: {
+          tm: targets.tmDefault,
+          ffp: targets.ffpLowRisk, // FFP default is Low risk
+          gsa: targets.gsaDefault,
+        },
+      });
+    } catch (e) {
+      console.warn('Failed to save profit targets to API:', e);
+    }
+  };
 
   // ==================== ESCALATION ====================
   const [escalationRates, setEscalationRates] = useState<EscalationRates>({
@@ -1522,22 +1888,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveStatusTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const isInitialMount = React.useRef(true);
 
-  // Load from localStorage after hydration (runs once on mount)
+  // Load company roles from API (with localStorage fallback)
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    async function loadCompanyRoles() {
+      if (typeof window === 'undefined') return;
+
       try {
-        const stored = localStorage.getItem(STORAGE_KEYS.COMPANY_ROLES);
-        if (stored) {
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            setCompanyRoles(parsed);
+        // Try API first
+        const response = await rolesApi.list() as { roles: CompanyRole[] };
+        if (response.roles && response.roles.length > 0) {
+          setCompanyRoles(response.roles);
+          // Cache to localStorage
+          localStorage.setItem(STORAGE_KEYS.COMPANY_ROLES, JSON.stringify(response.roles));
+        } else {
+          // No roles in API, try localStorage
+          const stored = localStorage.getItem(STORAGE_KEYS.COMPANY_ROLES);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setCompanyRoles(parsed);
+            }
           }
         }
       } catch (e) {
-        console.warn('Failed to load company roles from localStorage:', e);
+        // API failed, fallback to localStorage
+        console.warn('Failed to load company roles from API, using localStorage:', e);
+        try {
+          const stored = localStorage.getItem(STORAGE_KEYS.COMPANY_ROLES);
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setCompanyRoles(parsed);
+            }
+          }
+        } catch (localErr) {
+          console.warn('Failed to load company roles from localStorage:', localErr);
+        }
       }
       setIsHydrated(true);
     }
+
+    loadCompanyRoles();
   }, []);
 
   // Persist companyRoles to localStorage whenever it changes (skip initial mount)
@@ -1584,6 +1975,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [selectedRoles, setSelectedRoles] = useState<Role[]>([])
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [teamingPartners, setTeamingPartners] = useState<TeamingPartner[]>([]);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [directors, setDirectors] = useState<Director[]>([]);
+  const [outline, setOutline] = useState<ProposalOutline | null>(null);
+  const [sectionContent, setSectionContent] = useState<Record<string, SectionContent>>({});
   const [odcs, setODCs] = useState<ODCItem[]>([]);
   const [perDiem, setPerDiem] = useState<PerDiemCalculation[]>([]);
   const [gsaContractInfo, setGSAContractInfo] = useState<GSAContractInfo | null>(null);
@@ -1802,59 +2197,125 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   // ==================== CALCULATION FUNCTIONS ====================
+  // All pricing calculations now use the centralized pricing engine (lib/pricing)
 
+  /**
+   * Calculate fully burdened rate using the centralized pricing engine.
+   *
+   * @param baseSalary - Annual salary
+   * @param includeProfit - Whether to include profit margin
+   * @param profitOverride - Optional profit rate override (as decimal, e.g., 0.10)
+   * @returns Hourly rate
+   */
   const calculateFullyBurdenedRate = (
     baseSalary: number,
     includeProfit: boolean = true,
     profitOverride?: number
   ): number => {
-    const baseRate = baseSalary / companyPolicy.standardHours;
-    const afterFringe = baseRate * (1 + indirectRates.fringe);
-    const afterOverhead = afterFringe * (1 + indirectRates.overhead);
-    const afterGA = afterOverhead * (1 + indirectRates.ga);
-    
+    let profit = 0;
     if (includeProfit) {
-      const profit = profitOverride ?? profitTargets.tmDefault;
-      return afterGA * (1 + profit);
+      const resolved = resolveProfitRateWithFallback({
+        explicitProfitRate: profitOverride,
+        contractType: contractType as PricingContractType,
+        profitTargets: {
+          tm: profitTargets.tmDefault,
+          ffp: profitTargets.ffpLowRisk,
+          gsa: profitTargets.gsaDefault,
+        },
+      }, profitTargets.tmDefault);
+      profit = resolved.profitRate;
     }
-    return afterGA;
+    const breakdown = pricingEngineRate({
+      annualSalary: baseSalary,
+      rates: {
+        fringe: indirectRates.fringe,
+        overhead: indirectRates.overhead,
+        ga: indirectRates.ga,
+      },
+      profitRate: profit,
+      standardHours: companyPolicy.standardHours,
+    });
+    return includeProfit ? breakdown.fullyBurdenedRate : breakdown.costBeforeProfit;
   };
 
   const calculateLoadedCost = (baseSalary: number): number => {
     return calculateFullyBurdenedRate(baseSalary, false);
   };
-  
-  // Alias for use in Rate Justification tab
+
+  /**
+   * Calculate loaded rate using uiProfitMargin (from UI slider).
+   * Used by Rate Justification tab.
+   * Note: uiProfitMargin is passed as explicit rate to the resolver.
+   */
   const calculateLoadedRate = (baseSalary: number): number => {
-    return calculateFullyBurdenedRate(baseSalary, true, uiProfitMargin / 100);
+    const resolved = resolveProfitRateWithFallback({
+      explicitProfitRate: uiProfitMargin / 100,
+      contractType: contractType as PricingContractType,
+      profitTargets: {
+        tm: profitTargets.tmDefault,
+        ffp: profitTargets.ffpLowRisk,
+        gsa: profitTargets.gsaDefault,
+      },
+    }, profitTargets.tmDefault);
+    return calculateFullyBurdenedRate(baseSalary, true, resolved.profitRate);
   };
 
+  /**
+   * Calculate escalated rate using the pricing engine.
+   */
   const calculateEscalatedRate = (baseRate: number, year: number): number => {
-    if (year <= 1) return baseRate;
-    return baseRate * Math.pow(1 + escalationRates.laborDefault, year - 1);
+    const result = pricingEngineEscalation({
+      baseRate,
+      year,
+      escalationRate: escalationRates.laborDefault,
+    });
+    return result.escalatedRate;
   };
 
-  const getRateBreakdown = (baseSalary: number, includeProfit: boolean = true) => {
-    const baseRate = baseSalary / companyPolicy.standardHours;
-    const fringeAmount = baseRate * indirectRates.fringe;
-    const afterFringe = baseRate + fringeAmount;
-    const overheadAmount = afterFringe * indirectRates.overhead;
-    const afterOverhead = afterFringe + overheadAmount;
-    const gaAmount = afterOverhead * indirectRates.ga;
-    const afterGA = afterOverhead + gaAmount;
-    const profitAmount = includeProfit ? afterGA * profitTargets.tmDefault : 0;
-    const fullyBurdenedRate = afterGA + profitAmount;
+  /**
+   * Get full rate breakdown using the pricing engine.
+   *
+   * @param baseSalary - Annual salary
+   * @param includeProfit - Whether to include profit
+   * @param profitOverride - Optional profit rate override (as decimal)
+   * @returns Rate breakdown object
+   */
+  const getRateBreakdown = (baseSalary: number, includeProfit: boolean = true, profitOverride?: number) => {
+    let profit = 0;
+    if (includeProfit) {
+      const resolved = resolveProfitRateWithFallback({
+        explicitProfitRate: profitOverride,
+        contractType: contractType as PricingContractType,
+        profitTargets: {
+          tm: profitTargets.tmDefault,
+          ffp: profitTargets.ffpLowRisk,
+          gsa: profitTargets.gsaDefault,
+        },
+      }, profitTargets.tmDefault);
+      profit = resolved.profitRate;
+    }
+    const breakdown = pricingEngineRate({
+      annualSalary: baseSalary,
+      rates: {
+        fringe: indirectRates.fringe,
+        overhead: indirectRates.overhead,
+        ga: indirectRates.ga,
+      },
+      profitRate: profit,
+      standardHours: companyPolicy.standardHours,
+    });
 
+    // Map to existing interface for backwards compatibility
     return {
-      baseRate,
-      fringeAmount,
-      afterFringe,
-      overheadAmount,
-      afterOverhead,
-      gaAmount,
-      afterGA,
-      profitAmount,
-      fullyBurdenedRate,
+      baseRate: breakdown.baseHourly,
+      fringeAmount: breakdown.fringeAmount,
+      afterFringe: breakdown.afterFringe,
+      overheadAmount: breakdown.overheadAmount,
+      afterOverhead: breakdown.afterOverhead,
+      gaAmount: breakdown.gaAmount,
+      afterGA: breakdown.costBeforeProfit,
+      profitAmount: breakdown.profitAmount,
+      fullyBurdenedRate: breakdown.fullyBurdenedRate,
     };
   };
 
@@ -1954,16 +2415,68 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
 
   // ==================== ROLE MANAGEMENT ====================
 
-  const addCompanyRole = (role: CompanyRole) => {
-    setCompanyRoles([...companyRoles, role]);
+  const addCompanyRole = async (role: CompanyRole) => {
+    // Optimistic update - add to state immediately
+    setCompanyRoles(prev => [...prev, role]);
+
+    // Persist to API
+    try {
+      const response = await rolesApi.create(role as unknown as Record<string, unknown>) as { role: CompanyRole };
+      // Update the role with the server-generated ID
+      if (response.role?.id && response.role.id !== role.id) {
+        setCompanyRoles(prev => prev.map(r => r.id === role.id ? { ...r, id: response.role.id } : r));
+      }
+    } catch (e) {
+      console.error('Failed to create role in API:', e);
+      // Rollback: remove the optimistically added role
+      setCompanyRoles(prev => prev.filter(r => r.id !== role.id));
+    }
   };
 
-  const updateCompanyRole = (id: string, updates: Partial<CompanyRole>) => {
-    setCompanyRoles(companyRoles.map(r => r.id === id ? { ...r, ...updates } : r));
+  const updateCompanyRole = async (id: string, updates: Partial<CompanyRole>) => {
+    // Capture previous state for rollback
+    const previousRole = companyRoles.find(r => r.id === id);
+
+    // Optimistic update
+    setCompanyRoles(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+
+    // Persist to API
+    try {
+      const updatedRole = companyRoles.find(r => r.id === id);
+      if (updatedRole) {
+        await rolesApi.update({ ...updatedRole, ...updates, id } as unknown as Record<string, unknown>);
+      }
+    } catch (e) {
+      console.error('Failed to update role in API:', e);
+      // Rollback: restore previous state
+      if (previousRole) {
+        setCompanyRoles(prev => prev.map(r => r.id === id ? previousRole : r));
+      }
+    }
   };
 
-  const removeCompanyRole = (id: string) => {
-    setCompanyRoles(companyRoles.filter(r => r.id !== id));
+  const removeCompanyRole = async (id: string) => {
+    // Capture previous state for rollback
+    const previousRole = companyRoles.find(r => r.id === id);
+    const previousIndex = companyRoles.findIndex(r => r.id === id);
+
+    // Optimistic update
+    setCompanyRoles(prev => prev.filter(r => r.id !== id));
+
+    // Persist to API
+    try {
+      await rolesApi.delete(id);
+    } catch (e) {
+      console.error('Failed to delete role from API:', e);
+      // Rollback: restore the deleted role at its original position
+      if (previousRole) {
+        setCompanyRoles(prev => {
+          const newRoles = [...prev];
+          newRoles.splice(previousIndex, 0, previousRole);
+          return newRoles;
+        });
+      }
+    }
   };
 
   const addRole = (role: Role) => {
@@ -1972,13 +2485,13 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
   };
 
   const removeRole = (id: string) => {
-    setSelectedRoles(selectedRoles.filter(r => r.id !== id));
+    setSelectedRoles(prev => prev.filter(r => r.id !== id));
     // Also remove any justification for this role
     removeRateJustification(id);
   };
 
   const updateRole = (id: string, updates: Partial<Role>) => {
-    setSelectedRoles(selectedRoles.map(r => r.id === id ? { ...r, ...updates } : r));
+    setSelectedRoles(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
   };
 
   // ==================== SUBCONTRACTOR MANAGEMENT ====================
@@ -2198,7 +2711,11 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     openSolicitationEditor,
     closeSolicitationEditor,
     getPricingSettings,
-    
+
+    // Proposal Setup
+    proposalSetup,
+    setProposalSetup,
+
     // Company Settings
     companySettings,
     setCompanySettings,
@@ -2207,10 +2724,12 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     // Company Profile
     companyProfile,
     setCompanyProfile,
+    saveCompanyProfile,
 
     // Indirect Rates
     indirectRates,
     setIndirectRates,
+    indirectRatesConfigured, // false = rates are NULL, setup required
     
     // Profit Targets
     profitTargets,
@@ -2276,7 +2795,23 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     getOrCreatePartnerByName,
     getPartnerById,
     getSubcontractorsByPartnerId,
-    
+
+    // Team Members
+    teamMembers,
+    setTeamMembers,
+
+    // Directors
+    directors,
+    setDirectors,
+
+    // Outline
+    outline,
+    setOutline,
+
+    // Section Content
+    sectionContent,
+    setSectionContent,
+
     // Rate Justifications
     rateJustifications,
     setRateJustifications,

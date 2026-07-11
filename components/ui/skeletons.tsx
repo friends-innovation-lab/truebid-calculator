@@ -1,5 +1,37 @@
 import { Skeleton } from "./skeleton"
 
+// Generic tab content loading skeleton
+export function TabSkeleton() {
+  return (
+    <div className="space-y-6 animate-pulse">
+      {/* Header area */}
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-8 w-48" />
+        <Skeleton className="h-9 w-32 rounded-md" />
+      </div>
+
+      {/* Content blocks */}
+      <div className="grid gap-4">
+        <div className="border border-gray-200 rounded-lg p-4 bg-white">
+          <Skeleton className="h-5 w-1/3 mb-3" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-2/3" />
+        </div>
+        <div className="border border-gray-200 rounded-lg p-4 bg-white">
+          <Skeleton className="h-5 w-1/4 mb-3" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-3/4" />
+        </div>
+        <div className="border border-gray-200 rounded-lg p-4 bg-white">
+          <Skeleton className="h-5 w-2/5 mb-3" />
+          <Skeleton className="h-4 w-full mb-2" />
+          <Skeleton className="h-4 w-1/2" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // Mimics a proposal card in the dashboard
 export function CardSkeleton() {
   return (

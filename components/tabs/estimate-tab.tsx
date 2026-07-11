@@ -1,15 +1,18 @@
 'use client'
 
+// Estimate tab - WBS, Requirements, Labor, Charge Codes
 import React, { useState, useMemo, useEffect } from 'react'
+import { toast } from 'sonner'
+import { useParams } from 'next/navigation'
+import { wbsApi, requirementsApi } from '@/lib/api'
 import {
-  Search, Plus, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Info, HelpCircle,
-  Clock, Calendar, AlertTriangle, Link2, Pencil, Trash2, X, Check,
-  FileText, Users, BarChart3, Target, Lightbulb, MessageSquare,
-  Bot, TrendingUp, Shield, ArrowRight, CheckCircle2, XCircle,
-  Layers, ClipboardList, Download, RefreshCw, Sparkles, Grid3X3,
-  List, Table2, Building2, Hash, BookOpen, Eye, EyeOff, Filter,
-  ClipboardCheck, GitMerge, CircleDot, LinkIcon, Unlink, CheckSquare,
-  Square, ArrowRightLeft, ExternalLink, PieChart, UserPlus
+  Search, Plus, ChevronDown, ChevronUp, Info, HelpCircle,
+  Calendar, AlertTriangle, Link2, Pencil, Trash2, X, Check,
+  FileText, Users, Lightbulb,
+  Shield, ArrowRight, CheckCircle2, XCircle,
+  Layers, Grid3X3,
+  List, Table2, Building2, Hash, Filter,
+  ClipboardCheck, GitMerge, PieChart,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,6 +20,9 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { SettingsCallout } from '@/components/shared/settings-callout'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Skeleton } from '@/components/ui/skeleton'
+import { DecomposeButton } from '@/components/task-decomposition'
 import { Loader2, Wand2 } from 'lucide-react'
 import {
   Select,
@@ -34,11 +40,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible'
 import {
   Tooltip,
   TooltipContent,
@@ -89,6 +90,7 @@ interface SOORequirement {
   linkedWbsIds: string[]
   notes: string
   isAIExtracted: boolean
+  reference_number?: string  // Optional: snake_case alias from API
 }
 
 interface HistoricalReference {
@@ -203,10 +205,10 @@ const CONFIDENCE_CONFIG: Record<string, { label: string; color: string }> = {
 }
 
 const REQUIREMENT_TYPE_CONFIG: Record<RequirementType, { label: string; description: string; color: string }> = {
-  'shall': { label: 'Shall', description: 'Mandatory requirement - must be met', color: 'text-red-700 bg-red-50 border-red-200' },
-  'should': { label: 'Should', description: 'Expected requirement - strongly recommended', color: 'text-orange-700 bg-orange-50 border-orange-100' },
+  'shall': { label: 'Shall', description: 'Mandatory requirement - must be met', color: 'text-gray-700 bg-gray-100 border-gray-200' },
+  'should': { label: 'Should', description: 'Expected requirement - strongly recommended', color: 'text-amber-700 bg-amber-50 border-amber-200' },
   'will': { label: 'Will', description: 'Government action or statement of fact', color: 'text-blue-700 bg-blue-50 border-blue-100' },
-  'may': { label: 'May', description: 'Optional - at contractor discretion', color: 'text-gray-700 bg-gray-50 border-gray-200' },
+  'may': { label: 'May', description: 'Optional - at contractor discretion', color: 'text-gray-600 bg-gray-50 border-gray-100' },
 }
 
 const RISK_STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -240,12 +242,6 @@ function getRiskColor(score: number): string {
   if (score >= 12) return 'border-l-red-500'
   if (score >= 6) return 'border-l-yellow-500'
   return 'border-l-green-500'
-}
-
-function formatDate(dateString: string): string {
-  if (!dateString) return 'Not set'
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 function formatDateShort(dateString: string): string {
@@ -364,86 +360,6 @@ const MOCK_CHARGE_CODES: ChargeCode[] = [
   { id: 'cc-2', chargeNumber: 'DOS-2023-1547', projectName: 'Consular Scheduling MVP', client: 'Department of State', dateRange: 'Jun 2023 - Dec 2023', totalHours: 14500, description: 'Public-facing appointment scheduling system', roles: ['Product Manager', 'Frontend Engineer', 'Backend Engineer', 'QA Engineer'] },
 ]
 
-const MOCK_REQUIREMENTS: SOORequirement[] = [
-  { id: 'req-1', referenceNumber: 'SOO 3.1.1', title: 'Transition-In Support', description: 'The contractor shall provide transition-in support within 60 days of contract award.', type: 'shall', category: 'management', priority: 'critical', source: 'SOO Section 3.1', linkedWbsIds: [], notes: '', isAIExtracted: true },
-  { id: 'req-2', referenceNumber: 'SOO 3.2.1', title: 'Public Appointment Booking System', description: 'The contractor shall develop a public-facing appointment booking system.', type: 'shall', category: 'functional', priority: 'critical', source: 'SOO Section 3.2', linkedWbsIds: [], notes: '5-minute SLA is key evaluation criteria', isAIExtracted: true },
-  { id: 'req-3', referenceNumber: 'SOO 3.3.1', title: 'Section 508 Compliance', description: 'All public-facing interfaces shall comply with Section 508 and WCAG 2.1 Level AA.', type: 'shall', category: 'compliance', priority: 'critical', source: 'SOO Section 3.3', linkedWbsIds: [], notes: '', isAIExtracted: true },
-]
-
-function generateMockWBSElements(selectedRoles: SelectedRole[], optionYears: number): EnhancedWBSElement[] {
-  if (selectedRoles.length === 0) return []
-  
-  const elements: EnhancedWBSElement[] = [
-    {
-      id: 'wbs-1', wbsNumber: '1.1', title: 'Transition-In Planning & Knowledge Transfer', sowReference: 'SOO 3.1.1', clin: '0001',
-      periodOfPerformance: { startDate: '2025-01-01', endDate: '2025-02-28' },
-      why: 'Establish a seamless transition from the incumbent contractor to minimize disruption to ongoing operations.',
-      what: 'Conduct knowledge transfer sessions, review documentation, establish dev environments, complete security onboarding.',
-      notIncluded: 'Incumbent contractor responsibilities, hardware procurement.',
-      assumptions: ['Incumbent will provide 40 hours of knowledge transfer support', 'All team members will have clearances adjudicated within 30 days'],
-      estimateMethod: 'historical',
-      historicalReference: { chargeCodeId: 'cc-1', chargeNumber: 'TT-2024-0892', projectName: 'VA Transition Support', dateRange: 'Jan-Mar 2024', actualHours: 560, notes: 'Similar complexity, same clearance requirements.' },
-      complexityFactor: 1.0, complexityJustification: '',
-      laborEstimates: selectedRoles.slice(0, 3).map((role, idx) => ({
-        id: `labor-1-${idx}`, roleId: role.id, roleName: role.name,
-        hoursByPeriod: { base: idx === 0 ? 200 : 180, option1: 0, option2: 0, option3: 0, option4: 0 },
-        rationale: `Transition activities require ${role.name} for ${idx === 0 ? 'leading coordination' : 'technical handoff'}.`,
-        confidence: 'high' as const, isAISuggested: false, isOrphaned: false,
-      })),
-      risks: [
-        { id: 'risk-1-1', description: 'Incumbent knowledge transfer may be incomplete or delayed', probability: 3 as const, impact: 4 as const, mitigation: 'Schedule redundant sessions, document all verbal knowledge transfer', status: 'open' as const },
-        { id: 'risk-1-2', description: 'Security clearance processing delays', probability: 2 as const, impact: 3 as const, mitigation: 'Start clearance process immediately upon award', status: 'open' as const },
-      ],
-      dependencies: [],
-      qualityGrade: 'blue' as const, qualityScore: 95, qualityIssues: [], isAIGenerated: false, aiConfidence: 0,
-    },
-    {
-      id: 'wbs-2', wbsNumber: '1.2', title: 'Public Booking System Development', sowReference: 'SOO 3.2.1', clin: '0001',
-      periodOfPerformance: { startDate: '2025-03-01', endDate: '2025-12-31' },
-      why: 'Enable public users to schedule appointments in under 5 minutes, improving customer satisfaction.',
-      what: 'Design and develop a responsive booking interface with multi-language support and real-time availability.',
-      notIncluded: 'Third-party payment processing, SMS notifications.',
-      assumptions: ['Design system (USWDS) components are available', '10 primary screens identified in discovery'],
-      estimateMethod: 'parametric',
-      engineeringBasis: { similarWork: '10 screens × 80 hours per screen = 800 base hours per role.', expertSource: 'FFTC-PROD-2024 productivity metrics', assumptions: 'Assumes standard complexity screens with USWDS components', confidenceNotes: 'High confidence based on 3 similar projects completed in 2024' },
-      complexityFactor: 1.2, complexityJustification: 'Multi-language support (5 languages) and WCAG 2.1 AA accessibility requirements add 20% overhead.',
-      laborEstimates: selectedRoles.slice(0, 4).map((role, idx) => ({
-        id: `labor-2-${idx}`, roleId: role.id, roleName: role.name,
-        hoursByPeriod: { base: [480, 520, 400, 320][idx] || 400, option1: optionYears >= 1 ? [120, 100, 80, 60][idx] || 80 : 0, option2: optionYears >= 2 ? [60, 50, 40, 30][idx] || 40 : 0, option3: 0, option4: 0 },
-        rationale: `Based on parametric calculation: 10 screens × 80 hrs × 1.2 complexity.`,
-        confidence: idx < 2 ? 'high' as const : 'medium' as const, isAISuggested: false, isOrphaned: false,
-      })),
-      risks: [{ id: 'risk-2-1', description: 'Section 508 compliance may require significant rework', probability: 2 as const, impact: 3 as const, mitigation: 'Build accessibility into design from day one', status: 'open' as const }],
-      dependencies: [{ id: 'dep-2-1', predecessorWbsId: 'wbs-1', predecessorWbsNumber: '1.1', type: 'FS' as const, lagDays: 0 }],
-      qualityGrade: 'green' as const, qualityScore: 85, qualityIssues: [], isAIGenerated: false, aiConfidence: 0,
-    },
-    {
-      id: 'wbs-3', wbsNumber: '1.3', title: 'Admin Portal & Capacity Management', sowReference: 'SOO 3.2.2', clin: '0001',
-      periodOfPerformance: { startDate: '2025-04-01', endDate: '2025-12-31' },
-      why: 'Consular staff need to efficiently manage appointment slots, view metrics, and handle scheduling conflicts.',
-      what: 'Build admin dashboard with calendar views, bulk slot management, and reporting dashboards.',
-      notIncluded: 'Mobile admin app, offline functionality.',
-      assumptions: ['Role-based access control requirements are defined', 'Maximum 50 concurrent admin users per post'],
-      estimateMethod: 'engineering',
-      engineeringBasis: { similarWork: 'Based on similar admin portal built for HHS in 2023.', expertSource: 'Technical Lead (J. Smith) with 8+ years building federal admin systems', assumptions: 'Assumes standard federal security requirements', confidenceNotes: 'Medium confidence - report requirements not yet finalized' },
-      complexityFactor: 1.0, complexityJustification: '',
-      laborEstimates: selectedRoles.slice(0, 3).map((role, idx) => ({
-        id: `labor-3-${idx}`, roleId: role.id, roleName: role.name,
-        hoursByPeriod: { base: [360, 400, 280][idx] || 300, option1: optionYears >= 1 ? [80, 100, 60][idx] || 80 : 0, option2: optionYears >= 2 ? [40, 50, 30][idx] || 40 : 0, option3: 0, option4: 0 },
-        rationale: `Engineering estimate based on similar HHS admin portal.`,
-        confidence: 'medium' as const, isAISuggested: false, isOrphaned: false,
-      })),
-      risks: [{ id: 'risk-3-1', description: 'Report requirements may change significantly', probability: 4 as const, impact: 3 as const, mitigation: 'Build flexible reporting framework', status: 'open' as const }],
-      dependencies: [{ id: 'dep-3-1', predecessorWbsId: 'wbs-2', predecessorWbsNumber: '1.2', type: 'SS' as const, lagDays: 30 }],
-      qualityGrade: 'yellow' as const, qualityScore: 70, qualityIssues: ['Engineering judgment - document similar work reference'], isAIGenerated: false, aiConfidence: 0,
-    },
-  ]
-  
-  return elements.map(el => {
-    const { score, grade, issues } = calculateQualityScore(el)
-    return { ...el, qualityScore: score, qualityGrade: grade, qualityIssues: issues }
-  })
-}
 // ============================================================================
 // LABOR SUMMARY COMPONENT
 // ============================================================================
@@ -557,7 +473,7 @@ function LaborSummary({ wbsElements, billableHoursPerYear, onNavigateToRoles }: 
               {laborRollup.map((row, idx) => (
                 <tr 
                   key={row.roleName} 
-                  className={`border-b border-gray-200 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
+                  className={`border-b border-gray-100 ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
                 >
                   <td className="px-4 py-3">
                     <span className="font-medium text-gray-900">{row.roleName}</span>
@@ -608,7 +524,7 @@ function LaborSummary({ wbsElements, billableHoursPerYear, onNavigateToRoles }: 
 
 function ViewModeToggle({ viewMode, setViewMode }: { viewMode: ViewMode; setViewMode: (mode: ViewMode) => void }) {
   return (
-    <div className="flex gap-1 border border-gray-200 rounded-lg p-0.5 bg-white">
+    <div className="flex gap-1 border border-gray-100 rounded-lg p-0.5 bg-white">
       {[{ mode: 'grid', icon: Grid3X3, label: 'Card view' }, { mode: 'table', icon: Table2, label: 'Table view' }].map(({ mode, icon: Icon, label }) => (
         <Tooltip key={mode}>
           <TooltipTrigger asChild>
@@ -623,14 +539,14 @@ function ViewModeToggle({ viewMode, setViewMode }: { viewMode: ViewMode; setView
   )
 }
 
-function WBSCard({ element, onClick, onEdit, onDelete }: { element: EnhancedWBSElement; onClick: () => void; onEdit: () => void; onDelete: () => void }) {
+function WBSCard({ element, onClick, onDelete }: { element: EnhancedWBSElement; onClick: () => void; onEdit: () => void; onDelete: () => void }) {
   const totalHours = getElementTotalHours(element)
   const gradeConfig = QUALITY_GRADE_CONFIG[element.qualityGrade]
   const methodConfig = ESTIMATE_METHOD_LABELS[element.estimateMethod]
   
   return (
-    <div className="group bg-white border border-gray-200 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer" onClick={onClick}>
-      <div className="px-4 py-3 border-b border-gray-200">
+    <div className="group bg-white border border-gray-100 rounded-lg hover:border-gray-300 hover:shadow-sm transition-all cursor-pointer" onClick={onClick}>
+      <div className="px-4 py-3 border-b border-gray-100">
         <div className="flex items-start justify-between">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
@@ -656,7 +572,7 @@ function WBSCard({ element, onClick, onEdit, onDelete }: { element: EnhancedWBSE
       
       {/* Why/What Preview - NEW */}
       {(element.why || element.what) && (
-        <div className="px-4 py-2 bg-gray-50/50 border-b border-gray-200">
+        <div className="px-4 py-2 bg-gray-50/50 border-b border-gray-100">
           {element.why && (
             <p className="text-xs text-gray-600 line-clamp-1">
               <span className="font-medium text-gray-700">Why:</span> {element.why}
@@ -672,7 +588,7 @@ function WBSCard({ element, onClick, onEdit, onDelete }: { element: EnhancedWBSE
       
       <div className="px-4 py-3">
         <div className="flex items-center gap-2 mb-3">
-          <Badge className={`${gradeConfig.bgColor} ${gradeConfig.textColor} border ${gradeConfig.borderColor} text-xs px-1.5 py-0 h-5`}>{gradeConfig.label}</Badge>
+          <Badge className={`${gradeConfig.bgColor} ${gradeConfig.textColor} border ${gradeConfig.borderColor} text-[10px] px-1.5 py-0 h-5`}>{gradeConfig.label}</Badge>
           <span className="text-xs text-gray-500">{methodConfig.icon} {methodConfig.label}</span>
         </div>
         <div className="flex items-center justify-between mb-3">
@@ -686,12 +602,12 @@ function WBSCard({ element, onClick, onEdit, onDelete }: { element: EnhancedWBSE
               <span className="text-gray-900">{getTotalHours(labor.hoursByPeriod).toLocaleString()}</span>
             </div>
           ))}
-          {element.laborEstimates.length > 2 && <span className="text-xs text-gray-400">+{element.laborEstimates.length - 2} more</span>}
+          {element.laborEstimates.length > 2 && <span className="text-[10px] text-gray-400">+{element.laborEstimates.length - 2} more</span>}
         </div>
       </div>
       
       {(element.risks.length > 0 || element.dependencies.length > 0 || element.qualityIssues.length > 0) && (
-        <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 flex items-center gap-3 text-xs text-gray-500">
+        <div className="px-4 py-2 bg-gray-50 border-t border-gray-100 flex items-center gap-3 text-xs text-gray-500">
           {element.risks.length > 0 && <span className="flex items-center gap-1"><AlertTriangle className="w-3 h-3" />{element.risks.length}</span>}
           {element.dependencies.length > 0 && <span className="flex items-center gap-1"><Link2 className="w-3 h-3" />{element.dependencies.map(d => d.predecessorWbsNumber).join(', ')}</span>}
           {element.qualityIssues.length > 0 && <span className="flex items-center gap-1 text-yellow-600"><AlertTriangle className="w-3 h-3" />{element.qualityIssues.length} issues</span>}
@@ -701,11 +617,11 @@ function WBSCard({ element, onClick, onEdit, onDelete }: { element: EnhancedWBSE
   )
 }
 
-function WBSTableView({ elements, onElementClick, onEdit, onDelete, contractPeriods }: { elements: EnhancedWBSElement[]; onElementClick: (id: string) => void; onEdit: (el: EnhancedWBSElement) => void; onDelete: (id: string) => void; contractPeriods: { key: PeriodKey; label: string }[] }) {
+function WBSTableView({ elements, onElementClick, onDelete, contractPeriods }: { elements: EnhancedWBSElement[]; onElementClick: (id: string) => void; onEdit: (el: EnhancedWBSElement) => void; onDelete: (id: string) => void; contractPeriods: { key: PeriodKey; label: string }[] }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <div className="bg-white border border-gray-100 rounded-lg overflow-hidden">
       <table className="w-full text-sm">
-        <thead className="bg-gray-50 border-b border-gray-200">
+        <thead className="bg-gray-50 border-b border-gray-100">
           <tr>
             <th className="text-left px-4 py-3 text-xs font-medium text-gray-600">WBS</th>
             <th className="text-left px-4 py-3 text-xs font-medium text-gray-600">Title</th>
@@ -722,11 +638,11 @@ function WBSTableView({ elements, onElementClick, onEdit, onDelete, contractPeri
             const totalHours = getElementTotalHours(element)
             const gradeConfig = QUALITY_GRADE_CONFIG[element.qualityGrade]
             return (
-              <tr key={element.id} className={`group border-b border-gray-200 hover:bg-gray-50 cursor-pointer ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`} onClick={() => onElementClick(element.id)}>
+              <tr key={element.id} className={`group border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`} onClick={() => onElementClick(element.id)}>
                 <td className="px-4 py-3 font-semibold text-gray-900">{element.wbsNumber}</td>
                 <td className="px-4 py-3 text-gray-900 max-w-[200px] truncate">{element.title}</td>
                 <td className="px-4 py-3 text-gray-500">{element.sowReference || '—'}</td>
-                <td className="px-4 py-3"><Badge className={`${gradeConfig.bgColor} ${gradeConfig.textColor} border ${gradeConfig.borderColor} text-xs px-1.5 py-0 h-5`}>{gradeConfig.label}</Badge></td>
+                <td className="px-4 py-3"><Badge className={`${gradeConfig.bgColor} ${gradeConfig.textColor} border ${gradeConfig.borderColor} text-[10px] px-1.5 py-0 h-5`}>{gradeConfig.label}</Badge></td>
                 <td className="px-4 py-3 text-gray-600">{ESTIMATE_METHOD_LABELS[element.estimateMethod].label}</td>
                 {contractPeriods.slice(0, 3).map(period => {
                   const periodTotal = element.laborEstimates.reduce((sum, l) => sum + l.hoursByPeriod[period.key], 0)
@@ -761,7 +677,7 @@ function HelpBanner() {
       </button>
       {isExpanded && (
         <div className="mt-3 grid grid-cols-2 gap-4">
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="bg-white border border-gray-100 rounded-lg p-4">
             <h4 className="text-sm font-semibold text-gray-900 mb-3">Quality Grades</h4>
             <div className="space-y-2">
               {Object.entries(QUALITY_GRADE_CONFIG).map(([key, config]) => (
@@ -773,7 +689,7 @@ function HelpBanner() {
               ))}
             </div>
           </div>
-          <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <div className="bg-white border border-gray-100 rounded-lg p-4">
             <h4 className="text-sm font-semibold text-gray-900 mb-3">Estimate Methods</h4>
             <div className="space-y-2">
               {Object.entries(ESTIMATE_METHOD_LABELS).map(([key, config]) => (
@@ -816,7 +732,7 @@ function ChargeCodeLibrary({ chargeCodes, onAdd, onEdit, onDelete }: { chargeCod
                 <h3 className="text-sm font-medium text-gray-900">{cc.projectName}</h3>
               </div>
               <div className="flex items-center gap-2">
-                <Badge variant="outline" className="text-xs px-1.5 py-0 h-5">{cc.totalHours.toLocaleString()} hrs</Badge>
+                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">{cc.totalHours.toLocaleString()} hrs</Badge>
                 <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600 hover:bg-blue-50" onClick={() => onEdit(cc)} aria-label="Edit charge code"><Pencil className="w-3.5 h-3.5" /></Button>
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-gray-400 hover:text-red-600 hover:bg-red-50" onClick={() => onDelete(cc.id)} aria-label="Delete charge code"><Trash2 className="w-3.5 h-3.5" /></Button>
@@ -825,7 +741,7 @@ function ChargeCodeLibrary({ chargeCodes, onAdd, onEdit, onDelete }: { chargeCod
             </div>
             <div className="flex items-center gap-2 text-xs text-gray-500 mb-2"><Building2 className="w-3 h-3" /><span>{cc.client}</span><span className="w-1.5 h-1.5 rounded-full bg-gray-300" aria-hidden="true" /><Calendar className="w-3 h-3" /><span>{cc.dateRange}</span></div>
             <p className="text-xs text-gray-600 mb-2">{cc.description}</p>
-            <div className="flex flex-wrap gap-1">{cc.roles.map(role => <Badge key={role} variant="secondary" className="text-xs px-1.5 py-0 h-5">{role}</Badge>)}</div>
+            <div className="flex flex-wrap gap-1">{cc.roles.map(role => <Badge key={role} variant="secondary" className="text-[10px] px-1.5 py-0 h-5">{role}</Badge>)}</div>
           </div>
         ))}
       </div>
@@ -845,13 +761,14 @@ function ChargeCodeLibrary({ chargeCodes, onAdd, onEdit, onDelete }: { chargeCod
   )
 }
 
-function RequirementsSection({ 
-  requirements, 
-  wbsElements, 
-  onAdd, 
-  onEdit, 
-  onDelete, 
-  onLinkWbs, 
+function RequirementsSection({
+  requirements,
+  wbsElements,
+  onAdd,
+  onEdit,
+  onDelete,
+  onDeleteAll,
+  onLinkWbs,
   onUnlinkWbs,
   selectedRequirements,
   onToggleSelection,
@@ -859,13 +776,14 @@ function RequirementsSection({
   onClearSelection,
   onBulkGenerate,
   isGenerating
-}: { 
-  requirements: SOORequirement[]; 
-  wbsElements: EnhancedWBSElement[]; 
-  onAdd: (req: SOORequirement) => void; 
-  onEdit: (req: SOORequirement) => void; 
-  onDelete: (id: string) => void; 
-  onLinkWbs: (reqId: string, wbsId: string) => void; 
+}: {
+  requirements: SOORequirement[];
+  wbsElements: EnhancedWBSElement[];
+  onAdd: (req: SOORequirement) => void;
+  onEdit: (req: SOORequirement) => void;
+  onDelete: (id: string) => void | Promise<void>;
+  onDeleteAll: () => void | Promise<void>;
+  onLinkWbs: (reqId: string, wbsId: string) => void;
   onUnlinkWbs: (reqId: string, wbsId: string) => void;
   selectedRequirements: Set<string>;
   onToggleSelection: (reqId: string) => void;
@@ -876,6 +794,7 @@ function RequirementsSection({
 }) {
   const [viewMode, setViewMode] = useState<'list' | 'gaps'>('list')
   const [searchQuery, setSearchQuery] = useState('')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   
   const filteredRequirements = useMemo(() => {
     let filtered = requirements
@@ -913,12 +832,6 @@ function RequirementsSection({
   const unmappedRequirements = requirements.filter(r => r.linkedWbsIds.length === 0)
   const getLinkedWbsElements = (wbsIds: string[]) => wbsElements.filter(el => wbsIds.includes(el.id))
   
-  // Count selected unmapped requirements (only these can generate WBS)
-  const selectedUnmappedCount = Array.from(selectedRequirements).filter(id => {
-    const req = requirements.find(r => r.id === id)
-    return req && req.linkedWbsIds.length === 0
-  }).length
-
   return (
     <div className="space-y-4">
       {/* Header */}
@@ -930,7 +843,7 @@ function RequirementsSection({
             <span className="w-1 h-1 rounded-full bg-gray-400" aria-hidden="true" />
             <span>{stats.mapped} mapped</span>
             <span className="w-1 h-1 rounded-full bg-gray-400" aria-hidden="true" />
-            <span>{stats.shallCoverage}% "shall" covered</span>
+            <span>{stats.shallCoverage}% &quot;shall&quot; covered</span>
             {stats.unmapped > 0 && (
               <>
                 <span className="w-1 h-1 rounded-full bg-red-400" aria-hidden="true" />
@@ -940,100 +853,118 @@ function RequirementsSection({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          {/* Selection indicator */}
-          {selectedRequirements.size > 0 && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
-              <span className="text-sm font-medium text-blue-700">{selectedRequirements.size} selected</span>
-              <button onClick={onClearSelection} className="text-blue-600 hover:text-blue-800">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-          
           {/* View mode toggle */}
           <div className="flex gap-1 bg-gray-100 rounded-lg p-1">
-            <button 
-              onClick={() => setViewMode('list')} 
+            <button
+              onClick={() => setViewMode('list')}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors ${viewMode === 'list' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
             >
               <List className="w-4 h-4 inline mr-1.5" />List
             </button>
-            <button 
-              onClick={() => setViewMode('gaps')} 
+            <button
+              onClick={() => setViewMode('gaps')}
               className={`px-3 py-1.5 text-sm font-medium rounded-md transition-colors relative ${viewMode === 'gaps' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
             >
               <AlertTriangle className="w-4 h-4 inline mr-1.5" />Gaps
               {stats.unmapped > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 text-xs bg-red-500 text-white rounded-full flex items-center justify-center">
+                <span className="absolute -top-1 -right-1 w-4 h-4 text-[10px] bg-red-500 text-white rounded-full flex items-center justify-center">
                   {stats.unmapped}
                 </span>
               )}
             </button>
           </div>
-          
+
           {/* Add button */}
-          <Button 
-            size="sm" 
-            onClick={() => onAdd({ 
-              id: `req-${Date.now()}`, 
-              referenceNumber: '', 
-              title: '', 
-              description: '', 
-              type: 'shall', 
-              category: 'functional', 
-              priority: 'medium', 
-              source: '', 
-              linkedWbsIds: [], 
-              notes: '', 
-              isAIExtracted: false 
+          <Button
+            size="sm"
+            onClick={() => onAdd({
+              id: `req-${Date.now()}`,
+              referenceNumber: '',
+              title: '',
+              description: '',
+              type: 'shall',
+              category: 'functional',
+              priority: 'medium',
+              source: '',
+              linkedWbsIds: [],
+              notes: '',
+              isAIExtracted: false
             })}
           >
             <Plus className="w-4 h-4 mr-1" />Add
           </Button>
         </div>
       </div>
-      
-      {/* Select All Unmapped prompt */}
+
+      {/* Quick Actions - Select All Unmapped */}
       {stats.unmapped > 0 && selectedRequirements.size === 0 && (
-        <div className="flex items-center justify-between p-3 bg-purple-50 border border-purple-200 rounded-lg">
-          <div className="flex items-center gap-2">
-            <Wand2 className="w-5 h-5 text-purple-600" />
-            <span className="text-sm text-purple-800">
-              <strong>{stats.unmapped} unmapped requirement{stats.unmapped !== 1 ? 's' : ''}</strong> ready for AI WBS generation
-            </span>
-          </div>
-          <Button size="sm" variant="outline" onClick={onSelectAllUnmapped} className="border-purple-300 text-purple-700 hover:bg-purple-100">
-            <CheckSquare className="w-4 h-4 mr-1.5" />
-            Select All Unmapped
-          </Button>
+        <div className="flex items-center gap-2 text-sm text-gray-500">
+          <span>{stats.unmapped} unmapped requirement{stats.unmapped !== 1 ? 's' : ''}</span>
+          <span>·</span>
+          <button
+            onClick={onSelectAllUnmapped}
+            className="text-emerald-600 hover:text-emerald-700 font-medium"
+          >
+            Select all unmapped
+          </button>
         </div>
       )}
       
       {/* List View */}
       {viewMode === 'list' && (
         <>
-          <div className="relative max-w-xs">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input 
-              placeholder="Search..." 
-              value={searchQuery} 
-              onChange={(e) => setSearchQuery(e.target.value)} 
-              className="pl-9 h-8 text-sm" 
-            />
-          </div>
-          <div className="space-y-2">
-            {filteredRequirements.map((req, idx) => {
+          {requirements.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                <FileText className="w-8 h-8 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No requirements yet</h3>
+              <p className="text-sm text-gray-500 max-w-sm mb-4">
+                Upload an RFP to extract requirements automatically, or add them manually.
+              </p>
+              <Button
+                size="sm"
+                onClick={() => onAdd({
+                  id: `req-${Date.now()}`,
+                  referenceNumber: '',
+                  title: '',
+                  description: '',
+                  type: 'shall',
+                  category: 'functional',
+                  priority: 'medium',
+                  source: '',
+                  linkedWbsIds: [],
+                  notes: '',
+                  isAIExtracted: false
+                })}
+              >
+                <Plus className="w-4 h-4 mr-1" />Add Requirement
+              </Button>
+            </div>
+          ) : (
+            <>
+              <div className="relative max-w-xs">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder="Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-9 h-8 text-sm"
+                />
+              </div>
+              <div className="space-y-4">
+                {filteredRequirements.map((req, idx) => {
               const typeConfig = REQUIREMENT_TYPE_CONFIG[req.type]
               const linkedWbs = getLinkedWbsElements(req.linkedWbsIds)
               const isMapped = linkedWbs.length > 0
               const displayNumber = req.referenceNumber.startsWith('p.') || req.referenceNumber.startsWith('SOO')
                 ? req.referenceNumber
                 : `REQ-${String(idx + 1).padStart(3, '0')}`
-              
+
               return (
-                <div 
-                  key={req.id} 
-                  className={`group bg-white border rounded-lg p-3 transition-all hover:border-gray-300 ${!isMapped ? 'border-l-4 border-l-red-400' : 'border-gray-200'}`}
+                <div
+                  key={req.id}
+                  className={`group bg-white shadow-sm rounded-xl p-4 transition-all duration-200 hover:shadow-md hover:-translate-y-0.5 ${isMapped ? 'border-l-4 border-l-emerald-500' : ''}`}
                 >
                   <div className="flex items-start gap-3">
                     {/* Checkbox */}
@@ -1041,8 +972,8 @@ function RequirementsSection({
                       onClick={(e) => { e.stopPropagation(); onToggleSelection(req.id) }}
                       className={`mt-0.5 w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
                         selectedRequirements.has(req.id)
-                          ? 'bg-purple-600 border-purple-600 text-white'
-                          : 'border-gray-400 hover:border-purple-400'
+                          ? 'bg-emerald-600 border-emerald-600 text-white'
+                          : 'border-gray-300 hover:border-emerald-400'
                       }`}
                     >
                       {selectedRequirements.has(req.id) && <Check className="w-3 h-3" />}
@@ -1052,7 +983,7 @@ function RequirementsSection({
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1">
-                            <Badge className={`text-xs px-1.5 py-0 h-5 border ${typeConfig.color}`}>{typeConfig.label}</Badge>
+                            <Badge className={`text-[10px] px-1.5 py-0 h-5 border ${typeConfig.color}`}>{typeConfig.label}</Badge>
                             <span className="font-mono text-xs text-gray-500">{displayNumber}</span>
                             <span className="text-sm font-medium text-gray-900 truncate">{req.title || 'Untitled'}</span>
                           </div>
@@ -1060,21 +991,21 @@ function RequirementsSection({
                             <p className="text-xs text-gray-600 line-clamp-2 mb-1.5">{req.description}</p>
                           )}
                           {req.source && (
-                            <span className="text-xs text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{req.source}</span>
+                            <span className="text-[10px] text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{req.source}</span>
                           )}
                           <div className="flex items-center gap-1 flex-wrap mt-1.5">
                             {linkedWbs.map(wbs => (
                               <Badge 
                                 key={wbs.id} 
                                 variant="secondary" 
-                                className="text-xs px-1.5 py-0 h-5 cursor-pointer hover:bg-red-100" 
+                                className="text-[10px] px-1.5 py-0 h-5 cursor-pointer hover:bg-red-100" 
                                 onClick={() => onUnlinkWbs(req.id, wbs.id)}
                               >
                                 {wbs.wbsNumber} ×
                               </Badge>
                             ))}
                             <Select onValueChange={(wbsId) => onLinkWbs(req.id, wbsId)}>
-                              <SelectTrigger className="h-5 w-auto px-2 text-xs text-blue-600 border-none bg-transparent hover:bg-blue-50">
+                              <SelectTrigger className="h-5 w-auto px-2 text-[10px] text-emerald-600 border-none bg-transparent hover:bg-emerald-50 opacity-0 group-hover:opacity-100 transition-opacity">
                                 <span>+ Link WBS</span>
                               </SelectTrigger>
                               <SelectContent position="popper" sideOffset={4} className="z-[100] max-h-[200px] overflow-y-auto">
@@ -1113,10 +1044,12 @@ function RequirementsSection({
                 </div>
               )
             })}
-          </div>
+              </div>
+            </>
+          )}
         </>
       )}
-      
+
       {/* Gaps View */}
       {viewMode === 'gaps' && (
         <div className="space-y-4">
@@ -1141,7 +1074,7 @@ function RequirementsSection({
                       <div className="flex items-start justify-between">
                         <div>
                           <div className="flex items-center gap-2 mb-1">
-                            <Badge className={`text-xs px-1.5 py-0 h-5 border ${typeConfig.color}`}>{typeConfig.label}</Badge>
+                            <Badge className={`text-[10px] px-1.5 py-0 h-5 border ${typeConfig.color}`}>{typeConfig.label}</Badge>
                             <span className="font-mono text-sm font-medium text-gray-900">{req.referenceNumber}</span>
                           </div>
                           <p className="text-sm text-gray-700">{req.title}</p>
@@ -1182,36 +1115,81 @@ function RequirementsSection({
       {/* Floating Selection Bar */}
       {selectedRequirements.size > 0 && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-          <div className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-lg shadow-lg">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center">
-                <span className="text-xs font-semibold text-purple-700">{selectedRequirements.size}</span>
+          <div className="flex flex-col items-center gap-2">
+            {/* Large batch warning */}
+            {selectedRequirements.size > 15 && (
+              <div className="text-xs text-amber-700 bg-amber-50 px-3 py-1.5 rounded-lg border border-amber-200">
+                Large batch selected. Consider generating in smaller groups for better results.
               </div>
-              <span className="text-sm font-medium text-gray-900">selected</span>
+            )}
+            <div className="flex items-center gap-3 px-4 py-3 bg-white border border-gray-200 rounded-xl shadow-lg">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <span className="text-xs font-semibold text-emerald-700">{selectedRequirements.size}</span>
+                </div>
+                <span className="text-sm font-medium text-gray-900">selected</span>
+              </div>
+              <div className="w-px h-5 bg-gray-200" />
+              <button
+                onClick={onClearSelection}
+                className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                Clear
+              </button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="w-4 h-4 mr-1" />
+                Delete
+              </Button>
+              <Button
+                size="sm"
+                onClick={onBulkGenerate}
+                disabled={isGenerating}
+                className="bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isGenerating ? (
+                  <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+                ) : (
+                  <Wand2 className="w-4 h-4 mr-1.5" />
+                )}
+                Generate WBS
+              </Button>
             </div>
-            <div className="w-px h-5 bg-gray-200" />
-            <button
-              onClick={onClearSelection}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              Clear
-            </button>
-            <Button 
-              size="sm" 
-              onClick={onBulkGenerate}
-              disabled={isGenerating}
-              className="bg-purple-600 hover:bg-purple-700"
-            >
-              {isGenerating ? (
-                <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-              ) : (
-                <Wand2 className="w-4 h-4 mr-1.5" />
-              )}
-              Generate WBS
-            </Button>
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              Permanently delete all {requirements.length} requirements?
+            </DialogTitle>
+            <DialogDescription>
+              You&apos;ll need to upload your RFP again to start over.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setShowDeleteConfirm(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                onDeleteAll()
+                setShowDeleteConfirm(false)
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -1234,7 +1212,7 @@ interface WBSSlideoutProps {
   onDeleteLabor: (laborId: string) => void
 }
 
-function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, selectedRoles, allWbsElements, chargeCodes, onOpenLaborDialog, onDeleteLabor }: Omit<WBSSlideoutProps, 'onOpenEditElement'>) {
+function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, allWbsElements, chargeCodes, onOpenLaborDialog, onDeleteLabor }: Omit<WBSSlideoutProps, 'onOpenEditElement'>) {
   const [activeTab, setActiveTab] = useState('details')
   const [showRiskDialog, setShowRiskDialog] = useState(false)
   const [editingRisk, setEditingRisk] = useState<WBSRisk | null>(null)
@@ -1426,7 +1404,7 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, sele
                 )}
               </div>
               <div className="flex items-center gap-2">
-                <Badge className={`${gradeConfig.bgColor} ${gradeConfig.textColor} border ${gradeConfig.borderColor} text-xs px-1.5 py-0 h-5`}>
+                <Badge className={`${gradeConfig.bgColor} ${gradeConfig.textColor} border ${gradeConfig.borderColor} text-[10px] px-1.5 py-0 h-5`}>
                   {gradeConfig.label} ({element.qualityScore}%)
                 </Badge>
                 {element.sowReference && <>
@@ -1461,15 +1439,15 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, sele
               <TabsTrigger value="details" className="text-xs">Details</TabsTrigger>
               <TabsTrigger value="labor" className="text-xs">
                 Labor
-                <Badge variant="secondary" className="ml-1 text-xs px-1 py-0 h-4">{element.laborEstimates.length}</Badge>
+                <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 h-4">{element.laborEstimates.length}</Badge>
               </TabsTrigger>
               <TabsTrigger value="risks" className="text-xs">
                 Risks
-                {element.risks.length > 0 && <Badge variant="secondary" className="ml-1 text-xs px-1 py-0 h-4">{element.risks.length}</Badge>}
+                {element.risks.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 h-4">{element.risks.length}</Badge>}
               </TabsTrigger>
               <TabsTrigger value="dependencies" className="text-xs">
                 Dependencies
-                {element.dependencies.length > 0 && <Badge variant="secondary" className="ml-1 text-xs px-1 py-0 h-4">{element.dependencies.length}</Badge>}
+                {element.dependencies.length > 0 && <Badge variant="secondary" className="ml-1 text-[10px] px-1 py-0 h-4">{element.dependencies.length}</Badge>}
               </TabsTrigger>
             </TabsList>
             
@@ -1572,7 +1550,7 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, sele
                       <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
-                      <p className="text-sm">Explicitly state what's out of scope. This prevents scope creep and sets clear boundaries.</p>
+                      <p className="text-sm">Explicitly state what&apos;s out of scope. This prevents scope creep and sets clear boundaries.</p>
                     </TooltipContent>
                   </Tooltip>
                 </div>
@@ -1617,7 +1595,7 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, sele
                       </Select>
                     </div>
                     {element.complexityFactor !== 1.0 && (
-                      <Badge variant="outline" className="text-xs">{element.complexityFactor}x complexity</Badge>
+                      <Badge variant="outline" className="text-[10px]">{element.complexityFactor}x complexity</Badge>
                     )}
                   </div>
                 </div>
@@ -1769,9 +1747,40 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, sele
                     <div key={labor.id} className={`group border rounded-lg p-4 ${labor.isOrphaned ? 'border-red-200 bg-red-50' : 'border-gray-200 bg-white hover:border-gray-300'} transition-colors`}>
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium ${labor.isOrphaned ? 'text-red-700' : 'text-gray-900'}`}>{labor.roleName}</span>
-                          {labor.isOrphaned && <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">Not in team</Badge>}
-                          <Badge variant="outline" className={`text-xs ${CONFIDENCE_CONFIG[labor.confidence].color}`}>{CONFIDENCE_CONFIG[labor.confidence].label}</Badge>
+                          <select
+                            value={labor.roleName || ''}
+                            onChange={(e) => {
+                              const updatedEstimates = element.laborEstimates.map(le =>
+                                le.id === labor.id ? { ...le, roleName: e.target.value } : le
+                              )
+                              onUpdate(element.id, { laborEstimates: updatedEstimates })
+                            }}
+                            style={{
+                              fontSize: 11,
+                              fontWeight: 500,
+                              padding: '2px 6px',
+                              borderRadius: 3,
+                              background: labor.isOrphaned ? '#FEF2F2' : '#F4F3EF',
+                              color: labor.isOrphaned ? '#B91C1C' : '#5F5E5A',
+                              border: '0.5px solid #E8E7E2',
+                              cursor: 'pointer',
+                            }}
+                          >
+                            <option value="">Select role...</option>
+                            <option value="Back-end Developer">Back-end Developer</option>
+                            <option value="Front-end Developer">Front-end Developer</option>
+                            <option value="DevOps Engineer">DevOps Engineer</option>
+                            <option value="QA Engineer">QA Engineer</option>
+                            <option value="Product Manager">Product Manager</option>
+                            <option value="Product Designer">Product Designer</option>
+                            <option value="UX Researcher">UX Researcher</option>
+                            <option value="Content/UX Writer">Content/UX Writer</option>
+                            <option value="Delivery Manager">Delivery Manager</option>
+                            <option value="Technical Lead">Technical Lead</option>
+                            <option value="Design Lead">Design Lead</option>
+                          </select>
+                          {labor.isOrphaned && <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200">Not in team</Badge>}
+                          <Badge variant="outline" className={`text-[10px] ${CONFIDENCE_CONFIG[labor.confidence].color}`}>{CONFIDENCE_CONFIG[labor.confidence].label}</Badge>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-gray-900">{getTotalHours(labor.hoursByPeriod).toLocaleString()} hrs</span>
@@ -1832,7 +1841,7 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, sele
                       <div key={risk.id} className={`group border-l-4 ${getRiskColor(riskScore)} border border-gray-200 rounded-lg p-4 bg-white hover:border-gray-300 transition-colors`}>
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <Badge className={`text-xs ${statusConfig.color}`}>{statusConfig.label}</Badge>
+                            <Badge className={`text-[10px] ${statusConfig.color}`}>{statusConfig.label}</Badge>
                             <span className="text-xs text-gray-500">Likelihood: {risk.probability} × Impact: {risk.impact} = {riskScore}</span>
                           </div>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1908,9 +1917,37 @@ function WBSSlideout({ element, isOpen, onClose, onUpdate, contractPeriods, sele
               )}
             </TabsContent>
           </Tabs>
+
+          {/* Decompose into tasks */}
+          <div className="mt-6 pt-4 border-t border-gray-100">
+            <DecomposeButton
+              epic={{
+                id: element.id,
+                title: element.title,
+                description: element.why || element.what || '',
+                pwsReferences: element.sowReference ? [element.sowReference] : [],
+              }}
+              onApplyTasks={(tasks) => {
+                // Add decomposed tasks as labor estimates on this WBS element
+                const newLabor = tasks.map(t => ({
+                  id: `labor-${crypto.randomUUID()}`,
+                  roleId: t.roleId || '',
+                  roleName: t.roleName,
+                  hoursByPeriod: { base: t.hours, option1: 0, option2: 0, option3: 0, option4: 0 },
+                  rationale: `${t.name}: ${t.rationale}`,
+                  confidence: (t.confidence || 'medium') as 'high' | 'medium' | 'low',
+                  isAISuggested: true,
+                  isOrphaned: false,
+                }))
+                onUpdate(element.id, {
+                  laborEstimates: [...element.laborEstimates, ...newLabor],
+                })
+              }}
+            />
+          </div>
         </div>
       </div>
-      
+
       {/* Risk Dialog */}
       <Dialog open={showRiskDialog} onOpenChange={setShowRiskDialog}>
         <DialogContent className="max-w-lg">
@@ -2229,7 +2266,7 @@ function BulkGenerateDialog({
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <Wand2 className="w-5 h-5 text-purple-600" />
+            <Wand2 className="w-5 h-5 text-emerald-600" />
             AI WBS Generation
           </DialogTitle>
           <DialogDescription>
@@ -2245,11 +2282,11 @@ function BulkGenerateDialog({
         <div className="flex-1 overflow-y-auto py-4">
           {isGenerating && (
             <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="w-12 h-12 text-purple-600 animate-spin mb-4" />
+              <Loader2 className="w-12 h-12 text-emerald-600 animate-spin mb-4" />
               <p className="text-sm text-gray-600 mb-2">Analyzing requirements and generating WBS...</p>
               <div className="w-64 h-2 bg-gray-200 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-purple-600 transition-all duration-300"
+                <div
+                  className="h-full bg-emerald-600 transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -2272,7 +2309,7 @@ function BulkGenerateDialog({
                 <span>Successfully generated {generatedWbs.length} WBS element{generatedWbs.length !== 1 ? 's' : ''}. Review below and accept to add them.</span>
               </div>
               
-              {generatedWbs.map((wbs, idx) => (
+              {generatedWbs.map((wbs) => (
                 <div key={wbs.id} className="border border-gray-200 rounded-lg p-4 bg-white">
                   <div className="flex items-start justify-between mb-2">
                     <div>
@@ -2284,7 +2321,7 @@ function BulkGenerateDialog({
                         <span className="text-xs text-gray-500">{wbs.sowReference}</span>
                       )}
                     </div>
-                    <Badge className="bg-purple-100 text-purple-700 border-purple-200">AI Generated</Badge>
+                    <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200">AI Generated</Badge>
                   </div>
                   
                   {wbs.why && (
@@ -2300,7 +2337,7 @@ function BulkGenerateDialog({
                   )}
                   
                   {wbs.laborEstimates.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-200">
+                    <div className="mt-3 pt-3 border-t border-gray-100">
                       <p className="text-xs font-medium text-gray-500 mb-2">Labor Estimates:</p>
                       <div className="flex flex-wrap gap-2">
                         {wbs.laborEstimates.map(labor => (
@@ -2339,11 +2376,11 @@ export function EstimateTab() {
   // ==========================================================================
   // CONTEXT - Use shared state for WBS elements (flows to Roles & Pricing tab)
   // ==========================================================================
-   const { 
-    selectedRoles: contextRoles, 
-    addRole, 
-    solicitation, 
-    uiBillableHours, 
+   const {
+    solicitation,
+    updateSolicitation,
+    setExtractedRequirements,
+    uiBillableHours,
     setActiveMainTab,
     // Shared WBS elements state - this is the key change!
     estimateWbsElements,
@@ -2353,7 +2390,11 @@ export function EstimateTab() {
     // Extracted requirements from AI analysis
     extractedRequirements,
   } = useAppContext()
-  
+
+  // Get proposal ID from URL for API calls
+  const params = useParams()
+  const proposalId = params?.id as string | undefined
+
   // Use context state for WBS elements (shared with Roles & Pricing tab)
   // Type assertion needed because context uses simpler type, but EnhancedWBSElement is compatible
   const wbsElements = estimateWbsElements as unknown as EnhancedWBSElement[]
@@ -2391,7 +2432,7 @@ export function EstimateTab() {
   }, [solicitation.periodOfPerformance])
   
   const [chargeCodes, setChargeCodes] = useState<ChargeCode[]>(MOCK_CHARGE_CODES)
-  // Map extracted requirements to SOORequirement format, fallback to mock data
+  // Map extracted requirements to SOORequirement format, return empty array if none
  const initialRequirements = useMemo((): SOORequirement[] => {
   if (extractedRequirements && extractedRequirements.length > 0) {
     const categoryMap: Record<string, RequirementCategory> = {
@@ -2400,19 +2441,19 @@ export function EstimateTab() {
     }
     return extractedRequirements.map((req) => ({
       id: req.id,
-      referenceNumber: req.pageNumber ? `p.${req.pageNumber}` : req.id,
+      referenceNumber: req.reference_number || (req.pageNumber ? `p.${req.pageNumber}` : req.id),
       title: req.title,
-      description: req.text,
+      description: req.description || req.text,
       type: 'shall' as RequirementType,
       category: categoryMap[req.type] || 'other',
       priority: 'medium' as const,
-      source: req.sourceSection,
+      source: req.source || req.sourceSection,
       linkedWbsIds: [],
       notes: '',
       isAIExtracted: true,
     }))
   }
-  return MOCK_REQUIREMENTS
+  return []
 }, [extractedRequirements])
   
   const [requirements, setRequirements] = useState<SOORequirement[]>(initialRequirements)
@@ -2420,20 +2461,20 @@ export function EstimateTab() {
   // Update requirements when extracted requirements change
   useEffect(() => {
     if (extractedRequirements && extractedRequirements.length > 0) {
-      const mapped = extractedRequirements.map((req, idx) => {
+      const mapped = extractedRequirements.map((req) => {
         const categoryMap: Record<string, RequirementCategory> = {
           'delivery': 'functional', 'reporting': 'management', 'staffing': 'management',
           'compliance': 'compliance', 'governance': 'management', 'transition': 'management', 'other': 'other',
         }
     return {
   id: req.id,
-  referenceNumber: req.pageNumber ? `p.${req.pageNumber}` : req.id,  // "p.7" or "REQ-001"
-  title: req.title,  // AI keyword title: "Labor Category Pricing"
-  description: req.text,
+  referenceNumber: req.reference_number || (req.pageNumber ? `p.${req.pageNumber}` : req.id),
+  title: req.title,
+  description: req.description || req.text,
   type: 'shall' as RequirementType,
   category: categoryMap[req.type] || 'other',
   priority: 'medium' as const,
-  source: req.sourceSection,  // Section header: "TASK ORDER TYPE"
+  source: req.source || req.sourceSection,
   linkedWbsIds: [],
   notes: '',
   isAIExtracted: true,
@@ -2505,11 +2546,16 @@ export function EstimateTab() {
 
   const handleBulkGenerateWBS = async () => {
     if (selectedRequirements.size === 0) return
-    
+
+    if (!proposalId) {
+      toast.error('Cannot generate WBS without a proposal ID')
+      return
+    }
+
     // Limit to 10 requirements per batch for optimal AI performance
     const MAX_REQUIREMENTS = 5
     if (selectedRequirements.size > MAX_REQUIREMENTS) {
-      alert(`Please select ${MAX_REQUIREMENTS} or fewer requirements at a time for best results. You have ${selectedRequirements.size} selected.\n\nTip: Generate in batches for higher quality WBS elements.`)
+      toast.warning(`Please select ${MAX_REQUIREMENTS} or fewer requirements at a time for best results. You have ${selectedRequirements.size} selected. Generate in batches for higher quality WBS elements.`)
       return
     }
     
@@ -2521,51 +2567,18 @@ export function EstimateTab() {
     
     try {
       const selectedReqs = requirements.filter(r => selectedRequirements.has(r.id))
-      
-      const payload = {
-        requirements: selectedReqs.map(r => ({
-          id: r.id,
-          referenceNumber: r.referenceNumber,
-          title: r.title,
-          description: r.description,
-          type: r.type,
-          category: r.category,
-          source: r.source,
-        })),
-        availableRoles: companyRoles.length > 0 
-          ? companyRoles.map(r => ({
-              id: r.id,
-              name: r.title,
-              description: r.description || `${r.laborCategory || 'General'} role`,
-              category: r.laborCategory || 'technical',
-            }))
-        : selectedRoles.map(r => ({
-              id: r.id,
-              name: r.name,
-              description: `${r.category} role`,
-              category: r.category || 'technical',
-            })),
 
-        existingWbsNumbers: wbsElements.map(el => el.wbsNumber),
-        contractContext: {
-          title: solicitation.title || 'Government Contract',
-          agency: solicitation.clientAgency || 'Federal Agency',
-          contractType: solicitation.contractType || 'tm',
-          periodOfPerformance: {
-            baseYear: solicitation.periodOfPerformance.baseYear,
-            optionYears: solicitation.periodOfPerformance.optionYears,
-          }
-        }
-      }
-      
       const progressInterval = setInterval(() => {
         setGenerationProgress(prev => Math.min(prev + 5, 85))
       }, 500)
       
-      const response = await fetch('/api/generate-wbs', {
+      // Use proposal-specific route with intelligence gate
+      const response = await fetch(`/api/proposals/${proposalId}/generate-wbs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          selectedRequirementIds: selectedReqs.map(r => r.id),
+        }),
       })
       
       clearInterval(progressInterval)
@@ -2578,13 +2591,15 @@ export function EstimateTab() {
       
       const data = await response.json()
       setGenerationProgress(100)
-      
+
       const newElements: EnhancedWBSElement[] = data.wbsElements.map((el: any) => {
+        // Look up the linked requirement to get the correct source
+        const linkedReq = requirements.find(r => r.id === el.linkedRequirementId)
         const element: EnhancedWBSElement = {
           id: generateId(),
           wbsNumber: el.wbsNumber,
           title: el.title,
-          sowReference: el.sowReference || '',
+          sowReference: linkedReq?.source || linkedReq?.reference_number || linkedReq?.referenceNumber || el.sowReference || '',
           clin: '',
           periodOfPerformance: { startDate: '', endDate: '' },
           why: el.why || '',
@@ -2634,48 +2649,127 @@ export function EstimateTab() {
     }
   }
 
- const handleAcceptGeneratedWbs = () => {
-  // Create elements with fresh IDs and track the mapping
-  const elementMapping: { reqId: string; wbsId: string }[] = []
-  
-  const elementsToAdd = generatedWbs.map(el => {
-    const { _linkedRequirementId, ...cleanElement } = el as any
-    const newId = generateId()
-    
-    if (_linkedRequirementId) {
-      elementMapping.push({ reqId: _linkedRequirementId, wbsId: newId })
+ const handleAcceptGeneratedWbs = async () => {
+  // Track mapping from AI's linkedRequirementId to wbsNumber (so we can map to DB UUIDs later)
+  const wbsNumberToReqId: Record<string, string> = {}
+  generatedWbs.forEach(el => {
+    const linkedReqId = (el as any)._linkedRequirementId
+    if (linkedReqId && el.wbsNumber) {
+      wbsNumberToReqId[el.wbsNumber] = linkedReqId
     }
-    
-    return { ...cleanElement, id: newId } as EnhancedWBSElement
   })
-  
-  // Add WBS elements to state
-  setWbsElements([...wbsElements, ...elementsToAdd])
-  
-  // Auto-link requirements - SINGLE state update, not multiple
+
+  // Prepare data for API - save FIRST to get real UUIDs
+  const wbsToSave = generatedWbs.map(el => ({
+    wbs_number: el.wbsNumber,
+    title: el.title,
+    description: el.what || '',
+    hours: el.laborEstimates?.reduce((sum, l) =>
+      sum + (l.hoursByPeriod?.base || 0) + (l.hoursByPeriod?.option1 || 0) + (l.hoursByPeriod?.option2 || 0), 0
+    ) || 0,
+    labor_cost: 0,
+  }))
+
+  let elementsWithDbIds: EnhancedWBSElement[] = []
+  const elementMapping: { reqId: string; wbsId: string }[] = []
+
+  if (proposalId) {
+    try {
+      const response = await wbsApi.create(proposalId, wbsToSave) as { wbsElements: Array<{ id: string; wbs_number: string; title: string; description: string; hours: number }> }
+      console.log('[Estimate] Saved WBS elements to API, got UUIDs:', response.wbsElements?.map(e => e.id))
+
+      // Build local elements using the DB-generated UUIDs
+      elementsWithDbIds = response.wbsElements.map(dbEl => {
+        // Find the original generated element by wbs_number to get full data
+        const originalEl = generatedWbs.find(g => g.wbsNumber === dbEl.wbs_number) || {} as any
+        const element: EnhancedWBSElement = {
+          id: dbEl.id, // Use the real UUID from database
+          wbsNumber: dbEl.wbs_number,
+          title: dbEl.title,
+          sowReference: originalEl.sowReference || '',
+          clin: '',
+          periodOfPerformance: { startDate: '', endDate: '' },
+          why: originalEl.why || '',
+          what: originalEl.what || dbEl.description || '',
+          notIncluded: originalEl.notIncluded || '',
+          assumptions: originalEl.assumptions || [],
+          estimateMethod: originalEl.estimateMethod || 'engineering',
+          complexityFactor: 1.0,
+          complexityJustification: '',
+          laborEstimates: originalEl.laborEstimates || [],
+          risks: [],
+          dependencies: [],
+          qualityGrade: 'yellow',
+          qualityScore: 0,
+          qualityIssues: [],
+          isAIGenerated: true,
+          aiConfidence: 0.8,
+        }
+        const { score, grade, issues } = calculateQualityScore(element)
+        element.qualityScore = score
+        element.qualityGrade = grade
+        element.qualityIssues = issues
+
+        // Build element mapping using the REAL UUID
+        const linkedReqId = wbsNumberToReqId[dbEl.wbs_number]
+        if (linkedReqId) {
+          elementMapping.push({ reqId: linkedReqId, wbsId: dbEl.id })
+        }
+
+        return element
+      })
+    } catch (error) {
+      console.warn('[Estimate] Failed to save WBS elements to API:', error)
+      // Fallback to local IDs if API fails
+      elementsWithDbIds = generatedWbs.map(el => {
+        const { _linkedRequirementId, ...cleanElement } = el as any
+        const localId = generateId()
+        if (_linkedRequirementId) {
+          elementMapping.push({ reqId: _linkedRequirementId, wbsId: localId })
+        }
+        return { ...cleanElement, id: localId } as EnhancedWBSElement
+      })
+    }
+  } else {
+    // No proposalId - use local IDs
+    elementsWithDbIds = generatedWbs.map(el => {
+      const { _linkedRequirementId, ...cleanElement } = el as any
+      const localId = generateId()
+      if (_linkedRequirementId) {
+        elementMapping.push({ reqId: _linkedRequirementId, wbsId: localId })
+      }
+      return { ...cleanElement, id: localId } as EnhancedWBSElement
+    })
+  }
+
+  // Add WBS elements to state with real UUIDs
+  setWbsElements([...wbsElements, ...elementsWithDbIds])
+
+  // Auto-link requirements using the real UUIDs
   if (elementMapping.length > 0) {
+    console.log('[Auto-link] Element mapping with DB UUIDs:', elementMapping)
+    console.log('[Auto-link] Requirement IDs in state:', requirements.map(r => r.id))
+
     setRequirements(prev => {
       return prev.map(r => {
-        // Find all WBS IDs that should link to this requirement
         const wbsIdsToLink = elementMapping
           .filter(m => m.reqId === r.id)
           .map(m => m.wbsId)
-        
+
         if (wbsIdsToLink.length === 0) return r
-        
-        // Add new WBS IDs that aren't already linked
+
         const newLinkedIds = [...r.linkedWbsIds]
         wbsIdsToLink.forEach(wbsId => {
           if (!newLinkedIds.includes(wbsId)) {
             newLinkedIds.push(wbsId)
           }
         })
-        
+
         return { ...r, linkedWbsIds: newLinkedIds }
       })
     })
   }
-  
+
   // Clear selection and close dialog
   setSelectedRequirements(new Set())
   setShowBulkGenerateDialog(false)
@@ -2762,98 +2856,120 @@ const handleRequirementSelect = (reqId: string) => {
       ...prev, 
       linkedRequirementId: reqId,
       title: req.title || prev.title,
-      sowReference: req.source || prev.sowReference,
+      sowReference: req.source || req.reference_number || req.referenceNumber || prev.sowReference,
     }))
   }
 }
 
-const handleAddElement = () => {
+const handleAddElement = async () => {
   if (!newElement.wbsNumber || !newElement.title) return
-  const element: EnhancedWBSElement = { 
-    id: generateId(), 
-    wbsNumber: newElement.wbsNumber!, 
-    title: newElement.title!, 
-    sowReference: newElement.sowReference || '', 
-    clin: newElement.clin, 
-    periodOfPerformance: newElement.periodOfPerformance || { startDate: '', endDate: '' }, 
-    why: newElement.why || '', 
-    what: newElement.what || '', 
-    notIncluded: newElement.notIncluded || '', 
-    assumptions: newElement.assumptions || [], 
-    estimateMethod: newElement.estimateMethod || 'engineering', 
-    complexityFactor: newElement.complexityFactor || 1.0, 
-    complexityJustification: newElement.complexityJustification || '', 
-    laborEstimates: [], 
-    risks: [], 
-    dependencies: [], 
-    qualityGrade: 'red', 
-    qualityScore: 0, 
-    qualityIssues: [], 
-    isAIGenerated: false, 
-    aiConfidence: 0 
+
+  const linkedReqId = newElement.linkedRequirementId
+
+  // Build the element data (without ID yet)
+  const elementData = {
+    wbsNumber: newElement.wbsNumber!,
+    title: newElement.title!,
+    sowReference: newElement.sowReference || '',
+    clin: newElement.clin,
+    periodOfPerformance: newElement.periodOfPerformance || { startDate: '', endDate: '' },
+    why: newElement.why || '',
+    what: newElement.what || '',
+    notIncluded: newElement.notIncluded || '',
+    assumptions: newElement.assumptions || [],
+    estimateMethod: newElement.estimateMethod || 'engineering',
+    complexityFactor: newElement.complexityFactor || 1.0,
+    complexityJustification: newElement.complexityJustification || '',
+    laborEstimates: [],
+    risks: [],
+    dependencies: [],
+    qualityGrade: 'red' as const,
+    qualityScore: 0,
+    qualityIssues: [] as string[],
+    isAIGenerated: false,
+    aiConfidence: 0,
   }
+
+  let elementId: string
+
+  // Save to API first to get real UUID
+  if (proposalId) {
+    try {
+      const response = await wbsApi.create(proposalId, [{
+        wbs_number: elementData.wbsNumber,
+        title: elementData.title,
+        description: elementData.what,
+        hours: 0,
+        labor_cost: 0,
+      }]) as { wbsElements: Array<{ id: string }> }
+      elementId = response.wbsElements[0].id
+      console.log('[Estimate] Created WBS element with UUID:', elementId)
+    } catch (error) {
+      console.warn('[Estimate] Failed to save WBS element to API, using local ID:', error)
+      elementId = generateId()
+    }
+  } else {
+    elementId = generateId()
+  }
+
+  const element: EnhancedWBSElement = {
+    id: elementId,
+    ...elementData,
+  }
+
   const { score, grade, issues } = calculateQualityScore(element)
   element.qualityScore = score
   element.qualityGrade = grade
   element.qualityIssues = issues
-  
+
   setWbsElements([...wbsElements, element])
-  
-  // Auto-link to requirement if one was selected
-  if (newElement.linkedRequirementId) {
-    setTimeout(() => {
-      handleLinkWbs(newElement.linkedRequirementId!, element.id)
-    }, 0)
+
+  // Auto-link to requirement if one was selected (now with real UUID)
+  if (linkedReqId) {
+    handleLinkWbs(linkedReqId, elementId)
   }
-  
+
   setShowAddElement(false)
-  setNewElement({ 
-    wbsNumber: '', 
-    title: '', 
-    sowReference: '', 
-    estimateMethod: 'engineering', 
+  setNewElement({
+    wbsNumber: '',
+    title: '',
+    sowReference: '',
+    estimateMethod: 'engineering',
     complexityFactor: 1.0,
     linkedRequirementId: ''
   })
-  setSelectedElementId(element.id)
+  setSelectedElementId(elementId)
 }
-  const handleLinkWbs = (reqId: string, wbsId: string) => { setRequirements(prev => prev.map(r => (r.id !== reqId || r.linkedWbsIds.includes(wbsId)) ? r : { ...r, linkedWbsIds: [...r.linkedWbsIds, wbsId] })) }
-  const handleUnlinkWbs = (reqId: string, wbsId: string) => { setRequirements(prev => prev.map(r => r.id !== reqId ? r : { ...r, linkedWbsIds: r.linkedWbsIds.filter(id => id !== wbsId) })) }
-const handleNavigateToRoles = () => { setActiveMainTab('roles') }
-  
-  // Add role to team (from Labor Summary missing roles)
-const handleAddRoleToTeam = (roleName: string) => {
-    // Find role in ROLE_LIBRARY or create a new one
-    const existingRole = ROLE_LIBRARY.find(r => r.name === roleName)
-    if (existingRole) {
-      addRole({
-        id: existingRole.id,
-        name: existingRole.name,
-        description: '',
-        storyPoints: 0,
-        icLevel: 'IC3',
-        baseSalary: existingRole.baseRate * 2080, // Convert hourly to annual
-        quantity: 1,
-        fte: 1.0,
-        billableHours: uiBillableHours,
-        years: { base: true, option1: true, option2: true, option3: true, option4: true }
-      })
-} else {
-      // Create a new role placeholder
-      addRole({
-        id: `role-${Date.now()}`,
-        name: roleName,
-        description: '',
-        storyPoints: 0,
-        icLevel: 'IC3',
-        baseSalary: 100000,
-        quantity: 1,
-        fte: 1.0,
-        billableHours: uiBillableHours,
-        years: { base: true, option1: true, option2: true, option3: true, option4: true }
-      })
+  const handleLinkWbs = async (reqId: string, wbsId: string) => {
+    // Update local state
+    setRequirements(prev => prev.map(r => (r.id !== reqId || r.linkedWbsIds.includes(wbsId)) ? r : { ...r, linkedWbsIds: [...r.linkedWbsIds, wbsId] }))
+    // Persist to API only if both IDs are valid UUIDs (not local IDs like "1768089020449-x7itlewfs")
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    if (proposalId && uuidRegex.test(reqId) && uuidRegex.test(wbsId)) {
+      try {
+        await requirementsApi.update(proposalId, { reqId, linked_wbs_id: wbsId })
+      } catch (error) {
+        console.warn('[Estimate] Failed to persist WBS link:', error)
+      }
     }
   }
+  const handleUnlinkWbs = async (reqId: string, wbsId: string) => {
+    // Update local state
+    const req = requirements.find(r => r.id === reqId)
+    const remainingIds = req?.linkedWbsIds.filter(id => id !== wbsId) || []
+    setRequirements(prev => prev.map(r => r.id !== reqId ? r : { ...r, linkedWbsIds: remainingIds }))
+    // Persist to API only if reqId is a valid UUID
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    const firstRemainingUuid = remainingIds.find(id => uuidRegex.test(id))
+    if (proposalId && uuidRegex.test(reqId)) {
+      try {
+        await requirementsApi.update(proposalId, { reqId, linked_wbs_id: firstRemainingUuid || null })
+      } catch (error) {
+        console.warn('[Estimate] Failed to persist WBS unlink:', error)
+      }
+    }
+  }
+const handleNavigateToRoles = () => { setActiveMainTab('roles') }
   
   // Requirement handlers
   const handleOpenReqDialog = (req?: SOORequirement) => {
@@ -2930,7 +3046,24 @@ const handleAddRoleToTeam = (roleName: string) => {
   }, [wbsElements, searchQuery, filterGrade, sortBy])
   
   const selectedElement = wbsElements.find(el => el.id === selectedElementId)
-  
+
+  // Show skeleton while proposal data is loading (brief flash on mount)
+  const [isHydrated, setIsHydrated] = useState(false)
+  useEffect(() => { setIsHydrated(true) }, [])
+
+  if (!isHydrated) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-10 w-full rounded-lg" />
+        <div className="space-y-3">
+          {[1, 2, 3].map(i => (
+            <Skeleton key={i} className="h-20 w-full rounded-lg" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <TooltipProvider>
       <div className="space-y-6">
@@ -2952,8 +3085,8 @@ const handleAddRoleToTeam = (roleName: string) => {
         <Tabs value={activeSection} onValueChange={setActiveSection} className="space-y-4">
           <div className="flex items-center justify-between">
             <TabsList className="bg-gray-100 p-1">
-              <TabsTrigger value="requirements" className="text-xs px-4 data-[state=active]:bg-white"><ClipboardCheck className="w-3.5 h-3.5 mr-1.5" />Requirements{stats.unmappedRequirements > 0 && <Badge variant="destructive" className="ml-1.5 text-xs px-1 py-0 h-4">{stats.unmappedRequirements}</Badge>}</TabsTrigger>
-              <TabsTrigger value="wbs" className="text-xs px-4 data-[state=active]:bg-white"><Layers className="w-3.5 h-3.5 mr-1.5" />WBS Elements<Badge variant="secondary" className="ml-1.5 text-xs px-1 py-0 h-4">{wbsElements.length}</Badge></TabsTrigger>
+              <TabsTrigger value="requirements" className="text-xs px-4 data-[state=active]:bg-white"><ClipboardCheck className="w-3.5 h-3.5 mr-1.5" />Requirements{stats.unmappedRequirements > 0 && <Badge variant="destructive" className="ml-1.5 text-[10px] px-1 py-0 h-4">{stats.unmappedRequirements}</Badge>}</TabsTrigger>
+              <TabsTrigger value="wbs" className="text-xs px-4 data-[state=active]:bg-white"><Layers className="w-3.5 h-3.5 mr-1.5" />WBS Elements<Badge variant="secondary" className="ml-1.5 text-[10px] px-1 py-0 h-4">{wbsElements.length}</Badge></TabsTrigger>
               <TabsTrigger value="labor" className="text-xs px-4 data-[state=active]:bg-white"><PieChart className="w-3.5 h-3.5 mr-1.5" />Labor Summary</TabsTrigger>
               <TabsTrigger value="charges" className="text-xs px-4 data-[state=active]:bg-white"><Hash className="w-3.5 h-3.5 mr-1.5" />Charge Codes</TabsTrigger>
             </TabsList>
@@ -2971,7 +3104,7 @@ const handleAddRoleToTeam = (roleName: string) => {
             </div>
             
            {filteredElements.length === 0 ? (
-              <div className="text-center py-12 bg-white border border-gray-200 rounded-lg"><Layers className="w-12 h-12 text-gray-300 mx-auto mb-3" /><p className="text-sm text-gray-600">No WBS elements found</p><Button variant="outline" size="sm" className="mt-3" onClick={() => setShowAddElement(true)}><Plus className="w-4 h-4 mr-2" />Add First Element</Button></div>
+              <EmptyState icon={Layers} title="No WBS elements found" action={{ label: 'Add First Element', onClick: () => setShowAddElement(true), variant: 'outline' }} />
             ) : viewMode === 'grid' ? (
               <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">{filteredElements.map(element => <WBSCard key={element.id} element={element} onClick={() => setSelectedElementId(element.id)} onEdit={() => setSelectedElementId(element.id)} onDelete={() => handleDeleteElement(element.id)} />)}</div>
             ) : (
@@ -2980,21 +3113,47 @@ const handleAddRoleToTeam = (roleName: string) => {
           </TabsContent>
           
        <TabsContent value="requirements" className="mt-0">
-          <RequirementsSection 
-          requirements={requirements} 
-          wbsElements={wbsElements} 
-          onAdd={() => handleOpenReqDialog()} 
-          onEdit={handleOpenReqDialog} 
-          onDelete={(id) => setRequirements(prev => prev.filter(r => r.id !== id))} 
-          onLinkWbs={handleLinkWbs} 
+          <RequirementsSection
+          requirements={requirements}
+          wbsElements={wbsElements}
+          onAdd={() => handleOpenReqDialog()}
+          onEdit={handleOpenReqDialog}
+          onDelete={async (id) => {
+            const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+            if (proposalId && uuidRegex.test(id)) {
+              try {
+                await requirementsApi.delete(proposalId, id)
+              } catch (error) {
+                console.error('[Estimate] Failed to delete requirement from database:', error)
+              }
+            }
+            setRequirements(prev => prev.filter(r => r.id !== id))
+          }}
+          onDeleteAll={async () => {
+            if (proposalId) {
+              try {
+                await requirementsApi.deleteAll(proposalId)
+              } catch (error) {
+                console.error('[Estimate] Failed to delete requirements from database:', error)
+              }
+            }
+            // Clear local state
+            setRequirements([])
+            setSelectedRequirements(new Set())
+            // Reset context state so Upload tab shows initial state
+            setExtractedRequirements([])
+            // Only clear the analyzed document flag, preserve proposal metadata (title, agency, etc.)
+            updateSolicitation({ analyzedFromDocument: undefined })
+          }}
+          onLinkWbs={handleLinkWbs}
           onUnlinkWbs={handleUnlinkWbs}
           selectedRequirements={selectedRequirements}
           onToggleSelection={handleToggleRequirementSelection}
           onSelectAllUnmapped={handleSelectAllUnmapped}
           onClearSelection={handleClearSelection}
           onBulkGenerate={handleBulkGenerateWBS}
-         isGenerating={isGenerating}
-  />
+          isGenerating={isGenerating}
+        />
 </TabsContent>
           <TabsContent value="labor" className="mt-0"><LaborSummary wbsElements={wbsElements} billableHoursPerYear={uiBillableHours} onNavigateToRoles={handleNavigateToRoles} /></TabsContent>
           <TabsContent value="charges" className="mt-0"><ChargeCodeLibrary chargeCodes={chargeCodes} onAdd={() => handleOpenChargeCodeDialog()} onEdit={handleOpenChargeCodeDialog} onDelete={(id) => setChargeCodes(prev => prev.filter(c => c.id !== id))} /></TabsContent>
@@ -3044,7 +3203,7 @@ const handleAddRoleToTeam = (roleName: string) => {
                   .map((req, idx) => (
                     <SelectItem key={req.id} value={req.id} className="py-2">
                       <div className="flex items-center gap-2">
-                        <Badge className="text-xs px-1 py-0 h-4 bg-red-100 text-red-700 border-red-200">
+                        <Badge className="text-[10px] px-1 py-0 h-4 bg-red-100 text-red-700 border-red-200">
                           REQ-{String(idx + 1).padStart(3, '0')}
                         </Badge>
                         <span className="truncate max-w-[300px]">{req.title || 'Untitled'}</span>
@@ -3067,11 +3226,11 @@ const handleAddRoleToTeam = (roleName: string) => {
                     return (
                       <SelectItem key={req.id} value={req.id} className="py-2">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-xs px-1 py-0 h-4">
+                          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
                             REQ-{String(unmappedCount + idx + 1).padStart(3, '0')}
                           </Badge>
                           <span className="truncate max-w-[300px] text-gray-600">{req.title || 'Untitled'}</span>
-                          <span className="text-xs text-gray-400">({req.linkedWbsIds.length} WBS)</span>
+                          <span className="text-[10px] text-gray-400">({req.linkedWbsIds.length} WBS)</span>
                         </div>
                       </SelectItem>
                     )
@@ -3261,7 +3420,7 @@ const handleAddRoleToTeam = (roleName: string) => {
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {Object.entries(ESTIMATE_METHOD_LABELS).map(([key, { label, icon, description }]) => (
+            {Object.entries(ESTIMATE_METHOD_LABELS).map(([key, { label, icon }]) => (
               <SelectItem key={key} value={key}>
                 <div className="flex items-center gap-2">
                   <span>{icon}</span>
@@ -3419,7 +3578,7 @@ const handleAddRoleToTeam = (roleName: string) => {
                 <Label>Roles Used</Label>
                 <div className="flex flex-wrap gap-1 mb-2">
                   {(chargeCodeForm.roles || []).map(role => (
-                    <Badge key={role} variant="secondary" className="text-xs px-1.5 py-0 h-5 cursor-pointer hover:bg-red-100" onClick={() => handleRemoveRoleFromChargeCode(role)}>
+                    <Badge key={role} variant="secondary" className="text-[10px] px-1.5 py-0 h-5 cursor-pointer hover:bg-red-100" onClick={() => handleRemoveRoleFromChargeCode(role)}>
                       {role} ×
                     </Badge>
                   ))}

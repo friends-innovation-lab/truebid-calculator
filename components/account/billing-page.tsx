@@ -1,9 +1,10 @@
 'use client'
 
 import React from 'react'
-import { CreditCard, Check, Zap, Building2, Users } from 'lucide-react'
+import { CreditCard, Check, Zap, Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Card } from '@/components/ui/card'
 
 export function BillingPage() {
   const currentPlan = {
@@ -63,7 +64,7 @@ export function BillingPage() {
       </div>
       
       {/* Current Plan */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <Card className="space-y-0">
         <div className="flex items-start justify-between">
           <div>
             <h3 className="text-sm font-semibold text-gray-900 mb-1">Current Plan</h3>
@@ -110,12 +111,12 @@ export function BillingPage() {
             </div>
           </div>
         </div>
-      </div>
-      
+      </Card>
+
       {/* Upgrade Options */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Pro Plan */}
-        <div className="bg-white rounded-lg border-2 border-blue-200 p-6 relative">
+        <Card className="border-2 border-blue-200 space-y-0 relative">
           <Badge className="absolute -top-2 left-4 bg-blue-600 text-white">Recommended</Badge>
           <div className="flex items-center gap-2 mb-2">
             <Zap className="w-5 h-5 text-blue-600" />
@@ -136,10 +137,10 @@ export function BillingPage() {
           <Button className="w-full" disabled>
             Upgrade to Pro
           </Button>
-        </div>
-        
+        </Card>
+
         {/* Enterprise Plan */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6">
+        <Card className="space-y-0">
           <div className="flex items-center gap-2 mb-2">
             <Building2 className="w-5 h-5 text-gray-600" />
             <h3 className="text-lg font-semibold text-gray-900">{enterprisePlan.name}</h3>
@@ -159,19 +160,19 @@ export function BillingPage() {
           <Button variant="outline" className="w-full" disabled>
             Contact Sales
           </Button>
-        </div>
+        </Card>
       </div>
-      
+
       {/* Billing History */}
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
+      <Card className="space-y-0">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">Billing History</h3>
         <div className="text-center py-8">
           <CreditCard className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-sm text-gray-600">No billing history yet</p>
           <p className="text-xs text-gray-500 mt-1">Invoices will appear here when you upgrade</p>
         </div>
-      </div>
-      
+      </Card>
+
       {/* Early Access */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200 p-4">
         <div className="flex items-center justify-between">

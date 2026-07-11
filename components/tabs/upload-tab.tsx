@@ -2,8 +2,10 @@
 'use client'
 
 import { useState, useCallback, useEffect } from 'react'
+import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useAppContext } from '@/contexts/app-context'
+import { requirementsApi, proposalsApi } from '@/lib/api'
 import { 
   Upload, 
   FileText, 
@@ -17,9 +19,11 @@ import {
   Shield,
   MapPin,
   Pencil,
-  AlertCircle,
   RefreshCw,
 } from 'lucide-react'
+import { ErrorAlert } from '@/components/ui/error-alert'
+import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
+import { formatDate } from '@/lib/utils/format-date'
 
 // ==================== TYPES ====================
 interface UploadTabProps {
@@ -60,35 +64,11 @@ interface ExtractionResponse {
   requirements: ExtractedRequirement[]
   suggestedRoles: SuggestedRole[]
   rawTextLength: number
+  solicitationRawText?: string
   error?: string
 }
 
 // ==================== HELPERS ====================
-const setAsideLabels: Record<string, string> = {
-  'full-open': 'Full & Open',
-  'Full & Open': 'Full & Open',
-  'small-business': 'Small Business',
-  'Small Business': 'Small Business',
-  '8a': '8(a)',
-  '8(a)': '8(a)',
-  'hubzone': 'HUBZone',
-  'HUBZone': 'HUBZone',
-  'sdvosb': 'SDVOSB',
-  'SDVOSB': 'SDVOSB',
-  'wosb': 'WOSB',
-  'WOSB': 'WOSB',
-  'edwosb': 'EDWOSB',
-  'EDWOSB': 'EDWOSB',
-  'N/A': 'Not Specified',
-}
-
-const contractTypeLabels: Record<string, string> = {
-  'ffp': 'Firm Fixed Price',
-  'tm': 'Time & Materials',
-  'cpff': 'Cost Plus Fixed Fee',
-  'idiq': 'IDIQ',
-  'unknown': 'Not Specified',
-}
 
 // Map API contract type to context format
 const mapContractType = (type: string): 'FFP' | 'T&M' | 'CPFF' | 'IDIQ' => {
@@ -125,15 +105,19 @@ const mapSetAside = (setAside: string): string => {
 
 // ==================== COMPONENT ====================
 export function UploadTab({ onContinue }: UploadTabProps) {
-  const { 
-    updateSolicitation, 
+  const {
+    updateSolicitation,
     setRecommendedRoles,
     solicitation,
     openSolicitationEditor,
     resetSolicitation,
     setExtractedRequirements,
   } = useAppContext()
-  
+
+  // Get proposal ID from URL for API calls
+  const params = useParams()
+  const proposalId = params?.id
+
   const [isDragging, setIsDragging] = useState(false)
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null)
   const [state, setState] = useState<'idle' | 'analyzing' | 'complete' | 'error'>('idle')
@@ -146,14 +130,29 @@ export function UploadTab({ onContinue }: UploadTabProps) {
 
   // ==================== RESTORE STATE FROM CONTEXT ON MOUNT ====================
   useEffect(() => {
-  // If solicitation has data (was previously analyzed), restore the complete state
-  // Also verify the solicitation has actual extracted content (not just leftover localStorage)
-  if (solicitation.analyzedFromDocument && solicitation.solicitationNumber) {
-    setUploadedFileName(solicitation.analyzedFromDocument)
-    setState('complete')
-    setShowDetails(true)
-  }
-}, []) // Only run on mount
+    console.log('[Upload] useEffect running, proposalId:', proposalId)
+    async function loadRequirements() {
+      if (!proposalId) return
+      console.log('[Upload] Loading requirements for', proposalId)
+      try {
+        const response = await requirementsApi.list(proposalId as string)
+        if (response.requirements && response.requirements.length > 0) {
+          console.log('[Upload] Requirements data:', response.requirements[0])
+          setExtractedRequirements(response.requirements)
+        }
+      } catch (error) {
+        console.warn('[UploadTab] Failed to load requirements:', error)
+      }
+    }
+    loadRequirements()
+
+    // If solicitation has data (was previously analyzed), restore the complete state
+    if (solicitation.analyzedFromDocument && solicitation.solicitationNumber) {
+      setUploadedFileName(solicitation.analyzedFromDocument)
+      setState('complete')
+      setShowDetails(true)
+    }
+  }, [proposalId])
 
   // Drag handlers
   const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -182,150 +181,204 @@ export function UploadTab({ onContinue }: UploadTabProps) {
     }
   }, [])
 
-  // File upload and analysis - NOW CALLS REAL API
+  // File upload and analysis — parallel extraction
   const handleFileUpload = async (file: File) => {
     setUploadedFileName(file.name)
     setState('analyzing')
     setProgress(0)
     setErrorMessage(null)
 
-    // Progress animation interval
-    let progressInterval: NodeJS.Timeout | null = null
-
     try {
-      // Stage 1: Uploading
+      // Stage 1: Extract text from PDF
       setProgress(10)
-      setProgressText('Uploading document...')
-      
+      setProgressText('Extracting text from PDF...')
+
       const formData = new FormData()
       formData.append('file', file)
 
-      // Stage 2: Processing - start animated progress
-      setProgress(15)
-      setProgressText('Extracting text from PDF...')
-      
-      // Animate progress from 15% to 85% over ~60 seconds
-      let currentProgress = 15
-      progressInterval = setInterval(() => {
-        currentProgress += 0.5
-        if (currentProgress >= 85) {
-          currentProgress = 85
-        }
-        setProgress(Math.round(currentProgress))
-        
-        // Update text at milestones
-        if (currentProgress >= 25 && currentProgress < 50) {
-          setProgressText('AI analyzing requirements...')
-        } else if (currentProgress >= 50 && currentProgress < 75) {
-          setProgressText('Extracting metadata and roles...')
-        } else if (currentProgress >= 75) {
-          setProgressText('Finalizing extraction...')
-        }
-      }, 500) // Update every 500ms
-
-      const response = await fetch('/api/extract-rfp', {
+      const textResponse = await fetch('/api/extract-rfp', {
         method: 'POST',
         body: formData,
       })
 
-      // Clear the interval once we get a response
-      if (progressInterval) {
-        clearInterval(progressInterval)
-        progressInterval = null
+      if (!textResponse.ok) {
+        const errorData = await textResponse.json().catch(() => ({}))
+        throw new Error(errorData.error || `Upload failed: ${textResponse.status}`)
       }
 
-      // Stage 3: Processing response
+      const textData = await textResponse.json()
+
+      if (!textData.success) {
+        throw new Error(textData.error || 'Text extraction failed')
+      }
+
+      const rfpText: string = textData.text
+      const pageCount: number = textData.pageCount || 50
+
+      // Stage 2: Save rfpText to working_data immediately
+      setProgress(20)
+      setProgressText('Running AI analysis...')
+
+      if (proposalId) {
+        try {
+          const existingProposal = await proposalsApi.get(proposalId as string) as {
+            proposal: { workingData?: Record<string, unknown> }
+          }
+          const existingWorkingData = existingProposal.proposal?.workingData || {}
+          await proposalsApi.update(proposalId as string, {
+            working_data: {
+              ...existingWorkingData,
+              rfpText,
+            },
+          })
+        } catch (error) {
+          console.warn('[Upload] Failed to save rfpText:', error)
+        }
+      }
+
+      // Stage 3: Run all three AI operations in parallel
+      setProgress(30)
+      setProgressText('Analyzing requirements, compliance, and generating summary...')
+
+      const [summaryResult, requirementsResult, complianceResult] = await Promise.allSettled([
+        fetch(`/api/proposals/${proposalId}/generate-summary`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Summary failed')
+          return data
+        }),
+
+        fetch(`/api/proposals/${proposalId}/extract-requirements`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText, pageCount }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Requirements failed')
+          return data
+        }),
+
+        fetch(`/api/proposals/${proposalId}/extract-compliance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ rfpText }),
+        }).then(async r => {
+          const data = await r.json()
+          if (!r.ok) throw new Error(data.error || 'Compliance failed')
+          return data
+        }),
+      ])
+
+      // Stage 4: Process results
       setProgress(90)
       setProgressText('Processing results...')
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || `Upload failed: ${response.status}`)
+      // Process requirements (has metadata)
+      if (requirementsResult.status === 'fulfilled') {
+        const { metadata, requirements, suggestedRoles } = requirementsResult.value
+
+        if (metadata) {
+          updateSolicitation({
+            solicitationNumber: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : '',
+            title: metadata.title,
+            clientAgency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : '',
+            contractType: mapContractType(metadata.contractType),
+            naicsCode: metadata.naicsCode !== 'N/A' ? metadata.naicsCode : '',
+            proposalDueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : '',
+            periodOfPerformance: {
+              baseYear: true,
+              optionYears: metadata.periodOfPerformance?.options || 0,
+            },
+            setAside: mapSetAside(metadata.setAside),
+            placeOfPerformance: {
+              type: metadata.placeOfPerformance?.toLowerCase().includes('remote')
+                ? 'remote' as const
+                : metadata.placeOfPerformance?.toLowerCase().includes('hybrid')
+                  ? 'hybrid' as const
+                  : 'on-site' as const,
+              locations: metadata.placeOfPerformance !== 'N/A' ? [metadata.placeOfPerformance] : [],
+              travelRequired: false,
+              travelPercent: 0,
+            },
+            analyzedFromDocument: file.name,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          })
+
+          if (proposalId) {
+            try {
+              await proposalsApi.update(proposalId as string, {
+                title: metadata.title,
+                agency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : null,
+                solicitation: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : null,
+                contractType: mapContractType(metadata.contractType).toLowerCase(),
+                dueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : null,
+                periodOfPerformance: `1 Base + ${metadata.periodOfPerformance?.options || 0} Options`,
+              })
+            } catch (error) {
+              console.warn('[Upload] Failed to update proposal metadata:', error)
+            }
+          }
+        }
+
+        if (setExtractedRequirements && requirements && requirements.length > 0) {
+          setExtractedRequirements(requirements)
+          if (proposalId) {
+            try {
+              await requirementsApi.create(proposalId as string, requirements)
+            } catch (error) {
+              console.warn('[Upload] Failed to save requirements:', error)
+            }
+          }
+        }
+
+        if (suggestedRoles && suggestedRoles.length > 0) {
+          const mappedRoles = suggestedRoles.map((role: { title: string; rationale: string; quantity: number }, index: number) => ({
+            id: `rec-${index + 1}`,
+            name: role.title,
+            description: role.rationale,
+            icLevel: 'IC4' as const,
+            baseSalary: 120000,
+            quantity: role.quantity,
+            fte: 1,
+            storyPoints: 0,
+            years: {
+              base: true,
+              option1: (metadata?.periodOfPerformance?.options || 0) >= 1,
+              option2: (metadata?.periodOfPerformance?.options || 0) >= 2,
+              option3: (metadata?.periodOfPerformance?.options || 0) >= 3,
+              option4: (metadata?.periodOfPerformance?.options || 0) >= 4,
+            },
+            confidence: 'medium' as const,
+          }))
+          setRecommendedRoles(mappedRoles)
+        }
+      } else {
+        console.error('[Upload] Requirements extraction failed:', requirementsResult.reason)
       }
 
-      const data: ExtractionResponse = await response.json()
-
-      if (!data.success) {
-        throw new Error(data.error || 'Extraction failed')
-      }
-
-      // Stage 4: Finalizing
-      setProgress(95)
-      setProgressText('Updating workspace...')
-
-      // Map API response to context format
-      const { metadata, requirements, suggestedRoles } = data
-
-      // Update solicitation in context
-      updateSolicitation({
-        solicitationNumber: metadata.solicitationNumber !== 'N/A' ? metadata.solicitationNumber : '',
-        title: metadata.title,
-        clientAgency: metadata.clientAgency !== 'N/A' ? metadata.clientAgency : '',
-        contractType: mapContractType(metadata.contractType),
-        naicsCode: metadata.naicsCode !== 'N/A' ? metadata.naicsCode : '',
-        proposalDueDate: metadata.responseDeadline !== 'N/A' ? metadata.responseDeadline : '',
-        periodOfPerformance: {
-          baseYear: true,
-          optionYears: metadata.periodOfPerformance.options,
-        },
-        setAside: mapSetAside(metadata.setAside),
-        placeOfPerformance: {
-          type: metadata.placeOfPerformance?.toLowerCase().includes('remote') 
-            ? 'remote' as const
-            : metadata.placeOfPerformance?.toLowerCase().includes('hybrid')
-              ? 'hybrid' as const
-              : 'on-site' as const,
-          locations: metadata.placeOfPerformance !== 'N/A' ? [metadata.placeOfPerformance] : [],
-          travelRequired: false,
-          travelPercent: 0,
-        },
-        analyzedFromDocument: file.name,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      })
-
-      // Store extracted requirements for Estimate tab
-      if (setExtractedRequirements && requirements.length > 0) {
-        setExtractedRequirements(requirements)
-      }
-
-      // Map suggested roles to recommended roles format
-      if (suggestedRoles.length > 0) {
-        const mappedRoles = suggestedRoles.map((role, index) => ({
-          id: `rec-${index + 1}`,
-          name: role.title,
-          description: role.rationale,
-          icLevel: 'IC4' as const, // Default to IC4, user can adjust
-          baseSalary: 120000, // Default salary, will be overridden by Account Center
-          quantity: role.quantity,
-          fte: 1,
-          storyPoints: 0,
-          years: { 
-            base: true, 
-            option1: metadata.periodOfPerformance.options >= 1,
-            option2: metadata.periodOfPerformance.options >= 2,
-            option3: metadata.periodOfPerformance.options >= 3,
-            option4: metadata.periodOfPerformance.options >= 4,
-          },
-          confidence: 'medium' as const,
-        }))
-        setRecommendedRoles(mappedRoles)
+      // Stage 5: Extract contract intelligence (runs in background, non-blocking)
+      if (proposalId) {
+        fetch(`/api/proposals/${proposalId}/extract-contract-intelligence`, {
+          method: 'POST',
+        }).catch((error) => {
+          console.warn('[Upload] Contract intelligence extraction failed:', error)
+        })
       }
 
       // Complete
       setProgress(100)
       setProgressText('Complete!')
-      
-      await new Promise(resolve => setTimeout(resolve, 500)) // Brief pause to show completion
-      
+
+      await new Promise(resolve => setTimeout(resolve, 500))
+
       setState('complete')
       setShowDetails(true)
 
     } catch (error) {
-      // Clear progress interval if still running
-      if (progressInterval) {
-        clearInterval(progressInterval)
-      }
       console.error('Upload/extraction error:', error)
       setErrorMessage(error instanceof Error ? error.message : 'Failed to analyze document')
       setState('error')
@@ -455,26 +508,21 @@ export function UploadTab({ onContinue }: UploadTabProps) {
       {/* ==================== ERROR STATE ==================== */}
       {state === 'error' && (
         <div className="space-y-6">
-          <div className="text-center">
-            <div className="w-14 h-14 rounded-lg bg-red-50 mx-auto flex items-center justify-center mb-4">
-              <AlertCircle className="w-7 h-7 text-red-600" />
-            </div>
-            <h1 className="text-xl font-semibold text-gray-900 mb-1">Analysis Failed</h1>
-            <p className="text-sm text-red-600">{errorMessage}</p>
-          </div>
+          <ErrorAlert
+            variant="page"
+            title="Analysis Failed"
+            message={errorMessage || 'An unexpected error occurred'}
+            onRetry={handleRetry}
+          />
 
           <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
             <FileText className="w-3.5 h-3.5" />
             <span>{uploadedFileName}</span>
           </div>
 
-          <div className="flex items-center justify-center gap-3">
+          <div className="flex items-center justify-center">
             <Button variant="outline" onClick={handleReset}>
               Upload Different File
-            </Button>
-            <Button onClick={handleRetry}>
-              <RefreshCw className="w-4 h-4 mr-2" />
-              Try Again
             </Button>
           </div>
         </div>
@@ -537,12 +585,8 @@ export function UploadTab({ onContinue }: UploadTabProps) {
                     <div>
                       <p className="text-xs text-gray-500">Proposal Due</p>
                       <p className="text-sm text-gray-900">
-                        {solicitation.proposalDueDate 
-                          ? new Date(solicitation.proposalDueDate).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric'
-                            })
+                        {solicitation.proposalDueDate
+                          ? formatDate(solicitation.proposalDueDate)
                           : 'Not specified'
                         }
                       </p>
@@ -598,15 +642,15 @@ export function UploadTab({ onContinue }: UploadTabProps) {
             )}
           </div>
 
-          {/* Actions */}
+{/* Actions */}
           <div className="flex items-center justify-between pt-2">
-            <button 
-              onClick={handleReset} 
+            <button
+              onClick={handleReset}
               className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
             >
               Start over
             </button>
-            
+
             <Button onClick={handleContinue}>
               Continue to Estimate
               <ArrowRight className="w-4 h-4 ml-2" />

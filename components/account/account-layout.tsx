@@ -3,7 +3,7 @@
 import React from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { ArrowLeft, User, Building2, DollarSign, Users, UserPlus, CreditCard, FileText } from 'lucide-react'
+import { ArrowLeft, User, Building2, DollarSign, Users, UserPlus, CreditCard, FileText, Library } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Badge } from '@/components/ui/badge'
 
@@ -14,6 +14,7 @@ interface AccountLayoutProps {
 const navigation = [
   { name: 'Profile', href: '/account/profile', icon: User },
   { name: 'Company', href: '/account/company', icon: Building2 },
+  { name: 'Content Library', href: '/account/content-library', icon: Library },
   { name: 'Rates & Margins', href: '/account/rates', icon: DollarSign },
   { name: 'GSA Schedule', href: '/account/gsa', icon: FileText },
   { name: 'Labor Categories', href: '/account/labor', icon: Users },

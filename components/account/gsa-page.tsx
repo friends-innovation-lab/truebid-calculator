@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useAppContext } from '@/contexts/app-context'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,6 +23,9 @@ import {
   FileText,
   AlertCircle,
 } from 'lucide-react'
+import { EmptyState } from '@/components/ui/empty-state'
+import { Card } from '@/components/ui/card'
+import { SaveStatus } from '@/components/ui/save-status'
 import { toast } from 'sonner'
 
 // GSA SIN types
@@ -42,7 +45,38 @@ interface GSASin {
 }
 
 export function GSASchedulePage() {
-  const { companyProfile, setCompanyProfile } = useAppContext()
+  const { companyProfile, setCompanyProfile, saveCompanyProfile } = useAppContext()
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const saveTimeout = useRef<NodeJS.Timeout | null>(null)
+  const latestProfile = useRef(companyProfile)
+  const isInitialMount = useRef(true)
+
+  // Keep ref in sync
+  useEffect(() => { latestProfile.current = companyProfile }, [companyProfile])
+
+  // Auto-save when companyProfile changes (debounced)
+  useEffect(() => {
+    // Skip initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    setSaveStatus('saving')
+    if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    saveTimeout.current = setTimeout(async () => {
+      try {
+        await saveCompanyProfile(latestProfile.current)
+        setSaveStatus('saved')
+      } catch {
+        setSaveStatus('error')
+      }
+    }, 1000)
+
+    return () => {
+      if (saveTimeout.current) clearTimeout(saveTimeout.current)
+    }
+  }, [companyProfile, saveCompanyProfile])
 
   const handleChange = (field: string, value: string | boolean | number) => {
     setCompanyProfile({ ...companyProfile, [field]: value })
@@ -53,13 +87,16 @@ export function GSASchedulePage() {
   return (
     <TooltipProvider>
       <div className="space-y-8 max-w-2xl">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">GSA Schedule</h2>
-          <p className="text-sm text-gray-600 mt-1">Manage your GSA MAS contract, SINs, and ceiling rates</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">GSA Schedule</h2>
+            <p className="text-sm text-gray-600 mt-1">Manage your GSA MAS contract, SINs, and ceiling rates</p>
+          </div>
+          <SaveStatus status={saveStatus} />
         </div>
 
         {/* GSA Contract Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-900">Contract Information</h3>
             <a
@@ -182,18 +219,18 @@ export function GSASchedulePage() {
               </div>
             </>
           )}
-        </div>
+        </Card>
 
         {/* SINs and Labor Categories */}
         {isActive && (
-          <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+          <Card>
             <div>
               <h3 className="text-sm font-semibold text-gray-900">SINs & Ceiling Rates</h3>
               <p className="text-xs text-gray-500 mt-0.5">Special Item Numbers and labor category ceiling rates from your GSA price list</p>
             </div>
             
             <GSAScheduleRates />
-          </div>
+          </Card>
         )}
       </div>
     </TooltipProvider>
@@ -297,17 +334,12 @@ function GSAScheduleRates() {
       </div>
 
       {gsaSins.length === 0 ? (
-        <div className="text-center py-8 border-2 border-dashed border-gray-200 rounded-lg">
-          <FileText className="w-10 h-10 text-gray-300 mx-auto mb-3" />
-          <p className="text-sm text-gray-600 mb-2">No SINs configured</p>
-          <p className="text-xs text-gray-500 mb-4 max-w-sm mx-auto">
-            Add the Special Item Numbers (SINs) from your GSA contract along with the approved ceiling rates for each labor category.
-          </p>
-          <Button variant="outline" size="sm" onClick={handleAddSin}>
-            <Plus className="w-3 h-3 mr-1" />
-            Add Your First SIN
-          </Button>
-        </div>
+        <EmptyState
+          icon={FileText}
+          title="No SINs configured"
+          description="Add the Special Item Numbers (SINs) from your GSA contract along with the approved ceiling rates for each labor category."
+          action={{ label: 'Add Your First SIN', onClick: handleAddSin, variant: 'outline' }}
+        />
       ) : (
         <div className="space-y-3">
           {gsaSins.map((sin) => (

@@ -11,6 +11,7 @@ import {
   Users,
   Plus,
   Pencil,
+  Copy,
   Trash2,
   Search,
   ChevronDown,
@@ -25,6 +26,7 @@ import {
   Loader2,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Card } from '@/components/ui/card'
 
 // Types
 type SalaryStructure = 'steps' | 'bands' | 'single'
@@ -98,10 +100,9 @@ function SaveStatusIndicator({ status }: { status: 'idle' | 'saving' | 'saved' }
 }
 
 export function LaborPage() {
-  const { 
-    companyRoles, 
-    addCompanyRole, 
-    updateCompanyRole, 
+  const {
+    companyRoles,
+    addCompanyRole,
     removeCompanyRole,
     companySettings,
     updateCompanySettings,
@@ -149,6 +150,17 @@ export function LaborPage() {
     toast.success('Role added')
   }
 
+  const handleDuplicateRole = (role: CompanyRole) => {
+    const duplicate: CompanyRole = {
+      ...JSON.parse(JSON.stringify(role)),
+      id: `cr-${Date.now()}`,
+      title: `${role.title} (Copy)`,
+    }
+    addCompanyRole(duplicate)
+    setEditingRoleId(duplicate.id)
+    toast.success(`Duplicated "${role.title}"`)
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -166,7 +178,7 @@ export function LaborPage() {
       </div>
 
       {/* Salary Structure Selector */}
-     <div className="bg-white rounded-lg border border-gray-200 p-4">
+     <Card className="p-4">
         <div className="flex items-center justify-between gap-6">
           <div className="flex-1">
             <Label className="text-sm font-medium">Salary Structure</Label>
@@ -200,7 +212,7 @@ export function LaborPage() {
             </div>
           )}
         </div>
-      </div>
+      </Card>
 
       {/* Search */}
       <div className="relative">
@@ -222,6 +234,7 @@ export function LaborPage() {
             isExpanded={expandedRoleId === role.id}
             onToggleExpand={() => setExpandedRoleId(expandedRoleId === role.id ? null : role.id)}
             onEdit={() => setEditingRoleId(role.id)}
+            onDuplicate={() => handleDuplicateRole(role)}
             onDelete={() => {
               removeCompanyRole(role.id)
               toast.success('Role deleted')
@@ -231,14 +244,14 @@ export function LaborPage() {
         ))}
 
         {filteredRoles.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-lg border border-gray-200">
+          <Card className="text-center py-12 p-0">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-3" />
             <p className="text-sm text-gray-600 mb-3">No roles found</p>
             <Button variant="outline" size="sm" onClick={handleAddRole}>
               <Plus className="w-4 h-4 mr-2" />
               Add First Role
             </Button>
-          </div>
+          </Card>
         )}
       </div>
 
@@ -260,6 +273,7 @@ function RoleCard({
   isExpanded,
   onToggleExpand,
   onEdit,
+  onDuplicate,
   onDelete,
   salaryStructure,
 }: {
@@ -267,11 +281,12 @@ function RoleCard({
   isExpanded: boolean
   onToggleExpand: () => void
   onEdit: () => void
+  onDuplicate: () => void
   onDelete: () => void
   salaryStructure: SalaryStructure
 }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+    <Card className="p-0 overflow-hidden">
       {/* Role Header */}
       <div
         className="flex items-center justify-between px-4 py-3 cursor-pointer hover:bg-gray-50"
@@ -325,6 +340,14 @@ function RoleCard({
             className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600"
           >
             <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={(e) => { e.stopPropagation(); onDuplicate() }}
+            className="h-7 w-7 p-0 text-gray-400 hover:text-blue-600"
+          >
+            <Copy className="w-3.5 h-3.5" />
           </Button>
           <Button
             variant="ghost"
@@ -440,7 +463,7 @@ function RoleCard({
           </div>
         </div>
       )}
-    </div>
+    </Card>
   )
 }
 

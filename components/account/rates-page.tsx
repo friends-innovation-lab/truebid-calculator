@@ -12,7 +12,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
-import { toast } from 'sonner'
+import { Card } from '@/components/ui/card'
+// SaveStatus removed - save happens silently after 2s of no typing
 
 export function RatesPage() {
   const {
@@ -26,8 +27,12 @@ export function RatesPage() {
     setCompanyPolicy,
   } = useAppContext()
 
-  const handleIndirectChange = (updates: Partial<IndirectRates>) => {
-    setIndirectRates({ ...indirectRates, ...updates })
+  // Save on blur - user types freely, saves when clicking away
+  const handleRateBlur = (field: 'fringe' | 'overhead' | 'ga', e: React.FocusEvent<HTMLInputElement>) => {
+    const value = parseFloat(e.target.value) / 100
+    if (!isNaN(value)) {
+      setIndirectRates({ ...indirectRates, [field]: value })
+    }
   }
 
   const handleProfitChange = (updates: Partial<typeof profitTargets>) => {
@@ -45,13 +50,16 @@ export function RatesPage() {
   return (
     <TooltipProvider>
       <div className="space-y-8 max-w-2xl">
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900">Rates & Margins</h2>
-          <p className="text-sm text-gray-600 mt-1">Configure indirect rates, profit targets, and escalation factors</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Rates & Margins</h2>
+            <p className="text-sm text-gray-600 mt-1">Configure indirect rates, profit targets, and escalation factors</p>
+          </div>
+{/* Auto-saves after 2s of no typing */}
         </div>
 
         {/* Indirect Rates Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm font-semibold text-gray-900">Indirect Rates</h3>
@@ -80,8 +88,9 @@ export function RatesPage() {
                   id="fringe"
                   type="number"
                   step="0.01"
-                  value={(indirectRates.fringe * 100).toFixed(2)}
-                  onChange={(e) => handleIndirectChange({ fringe: parseFloat(e.target.value) / 100 })}
+                  key={`fringe-${indirectRates.fringe}`}
+                  defaultValue={(indirectRates.fringe * 100).toFixed(2)}
+                  onBlur={(e) => handleRateBlur('fringe', e)}
                   className="pr-8"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
@@ -104,8 +113,9 @@ export function RatesPage() {
                   id="overhead"
                   type="number"
                   step="0.01"
-                  value={(indirectRates.overhead * 100).toFixed(2)}
-                  onChange={(e) => handleIndirectChange({ overhead: parseFloat(e.target.value) / 100 })}
+                  key={`overhead-${indirectRates.overhead}`}
+                  defaultValue={(indirectRates.overhead * 100).toFixed(2)}
+                  onBlur={(e) => handleRateBlur('overhead', e)}
                   className="pr-8"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
@@ -128,8 +138,9 @@ export function RatesPage() {
                   id="ga"
                   type="number"
                   step="0.01"
-                  value={(indirectRates.ga * 100).toFixed(2)}
-                  onChange={(e) => handleIndirectChange({ ga: parseFloat(e.target.value) / 100 })}
+                  key={`ga-${indirectRates.ga}`}
+                  defaultValue={(indirectRates.ga * 100).toFixed(2)}
+                  onBlur={(e) => handleRateBlur('ga', e)}
                   className="pr-8"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
@@ -143,7 +154,7 @@ export function RatesPage() {
               <Input
                 id="rate-source"
                 value={indirectRates.source}
-                onChange={(e) => handleIndirectChange({ source: e.target.value })}
+                onChange={(e) => setIndirectRates({ ...indirectRates, source: e.target.value })}
                 placeholder="Rate Model 2025"
               />
             </div>
@@ -167,7 +178,7 @@ export function RatesPage() {
               <select
                 id="rate-type"
                 value={indirectRates.rateType}
-                onChange={(e) => handleIndirectChange({ rateType: e.target.value as IndirectRates['rateType'] })}
+                onChange={(e) => setIndirectRates({ ...indirectRates, rateType: e.target.value as IndirectRates['rateType'] })}
                 className="w-full h-9 rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900"
               >
                 <option value="forward-pricing">Forward Pricing</option>
@@ -177,10 +188,10 @@ export function RatesPage() {
               </select>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Profit Targets Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Profit Targets</h3>
             <p className="text-xs text-gray-500 mt-0.5">Default profit margins by contract type and risk level</p>
@@ -244,10 +255,10 @@ export function RatesPage() {
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Escalation Rates Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Escalation Rates</h3>
             <p className="text-xs text-gray-500 mt-0.5">Annual escalation for multi-year contracts</p>
@@ -283,10 +294,10 @@ export function RatesPage() {
               </div>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Company Defaults Card */}
-        <div className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
+        <Card>
           <div>
             <h3 className="text-sm font-semibold text-gray-900">Company Defaults</h3>
             <p className="text-xs text-gray-500 mt-0.5">Base rate calculation uses standard hours. Billable hours are set per-bid.</p>
@@ -301,7 +312,7 @@ export function RatesPage() {
                     <HelpCircle className="w-3.5 h-3.5 text-gray-400 cursor-help" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
-                    <p className="text-sm">Used for base rate calculation: annual salary ÷ 2,080. Don't change unless you have a reason.</p>
+                    <p className="text-sm">Used for base rate calculation: annual salary ÷ 2,080. Don&apos;t change unless you have a reason.</p>
                   </TooltipContent>
                 </Tooltip>
               </div>
@@ -332,7 +343,7 @@ export function RatesPage() {
               />
             </div>
           </div>
-        </div>
+        </Card>
       </div>
     </TooltipProvider>
   )
