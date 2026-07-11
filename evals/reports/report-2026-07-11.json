@@ -1,0 +1,66 @@
+{
+  "runId": "eval-1783812580704",
+  "timestamp": "2026-07-11T23:29:40.704Z",
+  "samples": [
+    {
+      "sampleId": "pm-hcd",
+      "extraction": {
+        "fieldScores": {
+          "contractType": {
+            "match": true,
+            "actual": "FFP",
+            "expected": "FFP"
+          },
+          "vehicle": {
+            "match": true,
+            "actual": "GSA MAS",
+            "expected": "GSA Multiple Award Schedule (MAS)"
+          },
+          "setAside": {
+            "match": true,
+            "actual": "UNKNOWN",
+            "expected": "WOSB (requires: SF-1449, skipped)"
+          },
+          "periodsCount": {
+            "match": true,
+            "actual": "4",
+            "expected": "4"
+          },
+          "disciplines": {
+            "match": false,
+            "actual": "product, research, management (P=0.67 R=1.00)",
+            "expected": "product, research"
+          },
+          "laborRequirements": {
+            "match": true,
+            "actual": "2",
+            "expected": "2"
+          }
+        },
+        "f1": 0.8333333333333334
+      },
+      "disciplineViolations": {
+        "violations": [],
+        "count": 0,
+        "allRoles": [
+          "Delivery Manager",
+          "Product Manager",
+          "UX Researcher",
+          "Content/UX Writer",
+          "Design Lead"
+        ]
+      },
+      "schemaParseSuccess": true
+    }
+  ],
+  "summary": {
+    "extractionF1": 0.8333333333333334,
+    "schemaPassRate": 1,
+    "disciplineViolationCount": 0,
+    "cost": {
+      "inputTokens": 12691,
+      "outputTokens": 8236,
+      "usd": 0.161613
+    }
+  }
+}

@@ -124,7 +124,7 @@ export async function POST(
 
     // Generate the main summary
     const summaryResponse = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4096,
       messages: [
         {
@@ -186,7 +186,7 @@ export async function POST(
           .replace('{OPPORTUNITY}', `${validated.data.problem_statement}\n\n${validated.data.what_they_want}`)
 
         const relevanceResponse = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
+          model: 'claude-sonnet-4-6',
           max_tokens: 512,
           messages: [
             {

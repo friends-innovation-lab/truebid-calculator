@@ -1,0 +1,91 @@
+{
+  "metadata": {
+    "proposalId": "490ea2dd-6a5b-417a-b121-919477f4df82",
+    "solicitationName": "Product Management and Human-Centered Design Performance Work Statement",
+    "generatedAt": "2026-07-11T21:46:36.997Z",
+    "source": "production database query via generate-expected.ts"
+  },
+  "intelligence": {
+    "contractType": {
+      "expected": "FFP",
+      "required": true,
+      "sourceDocument": "PWS"
+    },
+    "vehicle": {
+      "expected": "GSA Multiple Award Schedule (MAS)",
+      "required": false,
+      "sourceDocument": "PWS"
+    },
+    "setAside": {
+      "expected": "WOSB",
+      "required": false,
+      "sourceDocument": "SF-1449",
+      "requires": "additional-documents",
+      "note": "WOSB designation appears on SF-1449 cover form, not in PWS. Model extraction is correct given input."
+    },
+    "periods": {
+      "count": 4,
+      "details": [
+        {
+          "name": "Base Period",
+          "months": "7.00"
+        },
+        {
+          "name": "Option Period 1",
+          "months": "3.00"
+        },
+        {
+          "name": "Option Period 2",
+          "months": "3.00"
+        },
+        {
+          "name": "Option Period 3",
+          "months": "3.00"
+        }
+      ]
+    },
+    "disciplines": {
+      "expected": [
+        "product",
+        "research"
+      ],
+      "forbidden": [
+        "engineering",
+        "devops",
+        "security",
+        "data"
+      ]
+    },
+    "laborRequirements": {
+      "count": 2,
+      "titles": [
+        "Human-Centered Design Lead",
+        "Senior Product Manager"
+      ]
+    }
+  },
+  "wbs": {
+    "parentTaskCount": 9,
+    "totalTaskCount": 37,
+    "totalAssignments": 28,
+    "totalHours": 2334.5,
+    "disciplineCompliance": {
+      "allowedDisciplines": [
+        "product",
+        "research"
+      ],
+      "forbiddenRoles": [
+        "Back-end Developer",
+        "Front-end Developer",
+        "DevOps Engineer",
+        "QA Engineer",
+        "Technical Lead",
+        "Software Engineer"
+      ]
+    },
+    "hoursPlausibility": {
+      "minTotalHours": 1634,
+      "maxTotalHours": 3035
+    }
+  }
+}

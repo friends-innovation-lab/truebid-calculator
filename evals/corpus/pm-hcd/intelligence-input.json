@@ -1,0 +1,61 @@
+{
+  "versionId": "564a64a7-88a5-44e5-9a1e-7f3d12f2e76b",
+  "contractType": "FFP",
+  "factsJson": {
+    "vehicle": {
+      "value": "GSA Multiple Award Schedule (MAS)",
+      "confidence": "high"
+    },
+    "setAside": {
+      "value": "WOSB",
+      "confidence": "low"
+    },
+    "rateSource": {
+      "value": "gsa_mas",
+      "reasoning": "Document references GSA Multiple Award Schedule (MAS) level clauses and task order (TO) level implementation",
+      "confidence": "high"
+    },
+    "contractType": {
+      "value": "FFP",
+      "confidence": "high"
+    },
+    "documentType": {
+      "value": "PWS",
+      "confidence": "high"
+    }
+  },
+  "periods": [
+    {
+      "name": "Base Period",
+      "months": 7
+    },
+    {
+      "name": "Option Period 1",
+      "months": 3
+    },
+    {
+      "name": "Option Period 2",
+      "months": 3
+    },
+    {
+      "name": "Option Period 3",
+      "months": 3
+    }
+  ],
+  "disciplines": [
+    "product",
+    "research"
+  ],
+  "laborRequirements": [
+    {
+      "title": "Human-Centered Design Lead",
+      "laborCategory": null,
+      "hoursPerMonth": null
+    },
+    {
+      "title": "Senior Product Manager",
+      "laborCategory": null,
+      "hoursPerMonth": null
+    }
+  ]
+}

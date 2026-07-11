@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { resolveTenantContext } from '@/lib/tenancy'
 import { requireConfirmedIntelligence, createWbsCandidate, WbsValidationError } from '@/lib/commands'
 import type { TaskInput, StaffingInput, PrimeOrSub } from '@/lib/commands/wbs/types'
+import { wbsGenerationSchema, wbsGenerationJsonSchema, type WbsElement } from '@/lib/schemas/wbs-generation'
 
 const SYSTEM_PROMPT = `You are a senior government proposal manager and technical architect with deep expertise in staffing federal IT delivery teams.
 
@@ -692,17 +693,22 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
   try {
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-    const message = await anthropic.messages.stream({
-      model: 'claude-sonnet-4-20250514',
+    // Tool definition for structured WBS output
+    const wbsTool: Anthropic.Tool = {
+      name: 'generate_wbs',
+      description: 'Generate a Work Breakdown Structure for a government IT contract. Call this tool with the complete WBS.',
+      input_schema: wbsGenerationJsonSchema as unknown as Anthropic.Tool.InputSchema
+    }
+
+    // First attempt with tool-use pattern for structured output
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
       max_tokens: 32768,
       system: SYSTEM_PROMPT,
+      tools: [wbsTool],
+      tool_choice: { type: 'tool', name: 'generate_wbs' },
       messages: [{ role: 'user', content: userPrompt }],
-    }).finalMessage()
-
-    const responseText = message.content
-      .filter(block => block.type === 'text')
-      .map(block => (block as { type: 'text'; text: string }).text)
-      .join('')
+    })
 
     if (message.stop_reason === 'max_tokens') {
       console.error('[generate-wbs] Response truncated — hit max_tokens limit')
@@ -712,27 +718,78 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       )
     }
 
-    if (!responseText) {
-      return NextResponse.json({ error: 'No response from AI' }, { status: 500 })
+    // Extract tool use result
+    const toolUse = message.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+
+    if (!toolUse) {
+      console.error('[generate-wbs] No tool_use block in response')
+      return NextResponse.json({ error: 'AI did not return structured output' }, { status: 500 })
     }
 
-    // Extract JSON array robustly — handles markdown fences, preamble text, etc.
-    let parsed: ParsedWbsElement[]
+    // Extract workPackages from tool input
+    const toolInput = toolUse.input as { workPackages?: WbsElement[] }
+    const rawWorkPackages = toolInput.workPackages
 
-    try {
-      const arrayMatch = responseText.match(/\[[\s\S]*\]/)
-      if (!arrayMatch) {
-        console.error('[generate-wbs] No JSON array found in:', responseText.substring(0, 500))
-        return NextResponse.json({ error: 'AI did not return a JSON array' }, { status: 500 })
-      }
-      parsed = JSON.parse(arrayMatch[0])
-    } catch {
-      console.error('[generate-wbs] Parse failed:', responseText.substring(0, 500))
-      return NextResponse.json({ error: 'Failed to parse AI response' }, { status: 500 })
-    }
-
-    if (!Array.isArray(parsed) || parsed.length === 0) {
+    if (!rawWorkPackages || !Array.isArray(rawWorkPackages) || rawWorkPackages.length === 0) {
+      console.error('[generate-wbs] Empty or invalid workPackages in tool response')
       return NextResponse.json({ error: 'AI returned empty WBS' }, { status: 500 })
+    }
+
+    // Validate with Zod schema
+    const parseResult = wbsGenerationSchema.safeParse(rawWorkPackages)
+
+    let parsed: WbsElement[]
+
+    if (!parseResult.success) {
+      // One repair pass: send validation errors back to the model
+      console.log('[generate-wbs] Schema validation failed, attempting repair pass')
+      console.log('[generate-wbs] Validation errors:', parseResult.error.issues.slice(0, 5))
+
+      const repairMessage = await anthropic.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 32768,
+        system: SYSTEM_PROMPT,
+        tools: [wbsTool],
+        tool_choice: { type: 'tool', name: 'generate_wbs' },
+        messages: [
+          { role: 'user', content: userPrompt },
+          { role: 'assistant', content: message.content },
+          {
+            role: 'user',
+            content: `Your previous WBS had validation errors:
+
+${parseResult.error.issues.slice(0, 10).map(i => `- ${i.path.join('.')}: ${i.message}`).join('\n')}
+
+Please fix these issues and regenerate the complete WBS. Ensure all required fields are present.`
+          }
+        ]
+      })
+
+      const repairToolUse = repairMessage.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+
+      if (!repairToolUse) {
+        console.error('[generate-wbs] Repair pass did not return tool_use')
+        return NextResponse.json(
+          { error: 'WBS generation failed after repair attempt', validationErrors: parseResult.error.issues.slice(0, 5) },
+          { status: 500 }
+        )
+      }
+
+      const repairInput = repairToolUse.input as { workPackages?: WbsElement[] }
+      const repairResult = wbsGenerationSchema.safeParse(repairInput.workPackages)
+
+      if (!repairResult.success) {
+        console.error('[generate-wbs] Repair pass validation still failed:', repairResult.error.issues.slice(0, 5))
+        return NextResponse.json(
+          { error: 'WBS schema validation failed after repair', validationErrors: repairResult.error.issues.slice(0, 5) },
+          { status: 500 }
+        )
+      }
+
+      parsed = repairResult.data
+      console.log('[generate-wbs] Repair pass succeeded')
+    } else {
+      parsed = parseResult.data
     }
 
     // Get period labels from intelligence context

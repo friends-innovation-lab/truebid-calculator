@@ -5,6 +5,13 @@ import { computePeriods } from '@/lib/types/contract-intelligence'
 import type { Discipline, Confidence } from '@/lib/types/contract-intelligence'
 import { runCommand, createCreateIntelligenceDraftCommand } from '@/lib/commands'
 import type { FactsJson } from '@/lib/commands/intelligence/types'
+import {
+  contractIntelligenceExtractionSchema,
+  contractIntelligenceJsonSchema,
+  type ContractIntelligenceExtraction
+} from '@/lib/schemas/contract-intelligence'
+import { prepareSolicitationForExtraction } from '@/lib/ai/truncation'
+import { buildExtractionSystemPrompt, buildExtractionUserPrompt } from '@/lib/ai/prompts/extraction'
 
 export async function POST(
   request: Request,
@@ -62,167 +69,146 @@ export async function POST(
       apiKey: process.env.ANTHROPIC_API_KEY,
     })
 
-    const response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 2000,
-      system: `You are a government contracting expert. Your job is to extract the contract structure from federal solicitation documents.
+    // Use modular prompt assembly
+    const systemPrompt = buildExtractionSystemPrompt()
 
-You extract facts. You do not infer, guess, or assume. If information is not explicitly stated in the document, return null for that field and set confidence to 'low'.
+    // Truncate solicitation with token-aware budget and honest warning
+    const truncation = prepareSolicitationForExtraction(solicitationText, 'claude-sonnet-4-6')
 
-Return ONLY valid JSON matching the schema exactly. No prose. No explanation. No markdown.`,
-
-      messages: [
-        {
-          role: 'user',
-          content: `Extract the contract structure from this solicitation.
-
-Return this exact JSON schema. Use null for any field not explicitly stated. Set confidence to 'high' only when the text states it directly, 'medium' when strongly implied, 'low' when uncertain or absent.
-
-{
-  "documentType": {
-    "value": "RFP|RFQ|SOO|PWS|SOW|task_order|unknown",
-    "confidence": "high|medium|low"
-  },
-  "vehicle": {
-    "value": "exact vehicle name from document or null",
-    "confidence": "high|medium|low"
-  },
-  "contractType": {
-    "value": "FFP|T&M|IDIQ|BPA|CPFF|unknown",
-    "confidence": "high|medium|low"
-  },
-  "setAside": {
-    "value": "8(a)|WOSB|SDVOSB|small_business|none|unknown",
-    "confidence": "high|medium|low"
-  },
-  "rateSource": {
-    "value": "internal|gsa_mas|sub",
-    "confidence": "high|medium|low",
-    "reasoning": "one sentence explaining why"
-  },
-  "basePeriodMonths": number or null,
-  "optionPeriodMonths": [array of numbers] or [],
-  "disciplines": {
-    "required": ["list only disciplines explicitly required by the scope of work from this list: engineering, design, research, product, delivery, program-management, content, accessibility"],
-    "confidence": "high|medium|low",
-    "sourceText": "exact quote from document that identifies these disciplines"
-  },
-  "roles": [
-    {
-      "title": "exact role title from document",
-      "laborCategory": "LCAT name if stated or null",
-      "hoursPerMonth": number if explicitly stated or null,
-      "utilizationPct": decimal if explicitly stated (e.g. 0.8 for 80%) or null,
-      "appearsInPeriods": ["Base Period", "Option Period 1" etc — all periods unless document restricts],
-      "confidence": "high|medium|low",
-      "sourceText": "exact quote from document"
+    if (truncation.wasTruncated) {
+      console.log(`[extract-contract-intelligence] Document truncated: ${truncation.originalCharCount} -> ${truncation.truncatedCharCount} chars`)
     }
-  ]
-}
 
-DISCIPLINE SIGNAL WORDS — use these to identify disciplines but do not hardcode them as requirements. Only include a discipline if the scope of work explicitly requires that type of work:
-- engineering: software development, developer, engineer, frontend, backend, full-stack, API, database, coding, programming
-- design: UX design, UI design, interaction design, visual design, human-centered design, HCD, service design, workshop facilitation, co-design, design thinking
-- research: user research, usability testing, contextual inquiry, discovery, participant recruitment
-- product: product manager, product owner, backlog, roadmap, agile delivery
-- delivery: delivery manager, scrum master, sprint facilitation, project coordination
-- program-management: program manager, multi-workstream, governance, portfolio
-- content: content strategist, plain language, content design, information architecture
-- accessibility: Section 508, WCAG, assistive technology
+    const userPrompt = buildExtractionUserPrompt(truncation.text)
 
-SOLICITATION DOCUMENT:
-${solicitationText.slice(0, 15000)}`,
-        },
-      ],
+    // Tool definition with structured output schema
+    const extractionTool: Anthropic.Tool = {
+      name: 'extract_contract_intelligence',
+      description: 'Extract structured contract intelligence from a solicitation document. Call this tool with the extracted data.',
+      input_schema: contractIntelligenceJsonSchema as unknown as Anthropic.Tool.InputSchema
+    }
+
+    // First attempt with tool-use pattern for structured output
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      system: systemPrompt,
+      tools: [extractionTool],
+      tool_choice: { type: 'tool', name: 'extract_contract_intelligence' },
+      messages: [{ role: 'user', content: userPrompt }]
     })
 
-    const text =
-      response.content.find((b) => b.type === 'text')?.text || '{}'
+    // Extract the tool use result
+    const toolUse = response.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
 
-    let extracted: {
-      documentType?: { value: string; confidence: string }
-      vehicle?: { value: string | null; confidence: string }
-      contractType?: { value: string; confidence: string }
-      setAside?: { value: string; confidence: string }
-      rateSource?: { value: string; confidence: string }
-      basePeriodMonths?: number | null
-      optionPeriodMonths?: number[]
-      disciplines?: { required: string[]; confidence: string; sourceText: string }
-      roles?: Array<{
-        title: string
-        laborCategory: string | null
-        hoursPerMonth: number | null
-        utilizationPct: number | null
-        appearsInPeriods: string[]
-        confidence: string
-        sourceText: string
-      }>
-    }
-
-    try {
-      extracted = JSON.parse(text.replace(/```json|```/g, '').trim())
-    } catch {
-      console.error('Failed to parse AI response:', text.substring(0, 500))
+    if (!toolUse) {
+      console.error('[extract-contract-intelligence] No tool_use block in response')
       return NextResponse.json(
-        { error: 'Failed to parse AI response', raw: text },
+        { error: 'AI did not return structured output' },
         { status: 500 }
       )
     }
 
+    // Validate with Zod schema
+    let extracted: ContractIntelligenceExtraction
+    const parseResult = contractIntelligenceExtractionSchema.safeParse(toolUse.input)
+
+    if (!parseResult.success) {
+      // One repair pass: send validation errors back to the model
+      console.log('[extract-contract-intelligence] Schema validation failed, attempting repair pass')
+      console.log('[extract-contract-intelligence] Validation errors:', parseResult.error.issues)
+
+      const repairResponse = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 2000,
+        system: systemPrompt,
+        tools: [extractionTool],
+        tool_choice: { type: 'tool', name: 'extract_contract_intelligence' },
+        messages: [
+          { role: 'user', content: userPrompt },
+          { role: 'assistant', content: response.content },
+          {
+            role: 'user',
+            content: `Your previous extraction had validation errors:
+
+${parseResult.error.issues.map(i => `- ${i.path.join('.')}: ${i.message}`).join('\n')}
+
+Please fix these issues and try again. Ensure all required fields are present and values match the allowed enums exactly.`
+          }
+        ]
+      })
+
+      const repairToolUse = repairResponse.content.find((b): b is Anthropic.ToolUseBlock => b.type === 'tool_use')
+
+      if (!repairToolUse) {
+        console.error('[extract-contract-intelligence] Repair pass did not return tool_use')
+        return NextResponse.json(
+          { error: 'AI repair pass failed', validationErrors: parseResult.error.issues },
+          { status: 500 }
+        )
+      }
+
+      const repairResult = contractIntelligenceExtractionSchema.safeParse(repairToolUse.input)
+
+      if (!repairResult.success) {
+        console.error('[extract-contract-intelligence] Repair pass validation still failed:', repairResult.error.issues)
+        return NextResponse.json(
+          { error: 'Schema validation failed after repair', validationErrors: repairResult.error.issues },
+          { status: 500 }
+        )
+      }
+
+      extracted = repairResult.data
+      console.log('[extract-contract-intelligence] Repair pass succeeded')
+    } else {
+      extracted = parseResult.data
+    }
+
     // Compute periods from extracted base and option months
     const periods = computePeriods(
-      extracted.basePeriodMonths || 12,
-      extracted.optionPeriodMonths || []
+      extracted.basePeriodMonths ?? 12,
+      extracted.optionPeriodMonths
     )
 
-    // Build factsJson from extracted fields
-    const factsJson: FactsJson = {}
-    if (extracted.documentType) {
-      factsJson.documentType = {
+    // Build factsJson from validated extracted fields (all fields now guaranteed by schema)
+    const factsJson: FactsJson = {
+      documentType: {
         value: extracted.documentType.value as FactsJson['documentType'] extends { value: infer V } ? V : never,
-        confidence: extracted.documentType.confidence as Confidence,
-      }
-    }
-    if (extracted.vehicle) {
-      factsJson.vehicle = {
+        confidence: extracted.documentType.confidence,
+      },
+      vehicle: {
         value: extracted.vehicle.value,
-        confidence: extracted.vehicle.confidence as Confidence,
-      }
-    }
-    if (extracted.contractType) {
-      factsJson.contractType = {
+        confidence: extracted.vehicle.confidence,
+      },
+      contractType: {
         value: extracted.contractType.value as FactsJson['contractType'] extends { value: infer V } ? V : never,
-        confidence: extracted.contractType.confidence as Confidence,
-      }
-    }
-    if (extracted.setAside) {
-      factsJson.setAside = {
+        confidence: extracted.contractType.confidence,
+      },
+      setAside: {
         value: extracted.setAside.value as FactsJson['setAside'] extends { value: infer V } ? V : never,
-        confidence: extracted.setAside.confidence as Confidence,
-      }
-    }
-    if (extracted.rateSource) {
-      factsJson.rateSource = {
+        confidence: extracted.setAside.confidence,
+      },
+      rateSource: {
         value: extracted.rateSource.value as FactsJson['rateSource'] extends { value: infer V } ? V : never,
-        confidence: extracted.rateSource.confidence as Confidence,
-      }
+        confidence: extracted.rateSource.confidence,
+      },
     }
 
-    // Transform disciplines to command input format
-    const disciplines = extracted.disciplines?.required?.map((d: string) => ({
+    // Transform disciplines to command input format (all validated by schema)
+    const disciplines = extracted.disciplines.required.map((d) => ({
       discipline: d as Discipline,
-      confidence: (extracted.disciplines?.confidence || 'medium') as Confidence,
-      sourceText: extracted.disciplines?.sourceText,
-    })) || []
+      confidence: extracted.disciplines.confidence as Confidence,
+      sourceText: extracted.disciplines.sourceText,
+    }))
 
     // Transform roles to labor requirements
-    const laborRequirements = (extracted.roles || []).map((r) => ({
+    const laborRequirements = extracted.roles.map((r) => ({
       title: r.title,
       laborCategory: r.laborCategory ?? undefined,
       hoursPerMonth: r.hoursPerMonth ?? undefined,
       utilizationPct: r.utilizationPct ?? undefined,
-      appearsInPeriods: r.appearsInPeriods || [],
-      confidence: (r.confidence || 'medium') as Confidence,
+      appearsInPeriods: r.appearsInPeriods ?? [],
+      confidence: r.confidence as Confidence,
       sourceText: r.sourceText,
     }))
 
@@ -247,7 +233,7 @@ ${solicitationText.slice(0, 15000)}`,
     const result = await runCommand(supabase, command, {
       proposalId,
       factsJson,
-      contractType: extracted.contractType?.value,
+      contractType: extracted.contractType.value,
       periods: periodsInput,
       disciplines,
       laborRequirements,
@@ -281,6 +267,10 @@ ${solicitationText.slice(0, 15000)}`,
       periods: periodsInput,
       disciplines,
       laborRequirements,
+      // Include truncation warning if document was truncated
+      ...(truncation.wasTruncated && {
+        truncationWarning: truncation.warning
+      }),
     })
   } catch (error) {
     console.error('Extract contract intelligence error:', error)

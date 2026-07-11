@@ -1,0 +1,162 @@
+[
+  {
+    "id": "REQ-001",
+    "text": "Provide senior level product management expertise for FPAC's system modernization and development efforts focusing on Acreage Reporting, Farm Program Pilot, NRCS Integrated Field tools (IFT), NRCS Water and Climate Information System (WCIS), One Farmer/One file, and Agriculture Foreign Investment Disclosure Act (AFIDA).",
+    "type": "other",
+    "title": "Senior Product Management for FPAC Modernization",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.3"
+  },
+  {
+    "id": "REQ-002",
+    "text": "Develop a platform vision statement and roadmap based on FPAC business needs, including integration of Palantir ontology-driven workflows and alignment with OCIO objectives and compliance standards.",
+    "type": "other",
+    "title": "Platform Vision Statement and Roadmap Development",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4"
+  },
+  {
+    "id": "REQ-003",
+    "text": "Develop platform branding, communications, and value proposition statements to align USDA IT and FPAC business leadership and ensure common objectives of administration, Secretary, and USDA strategic objectives.",
+    "type": "other",
+    "title": "Platform Branding and Communications Strategy",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4"
+  },
+  {
+    "id": "REQ-004",
+    "text": "Provide scheduled bi-weekly and ad hoc communications support to all FPAC business leadership from OCIO, Platform team, and project team to ensure validity of use cases.",
+    "type": "other",
+    "title": "Bi-Weekly and Ad Hoc Communications Support",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4"
+  },
+  {
+    "id": "REQ-005",
+    "text": "Work with stakeholders to validate use cases, prioritize features, and ensure stakeholder alignment to the vision and roadmap across FPAC programs.",
+    "type": "other",
+    "title": "Stakeholder Use Case Validation and Feature Prioritization",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4"
+  },
+  {
+    "id": "REQ-006",
+    "text": "Plan and execute qualitative and quantitative research including interviews, surveys, and usability testing to deeply understand stakeholder needs across FPAC programs, ensuring insights drive design decisions.",
+    "type": "other",
+    "title": "Comprehensive User Research Execution",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4"
+  },
+  {
+    "id": "REQ-007",
+    "text": "Create and maintain user journey maps, service blueprints, personas, and workflow diagrams that align with Palantir ontology-driven workflows and USDA modernization objectives.",
+    "type": "other",
+    "title": "Service Design Artifacts Development",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4"
+  },
+  {
+    "id": "REQ-008",
+    "text": "Ensure all designs meet Section 508 and WCAG standards, embedding accessibility principles into prototypes and final deliverables for inclusive user experiences across all content formats.",
+    "type": "other",
+    "title": "Section 508 and WCAG Accessibility Compliance",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4, Section H · p.8-11"
+  },
+  {
+    "id": "REQ-009",
+    "text": "Lead collaborative design workshops and ideation sessions with cross-functional teams (OCIO, FPAC business units, Palantir platform teams) to validate concepts and prioritize features.",
+    "type": "other",
+    "title": "Co-Creation and Stakeholder Alignment Facilitation",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4"
+  },
+  {
+    "id": "REQ-010",
+    "text": "Champion rapid prototyping, usability testing, and continuous feedback loops within an agile framework to deliver user-centered solutions that adapt to evolving program goals.",
+    "type": "other",
+    "title": "Iterative Design and Rapid Prototyping in Agile",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.4"
+  },
+  {
+    "id": "REQ-011",
+    "text": "Deliver platform vision statement to Government Technical Lead on a coordinated schedule post-award.",
+    "type": "other",
+    "title": "Deliver Platform Vision Statement Artifact",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.5"
+  },
+  {
+    "id": "REQ-012",
+    "text": "Deliver roadmap to Government Technical Lead on a coordinated schedule post-award.",
+    "type": "other",
+    "title": "Deliver Roadmap Artifact",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.5"
+  },
+  {
+    "id": "REQ-013",
+    "text": "Deliver communications artifacts to Government Technical Lead on a coordinated schedule post-award.",
+    "type": "other",
+    "title": "Deliver Communications Artifacts",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.5"
+  },
+  {
+    "id": "REQ-014",
+    "text": "Deliver agile delivery artifacts to Government Technical Lead on a coordinated schedule post-award.",
+    "type": "other",
+    "title": "Deliver Agile Delivery Artifacts",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.5"
+  },
+  {
+    "id": "REQ-015",
+    "text": "Deliver user research and service design artifacts including customer journey maps and product UX flows to Government Human Centered Design Lead on a coordinated schedule post-award.",
+    "type": "other",
+    "title": "Deliver User Research and Service Design Artifacts",
+    "pageNumber": null,
+    "sourceSection": "Section C · p.5"
+  },
+  {
+    "id": "REQ-016",
+    "text": "Ensure all contractor and subcontractor employees fulfill OCIO requirements for mandatory security awareness and role-based advanced security training per OMB Circular A-130, FISMA, and NIST requirements, and sign all applicable statements of responsibilities.",
+    "type": "other",
+    "title": "Comply with USDA Security Requirements and Training",
+    "pageNumber": null,
+    "sourceSection": "Section H · p.7"
+  },
+  {
+    "id": "REQ-017",
+    "text": "Comply with the latest version of USDA Information and Communication Technology Departmental Regulation DR 3540-004.",
+    "type": "other",
+    "title": "Supply Chain Risk Management Compliance",
+    "pageNumber": null,
+    "sourceSection": "Section H · p.7"
+  },
+  {
+    "id": "REQ-018",
+    "text": "Submit timely, accurate, and well-formed monthly reports and comply with bi-weekly meeting requirements to demonstrate project status, deliverable progress, and adherence to performance standards.",
+    "type": "other",
+    "title": "Monthly Reporting and Performance Monitoring",
+    "pageNumber": null,
+    "sourceSection": "Section H · p.5, p.12"
+  },
+  {
+    "id": "REQ-019",
+    "text": "Submit invoices electronically through Department of Treasury's Invoice Processing Platform (IPP) by the 15th of the following month and send congruent invoice data via API to USDA OCIO using the invoice data feed format with totals matching IPP for reconciliation.",
+    "type": "other",
+    "title": "Invoicing via Treasury IPP and API Data Feed",
+    "pageNumber": null,
+    "sourceSection": "Section H · p.11-12"
+  },
+  {
+    "id": "REQ-020",
+    "text": "Keep all Government-furnished information in strictest confidence, restrict access on a need-to-know basis, and immediately notify the Contracting Officer of any suspected breaches. Do not disclose any contract-related information without prior written approval.",
+    "type": "other",
+    "title": "Strict Confidentiality and Disclosure Restrictions",
+    "pageNumber": null,
+    "sourceSection": "Section H · p.12"
+  }
+]

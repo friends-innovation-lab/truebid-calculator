@@ -210,7 +210,7 @@ export async function POST(
     const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 8192,
       temperature: 0,
       system: COMPLIANCE_MATRIX_SYSTEM_PROMPT,
