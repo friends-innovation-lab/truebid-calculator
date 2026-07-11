@@ -19,7 +19,8 @@ import {
   Sparkles,
   Loader2,
 } from 'lucide-react'
-import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
+// Phase 3: syncRolesFromWBS removed - roles now projected from staffing_assignments
+import { WbsCandidateReview } from './wbs-candidate-review'
 
 // ==================== TYPES ====================
 
@@ -120,10 +121,9 @@ export function ScopeOfWork() {
     setEstimateWbsElements,
     extractedRequirements,
     solicitation,
-    selectedRoles,
+    // Phase 3: selectedRoles and proposalSetup no longer needed for sync
     setSelectedRoles,
     companyRoles,
-    proposalSetup,
   } = useAppContext()
 
   const wbsElements = estimateWbsElements as unknown as WBSElementData[]
@@ -173,50 +173,8 @@ export function ScopeOfWork() {
       .catch(() => {})
   }, [proposalId])
 
-  // Sync roles from WBS to selectedRoles when WBS changes
-  // This ensures Roles & Pricing stays in sync with WBS edits
-  const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  useEffect(() => {
-    if (wbsElements.length === 0) return
-
-    // Debounce the sync to avoid excessive updates
-    if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
-    syncTimeoutRef.current = setTimeout(() => {
-      // Transform companyRoles for syncRolesFromWBS
-      const laborCategories = companyRoles.map(r => ({
-        title: r.title,
-        laborCategory: r.laborCategory,
-        socCode: r.blsOccCode,
-        salary_levels: r.levels?.map(l => ({
-          level: l.level,
-          level_title: l.levelName,
-          steps: l.steps.map(s => s.salary),
-        })),
-      }))
-
-      const setup = proposalSetup ? {
-        optionYears: proposalSetup.optionYears,
-        billableHoursPerYear: proposalSetup.billableHoursPerYear,
-        profitMargin: proposalSetup.escalationRate,
-      } : undefined
-
-      const syncedRoles = syncRolesFromWBS(
-        wbsElements as Parameters<typeof syncRolesFromWBS>[0],
-        selectedRoles as unknown as Parameters<typeof syncRolesFromWBS>[1],
-        setup,
-        laborCategories
-      )
-
-      // Only update if roles actually changed
-      if (JSON.stringify(syncedRoles.map(r => r.name).sort()) !== JSON.stringify(selectedRoles.map(r => r.name).sort())) {
-        setSelectedRoles(syncedRoles)
-      }
-    }, 500)
-
-    return () => {
-      if (syncTimeoutRef.current) clearTimeout(syncTimeoutRef.current)
-    }
-  }, [wbsElements, companyRoles, proposalSetup]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Phase 3: Role sync removed - roles are now projected from staffing_assignments table
+  // See /api/proposals/[id]/roles for the projection endpoint
 
   // Stats
   const stats = useMemo(() => {
@@ -297,17 +255,26 @@ export function ScopeOfWork() {
         throw new Error(errorData.error || `Generation failed (${response.status})`)
       }
 
-      const { wbsElements: generated, roles, count, rolesCount } = await response.json()
+      // Phase 3: Response now returns candidate version info, not WBS elements
+      const data = await response.json()
 
-      if (generated && generated.length > 0) {
-        setEstimateWbsElements(generated as never)
-
-        // Update roles in context immediately so Roles & Pricing reflects the change
-        if (roles && roles.length > 0) {
-          setSelectedRoles(roles)
+      if (data.candidateVersionId) {
+        // WBS candidate created in normalized tables
+        // Candidate review component will automatically show it
+        toast.success(
+          `WBS candidate v${data.versionNumber} created: ${data.taskCount} tasks, ${data.assignmentCount} assignments`,
+          { description: 'Review the candidate below to accept or discard.' }
+        )
+        // Trigger a re-render to show the candidate review
+        // The WbsCandidateReview component polls/refreshes on mount
+        window.location.reload()
+      } else if (data.wbsElements) {
+        // Legacy fallback (shouldn't happen after rewiring)
+        setEstimateWbsElements(data.wbsElements as never)
+        if (data.roles?.length > 0) {
+          setSelectedRoles(data.roles)
         }
-
-        toast.success(`${count} work packages created · ${rolesCount || 0} roles added to Roles & Pricing`)
+        toast.success(`${data.count || data.wbsElements.length} work packages created`)
       } else {
         toast.error('No work packages were generated')
       }
@@ -366,6 +333,18 @@ export function ScopeOfWork() {
       {directorSession && (
         <DirectorBanner session={directorSession} />
       )}
+
+      {/* ZONE 2.5 — WBS CANDIDATE REVIEW (Phase 3) */}
+      <div className="shrink-0 px-4 pt-4">
+        <WbsCandidateReview
+          proposalId={proposalId}
+          onAccepted={() => {
+            // Refresh the page to load the new active WBS
+            // TODO: In future, load WBS from normalized tables instead of working_data
+            window.location.reload()
+          }}
+        />
+      </div>
 
       {/* ZONE 3 — TOOLBAR */}
       <div className="shrink-0 flex items-center" style={{ background: '#FAFAF9', borderBottom: '0.5px solid #F4F3EF', padding: '8px 16px' }}>

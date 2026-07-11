@@ -164,11 +164,11 @@ Create a new draft version from the current confirmed version.
 
 ---
 
-## WBS Generation Endpoint
+## WBS Endpoints (Phase 3)
 
 ### POST `/api/proposals/[id]/generate-wbs`
 
-Generate Work Breakdown Structure from confirmed intelligence.
+Generate WBS candidate from confirmed intelligence. Creates a versioned WBS candidate that must be reviewed and accepted.
 
 **Gate:** Requires confirmed intelligence version. Returns error if intelligence is not confirmed or hash verification fails.
 
@@ -180,37 +180,174 @@ Generate Work Breakdown Structure from confirmed intelligence.
 }
 ```
 
-**Outputs:**
+**Outputs (Phase 3 - candidate-based):**
 ```json
 {
-  "wbsElements": [
-    {
-      "id": "uuid",
-      "ref": "WBS-01",
-      "wbsNumber": "WBS-01",
-      "title": "Work Package Name",
-      "description": "Description",
-      "tasks": [ ... ],
-      "laborEstimates": [ ... ],
-      "totalHours": 1920,
-      "requirementLinks": ["uuid"],
-      "dependencies": [],
-      "assumptions": ["..."],
-      "isAIGenerated": true
-    }
-  ],
-  "roles": [ ... ],
-  "count": 8,
-  "rolesCount": 11
+  "candidateVersionId": "uuid",
+  "versionNumber": 2,
+  "taskCount": 37,
+  "assignmentCount": 112,
+  "workPackageCount": 9
 }
 ```
 
 **Error Shapes:**
 - `400` - Intelligence not confirmed (`INTELLIGENCE_REQUIRED`, `NOT_CONFIRMED`)
+- `400` - WBS validation failed (`VALIDATION_FAILED`) with `violations` array
 - `400` - No requirements found
 - `404` - Proposal not found, intelligence version not found (`NOT_FOUND`)
 - `500` - Hash verification failed (`HASH_MISMATCH`)
 - `401` - Unauthorized
+
+---
+
+### GET `/api/proposals/[id]/wbs/candidate`
+
+Fetch the latest WBS candidate with diff against active version.
+
+**Inputs:** None (proposal ID in URL)
+
+**Outputs:**
+```json
+{
+  "hasCandidate": true,
+  "candidateVersionId": "uuid",
+  "candidateVersionNumber": 2,
+  "candidateStatus": "generated_candidate" | "draft",
+  "candidateRowVersion": 1,
+  "generationNote": "AI-generated from 15 requirements",
+  "createdAt": "2024-01-15T10:30:00Z",
+  "hasActive": true,
+  "activeVersionId": "uuid" | null,
+  "diff": {
+    "totalTasks": 45,
+    "addedTasks": 8,
+    "changedTasks": 3,
+    "removedTasks": 2,
+    "conflictTasks": 1,
+    "totalConflicts": 2,
+    "taskDiffs": [
+      {
+        "status": "added" | "changed" | "removed" | "conflict" | "unchanged",
+        "wbsCode": "WBS-01.01",
+        "title": "Task name",
+        "hasUserModifiedConflict": false,
+        "assignmentSummary": {
+          "total": 5,
+          "added": 2,
+          "changed": 1,
+          "conflicts": 0
+        }
+      }
+    ]
+  }
+}
+```
+
+**If no candidate:**
+```json
+{
+  "hasCandidate": false,
+  "hasActive": true,
+  "activeVersionId": "uuid" | null,
+  "activeVersionNumber": 1 | null
+}
+```
+
+**Error Shapes:**
+- `401` - Unauthorized
+- `500` - Internal error
+
+---
+
+### POST `/api/proposals/[id]/wbs/candidate`
+
+Accept or discard a WBS candidate.
+
+**Inputs:**
+```json
+{
+  "action": "accept" | "discard",
+  "candidateVersionId": "uuid",
+  "expectedRowVersion": 1,
+  "conflictResolutions": [    // Optional, only for accept
+    {
+      "taskId": "uuid",
+      "assignmentId": "uuid" | null,
+      "resolution": "keep_user" | "accept_candidate"
+    }
+  ]
+}
+```
+
+**Outputs (accept):**
+```json
+{
+  "success": true,
+  "action": "accepted",
+  "activeVersionId": "uuid",
+  "supersededVersionId": "uuid" | null,
+  "conflictsResolved": 2
+}
+```
+
+**Outputs (discard):**
+```json
+{
+  "success": true,
+  "action": "discarded"
+}
+```
+
+**Error Shapes:**
+- `400` - Missing required fields, invalid action
+- `404` - Candidate not found for this proposal
+- `409` - Version conflict (`STALE_VERSION`)
+- `401` - Unauthorized
+
+---
+
+### GET `/api/proposals/[id]/roles`
+
+Fetch projected roles from staffing_assignments + working_data.
+
+**Field-location split:**
+- Hours by period → from `staffing_assignments` table
+- Pricing (salary, rates) → from `working_data.roles`
+
+**Inputs:** None (proposal ID in URL)
+
+**Outputs:**
+```json
+{
+  "roles": [
+    {
+      "id": "uuid",
+      "name": "Back-end Developer",
+      "fte": 0.75,
+      "hoursByYear": {
+        "baseYear": 1440,
+        "oy1": 1440,
+        "oy2": 960,
+        "oy3": 0,
+        "oy4": 0
+      },
+      "totalHoursFromWBS": 3840,
+      "currentSalary": 120000,
+      "billRateBase": 123.71,
+      "profitMargin": 0.10,
+      "laborCategory": "Software Developer",
+      "isManual": false
+    }
+  ],
+  "hasActiveWbs": true,
+  "wbsVersionId": "uuid" | null
+}
+```
+
+**Error Shapes:**
+- `401` - Unauthorized
+- `500` - Internal error
 
 ---
 

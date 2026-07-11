@@ -38,6 +38,73 @@ function mapContractTypeToDashboard(type: string): 'tm' | 'ffp' | 'hybrid' {
   return 'tm'
 }
 
+/**
+ * Phase 3: Extract ONLY pricing fields from roles for working_data persistence.
+ *
+ * Staffing fields (hours, FTE, periods) are now in staffing_assignments table.
+ * We persist only pricing fields to avoid drift between blob and normalized data.
+ *
+ * PRESERVED (pricing):
+ * - id, name, type, subcontractorName
+ * - currentSalary, billRateBase, profitMargin
+ * - selectedLevel, selectedLevelTitle, selectedStep
+ * - laborCategory, socCode, isManual
+ * - subRate, subMarkup, gsaHourlyRate
+ *
+ * EXCLUDED (staffing - from normalized tables):
+ * - hoursByYear, totalHoursFromWBS, fte, billableHours
+ * - years (derived from hours)
+ * - hoursPerMonth (derived)
+ */
+interface RolePricingOnly {
+  id: string
+  name: string
+  type?: 'prime' | 'sub'
+  subcontractorName?: string | null
+  currentSalary?: number
+  billRateBase?: number
+  profitMargin?: number
+  selectedLevel?: string
+  selectedLevelTitle?: string
+  selectedStep?: number
+  laborCategory?: string | null
+  socCode?: string | null
+  isManual?: boolean
+  subRate?: number
+  subMarkup?: number
+  gsaHourlyRate?: number
+  description?: string
+  icLevel?: string
+  baseSalary?: number
+}
+
+function extractPricingFieldsOnly(roles: unknown[]): RolePricingOnly[] {
+  return roles.map((r) => {
+    const role = r as Record<string, unknown>
+    return {
+      id: role.id as string,
+      name: role.name as string,
+      type: role.type as 'prime' | 'sub' | undefined,
+      subcontractorName: role.subcontractorName as string | null | undefined,
+      currentSalary: role.currentSalary as number | undefined,
+      billRateBase: role.billRateBase as number | undefined,
+      profitMargin: role.profitMargin as number | undefined,
+      selectedLevel: role.selectedLevel as string | undefined,
+      selectedLevelTitle: role.selectedLevelTitle as string | undefined,
+      selectedStep: role.selectedStep as number | undefined,
+      laborCategory: role.laborCategory as string | null | undefined,
+      socCode: role.socCode as string | null | undefined,
+      isManual: role.isManual as boolean | undefined,
+      subRate: role.subRate as number | undefined,
+      subMarkup: role.subMarkup as number | undefined,
+      gsaHourlyRate: role.gsaHourlyRate as number | undefined,
+      description: role.description as string | undefined,
+      icLevel: role.icLevel as string | undefined,
+      baseSalary: role.baseSalary as number | undefined,
+    }
+  })
+}
+
 interface WorkingData {
   solicitation?: Record<string, unknown>
   selectedRoles?: unknown[]
@@ -67,6 +134,8 @@ interface WorkingData {
 }
 
 // Fields managed by context - used to preserve extra fields when saving
+// Phase 3: estimateWbsElements REMOVED - WBS now in normalized tables (wbs_versions, wbs_tasks)
+// Phase 3: selectedRoles/roles persists ONLY pricing fields (via extractPricingFieldsOnly)
 const MANAGED_FIELDS = [
   'solicitation',
   'selectedRoles',
@@ -75,7 +144,7 @@ const MANAGED_FIELDS = [
   'teamingPartners',
   'teamMembers',
   'directors',
-  'estimateWbsElements',
+  // 'estimateWbsElements' - REMOVED Phase 3: WBS in normalized tables
   'rateJustifications',
   'odcs',
   'perDiem',
@@ -156,7 +225,8 @@ export function useProposalSync(proposalId: string) {
     teamingPartners,
     teamMembers,
     directors,
-    estimateWbsElements,
+    // estimateWbsElements - REMOVED from save path (Phase 3: WBS in normalized tables)
+    // setEstimateWbsElements kept for hydration of legacy data
     rateJustifications,
     odcs,
     perDiem,
@@ -328,17 +398,22 @@ export function useProposalSync(proposalId: string) {
     // GSA mode toggle persisted as boolean in working_data
     const gsaEnabled = contractType === 'gsa'
 
+    // Phase 3: Extract ONLY pricing fields from roles to avoid drift with staffing_assignments
+    const rolesPricingOnly = extractPricingFieldsOnly(selectedRoles)
+
     // Merge managed fields with extra fields from DB (e.g., solicitationRawText)
+    // Phase 3: estimateWbsElements EXCLUDED - WBS now in normalized tables
+    // Phase 3: roles persists ONLY pricing fields (hours come from staffing_assignments)
     const workingData = {
       ...extraFieldsRef.current,
       solicitation,
-      selectedRoles,
-      roles: selectedRoles,
+      selectedRoles: rolesPricingOnly,
+      roles: rolesPricingOnly,
       subcontractors,
       teamingPartners,
       teamMembers,
       directors,
-      estimateWbsElements,
+      // estimateWbsElements - REMOVED Phase 3: WBS in normalized tables
       rateJustifications,
       odcs,
       perDiem,
@@ -351,14 +426,15 @@ export function useProposalSync(proposalId: string) {
     }
 
     // Skip if nothing changed (only compare managed fields to avoid churn from extra fields)
+    // Phase 3: Uses rolesPricingOnly, excludes estimateWbsElements
     const managedData = {
       solicitation,
-      selectedRoles,
+      selectedRoles: rolesPricingOnly,
       subcontractors,
       teamingPartners,
       teamMembers,
       directors,
-      estimateWbsElements,
+      // estimateWbsElements - REMOVED Phase 3
       rateJustifications,
       odcs,
       perDiem,
@@ -402,7 +478,9 @@ export function useProposalSync(proposalId: string) {
           teamSize: selectedRoles.length + subcontractors.length,
           contractType: mapContractTypeToDashboard(solicitation.contractType),
           periodOfPerformance: formatPeriodOfPerformance(solicitation.periodOfPerformance),
-          progress: calculateProgress(solicitation, selectedRoles, estimateWbsElements),
+          // Phase 3: WBS progress now comes from normalized tables, not working_data
+          // For dashboard progress, we assume WBS exists if roles exist (simplified)
+          progress: calculateProgress(solicitation, selectedRoles, []),
           // Full working data blob
           working_data: workingData,
         })
@@ -419,7 +497,7 @@ export function useProposalSync(proposalId: string) {
     teamingPartners,
     teamMembers,
     directors,
-    estimateWbsElements,
+    // estimateWbsElements - REMOVED Phase 3: WBS in normalized tables
     rateJustifications,
     odcs,
     perDiem,

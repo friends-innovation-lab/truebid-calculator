@@ -10,3 +10,4 @@ global.TextDecoder = TextDecoder as typeof global.TextDecoder
 Object.defineProperty(globalThis, 'crypto', {
   value: webcrypto,
 })
+

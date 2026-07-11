@@ -6,9 +6,15 @@
 # This file lists the ONLY files permitted to write to working_data.
 # All new persistence must use normalized tables + commands.
 #
-# Existing writers (to be migrated in Phases 2-3):
+# === Phase 3 Status ===
+# - estimateWbsElements: REMOVED from sync (WBS in normalized tables)
+# - roles/selectedRoles: PRICING FIELDS ONLY (hours from staffing_assignments)
+#
+# Remaining writers (to be migrated in Phase 4-5):
 
-# Proposal sync and persistence
+# Proposal sync and persistence (RESTRICTED)
+# - Writes ONLY pricing fields for roles (no hours, FTE, periods)
+# - Does NOT write estimateWbsElements (WBS in normalized tables)
 app/api/proposals/[id]/route.ts
 hooks/use-proposal-sync.ts
 
@@ -17,6 +23,3 @@ app/api/extract-rfp/route.ts
 
 # Legacy imports/exports
 app/api/proposals/route.ts
-
-# Context state persistence
-contexts/app-context.tsx

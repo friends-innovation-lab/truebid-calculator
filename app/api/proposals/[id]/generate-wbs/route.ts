@@ -1,9 +1,9 @@
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
-import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
 import { resolveTenantContext } from '@/lib/tenancy'
-import { requireConfirmedIntelligence } from '@/lib/commands'
+import { requireConfirmedIntelligence, createWbsCandidate, WbsValidationError } from '@/lib/commands'
+import type { TaskInput, StaffingInput, PrimeOrSub } from '@/lib/commands/wbs/types'
 
 const SYSTEM_PROMPT = `You are a senior government proposal manager and technical architect with deep expertise in staffing federal IT delivery teams.
 
@@ -292,6 +292,140 @@ Common mappings:
   Technical Writer      → Content/UX Writer
   Scrum Master          → Delivery Manager
   Solutions Architect   → Back-end Developer`
+
+// =============================================================================
+// Role to Discipline Mapping
+// =============================================================================
+
+const ROLE_DISCIPLINE_MAP: Record<string, string> = {
+  // Management
+  'Product Manager': 'Management',
+  'Delivery Manager': 'Management',
+  // HCD (Human-Centered Design)
+  'UX Researcher': 'HCD',
+  'Product Designer': 'HCD',
+  'Design Lead': 'HCD',
+  'Content/UX Writer': 'HCD',
+  // Engineering
+  'Back-end Developer': 'Engineering',
+  'Front-end Developer': 'Engineering',
+  'DevOps Engineer': 'Engineering',
+  'QA Engineer': 'Engineering',
+  'Technical Lead': 'Engineering',
+}
+
+/**
+ * Map role to discipline, constrained to confirmed disciplines.
+ * Falls back to first confirmed discipline if no match.
+ */
+function disciplineForRole(role: string, confirmedDisciplines: string[]): string {
+  const mapped = ROLE_DISCIPLINE_MAP[role]
+  if (mapped && confirmedDisciplines.includes(mapped)) {
+    return mapped
+  }
+  // Fuzzy match: check if any confirmed discipline contains our mapped value
+  if (mapped) {
+    const fuzzy = confirmedDisciplines.find(d =>
+      d.toLowerCase().includes(mapped.toLowerCase()) ||
+      mapped.toLowerCase().includes(d.toLowerCase())
+    )
+    if (fuzzy) return fuzzy
+  }
+  // Last resort: first confirmed discipline
+  return confirmedDisciplines[0] || 'Engineering'
+}
+
+/**
+ * Transform AI-generated WBS output to TaskInput[] format for CreateWbsCandidate.
+ *
+ * Transformation:
+ * - Each AI work package becomes a parent task (WBS-01, WBS-02, etc.)
+ * - Each AI subtask becomes a child task with staffing assignments
+ * - Hours are fanned out: one assignment per period with hours > 0
+ */
+function transformToTaskInputs(
+  parsed: ParsedWbsElement[],
+  confirmedDisciplines: string[],
+  periodLabels: string[]
+): TaskInput[] {
+  const taskInputs: TaskInput[] = []
+
+  for (const el of parsed) {
+    // Create parent task (work package)
+    const parentWbsCode = el.ref
+    taskInputs.push({
+      wbsCode: parentWbsCode,
+      title: el.name,
+      description: el.description,
+      staffing: [], // Parent tasks have no direct staffing
+    })
+
+    // Create child tasks from subtasks
+    for (let i = 0; i < el.tasks.length; i++) {
+      const subtask = el.tasks[i]
+      const childWbsCode = `${parentWbsCode}.${String(i + 1).padStart(2, '0')}`
+
+      // Fan out hours per period
+      const staffing: StaffingInput[] = []
+      const discipline = disciplineForRole(subtask.suggestedRole, confirmedDisciplines)
+
+      for (const periodLabel of periodLabels) {
+        // Check if this period applies to this task
+        const periodApplies = !subtask.applicablePeriods ||
+          subtask.applicablePeriods.length === 0 ||
+          subtask.applicablePeriods.some(p =>
+            p.toLowerCase().includes(periodLabel.toLowerCase()) ||
+            periodLabel.toLowerCase().includes(p.toLowerCase().replace('period', '').trim())
+          )
+
+        if (periodApplies) {
+          const hours = subtask.estimatedHoursPerMonth ?? subtask.estimatedHours
+          if (hours > 0) {
+            staffing.push({
+              roleTitle: subtask.suggestedRole,
+              discipline,
+              primeOrSub: 'prime' as PrimeOrSub,
+              periodLabel,
+              hours,
+              hoursPerMonth: subtask.estimatedHoursPerMonth,
+              rationale: subtask.basisOfEstimate || subtask.name,
+            })
+          }
+        }
+      }
+
+      taskInputs.push({
+        wbsCode: childWbsCode,
+        title: subtask.name,
+        description: subtask.basisOfEstimate,
+        staffing,
+      })
+    }
+  }
+
+  return taskInputs
+}
+
+// Type for parsed AI response
+interface ParsedWbsElement {
+  ref: string
+  name: string
+  description: string
+  requirementRefs: string[]
+  dependsOn: string[]
+  estimationType: string
+  tasks: {
+    name: string
+    suggestedRole: string
+    estimatedHours: number
+    estimatedHoursPerMonth?: number
+    applicablePeriods?: string[]
+    loeType?: string
+    basisOfEstimate?: string
+  }[]
+  totalHours: number
+  assumptions: string[]
+}
 
 export async function POST(
   request: Request,
@@ -583,25 +717,7 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
     }
 
     // Extract JSON array robustly — handles markdown fences, preamble text, etc.
-    let parsed: {
-      ref: string
-      name: string
-      description: string
-      requirementRefs: string[]
-      dependsOn: string[]
-      estimationType: string
-      tasks: {
-        name: string
-        suggestedRole: string
-        estimatedHours: number
-        estimatedHoursPerMonth?: number
-        applicablePeriods?: string[]
-        loeType?: string
-        basisOfEstimate?: string
-      }[]
-      totalHours: number
-      assumptions: string[]
-    }[]
+    let parsed: ParsedWbsElement[]
 
     try {
       const arrayMatch = responseText.match(/\[[\s\S]*\]/)
@@ -619,158 +735,42 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       return NextResponse.json({ error: 'AI returned empty WBS' }, { status: 500 })
     }
 
-    const refToId = new Map<string, string>()
-    requirements.forEach((r, index) => {
-      // Map by reference_number if it exists
-      if (r.referenceNumber) {
-        refToId.set(r.referenceNumber, r.id)
-      }
-      if (r.reference_number) {
-        refToId.set(r.reference_number, r.id)
-      }
-      // Map by auto-generated REQ-NNN format
-      const autoRef = `REQ-${String(index + 1)
-        .padStart(3, '0')}`
-      refToId.set(autoRef, r.id)
-      // Always map by ID too
-      refToId.set(r.id, r.id)
+    // Get period labels from intelligence context
+    const periodLabels = periods.map(p => p.name)
+
+    // Transform AI output to TaskInput[] format
+    const taskInputs = transformToTaskInputs(parsed, disciplines, periodLabels)
+
+    // Create WBS candidate via command (writes to normalized tables, not working_data)
+    const result = await createWbsCandidate(supabase, {
+      proposalId,
+      intelligenceVersionId,
+      tasks: taskInputs,
+      generationJobNote: `AI-generated from ${requirements.length} requirements`,
     })
 
-    // Helper to check if a task applies to a period
-    const appliesToPeriod = (applicablePeriods: string[] | undefined, periodName: string): boolean => {
-      if (!applicablePeriods || applicablePeriods.length === 0) return true // Default: applies to all
-      return applicablePeriods.some(p => p.toLowerCase().includes(periodName.toLowerCase()))
-    }
-
-    // Convert to WBS elements format with BOE fields
-    const wbsElements = parsed.map(el => ({
-      id: crypto.randomUUID(),
-      ref: el.ref,
-      wbsNumber: el.ref.replace(/^WBS-0*/, 'WBS-'),
-      title: el.name,
-      description: el.description,
-      why: el.description,
-      what: el.description,
-      notIncluded: '',
-      estimationType: el.estimationType || 'engineering_estimate',
-      basisOfEstimate: '',
-      historicalReference: '',
-      assumptions: el.assumptions || [],
-      laborEstimates: el.tasks.map(t => {
-        const hours = t.estimatedHoursPerMonth || t.estimatedHours
-        return {
-          id: crypto.randomUUID(),
-          roleId: '',
-          roleName: t.suggestedRole,
-          hoursByPeriod: {
-            base: appliesToPeriod(t.applicablePeriods, 'base') ? hours : 0,
-            option1: optionYears >= 1 && appliesToPeriod(t.applicablePeriods, 'option 1') ? hours : 0,
-            option2: optionYears >= 2 && appliesToPeriod(t.applicablePeriods, 'option 2') ? hours : 0,
-            option3: optionYears >= 3 && appliesToPeriod(t.applicablePeriods, 'option 3') ? hours : 0,
-            option4: optionYears >= 4 && appliesToPeriod(t.applicablePeriods, 'option 4') ? hours : 0,
-          },
-          rationale: t.name,
-          confidence: 'medium' as const,
-          isAISuggested: true,
-          isOrphaned: false,
-          loeType: t.loeType || 'development',
-          basisOfEstimate: t.basisOfEstimate || '',
-          estimatedHoursPerMonth: t.estimatedHoursPerMonth,
-          applicablePeriods: t.applicablePeriods,
-        }
-      }),
-      tasks: el.tasks.map(t => {
-        const hours = t.estimatedHoursPerMonth || t.estimatedHours
-        return {
-          id: crypto.randomUUID(),
-          name: t.name,
-          role: t.suggestedRole,
-          hours: t.estimatedHours,
-          hoursByYear: {
-            baseYear: appliesToPeriod(t.applicablePeriods, 'base') ? hours : 0,
-            oy1: optionYears >= 1 && appliesToPeriod(t.applicablePeriods, 'option 1') ? hours : 0,
-            oy2: optionYears >= 2 && appliesToPeriod(t.applicablePeriods, 'option 2') ? hours : 0,
-            oy3: optionYears >= 3 && appliesToPeriod(t.applicablePeriods, 'option 3') ? hours : 0,
-            oy4: optionYears >= 4 && appliesToPeriod(t.applicablePeriods, 'option 4') ? hours : 0,
-          },
-          loeType: t.loeType || 'development',
-          chargeCode: null,
-          basisOfEstimate: t.basisOfEstimate || '',
-          estimatedHoursPerMonth: t.estimatedHoursPerMonth,
-          applicablePeriods: t.applicablePeriods,
-        }
-      }),
-      totalHours: el.totalHours,
-      requirementLinks: el.requirementRefs
-        .map(ref => refToId.get(ref))
-        .filter((id): id is string => id != null),
-      _dependencyRefs: el.dependsOn || [],
-      dependencies: [] as string[],
-      notes: '',
-      isAIGenerated: true,
-      qualityGrade: 'green' as const,
-      qualityScore: 75,
-      qualityIssues: [],
-    }))
-
-    // Resolve dependency refs → IDs
-    const refToWbsId = new Map(wbsElements.map(el => [el.ref, el.id]))
-    wbsElements.forEach(el => {
-      el.dependencies = (el._dependencyRefs as string[])
-        .map(ref => refToWbsId.get(ref))
-        .filter((id): id is string => id != null)
-      delete (el as Record<string, unknown>)._dependencyRefs
-    })
-
-    // Sync roles from WBS tasks with labor category lookup
-    const existingWorkingData = (proposal.working_data || {}) as Record<string, unknown>
-    const existingRoles = (existingWorkingData.roles || existingWorkingData.selectedRoles || []) as { id: string; name: string; isManual?: boolean; [key: string]: unknown }[]
-    const proposalSetup = (existingWorkingData.proposalSetup || {}) as { optionYears?: number; profitMargin?: number }
-
-    // Fetch company's labor categories for salary lookup
-    const { data: proposalRow } = await supabase.from('proposals').select('company_id').eq('id', proposalId).single()
-    let laborCategories: { title: string; laborCategory?: string; socCode?: string; salary_levels?: { level: string; level_title?: string; steps: number[] }[] }[] = []
-    if (proposalRow?.company_id) {
-      const { data: roles } = await supabase.from('company_roles').select('title, labor_category, soc_code, salary_levels').eq('company_id', proposalRow.company_id)
-      laborCategories = (roles || []).map(r => ({
-        title: r.title,
-        laborCategory: r.labor_category,
-        socCode: r.soc_code,
-        salary_levels: r.salary_levels,
-      }))
-    }
-
-    const syncedRoles = syncRolesFromWBS(wbsElements, existingRoles, proposalSetup, laborCategories)
-
-    // Save both WBS elements and synced roles to working_data
-    const { error: updateError } = await supabase
-      .from('proposals')
-      .update({
-        working_data: {
-          ...existingWorkingData,
-          estimateWbsElements: wbsElements,
-          roles: syncedRoles,
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', proposalId)
-
-    if (updateError) {
-      console.error('[generate-wbs] Failed to save:', updateError)
-      return NextResponse.json({ error: 'Failed to save WBS elements' }, { status: 500 })
-    }
-
-    console.log(`[generate-wbs] Generated ${wbsElements.length} elements, synced ${syncedRoles.length} roles for proposal ${proposalId}`)
+    console.log(`[generate-wbs] Created candidate v${result.versionNumber}: ${result.taskCount} tasks, ${result.assignmentCount} assignments for proposal ${proposalId}`)
 
     return NextResponse.json({
-      wbsElements,
-      roles: syncedRoles,
-      count: wbsElements.length,
-      rolesCount: syncedRoles.length,
+      candidateVersionId: result.candidateVersionId,
+      versionNumber: result.versionNumber,
+      taskCount: result.taskCount,
+      assignmentCount: result.assignmentCount,
+      workPackageCount: parsed.length,
     })
 
   } catch (error) {
     console.error('[generate-wbs] Error:', error)
+
+    // Handle WBS validation errors with detailed feedback
+    if (error instanceof WbsValidationError) {
+      return NextResponse.json({
+        error: 'WBS candidate validation failed',
+        code: 'VALIDATION_FAILED',
+        violations: error.violations,
+      }, { status: 400 })
+    }
+
     if (error instanceof Anthropic.APIError) {
       return NextResponse.json({ error: `AI API error: ${error.message}` }, { status: error.status || 500 })
     }
