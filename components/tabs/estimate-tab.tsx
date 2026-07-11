@@ -2546,7 +2546,12 @@ export function EstimateTab() {
 
   const handleBulkGenerateWBS = async () => {
     if (selectedRequirements.size === 0) return
-    
+
+    if (!proposalId) {
+      toast.error('Cannot generate WBS without a proposal ID')
+      return
+    }
+
     // Limit to 10 requirements per batch for optimal AI performance
     const MAX_REQUIREMENTS = 5
     if (selectedRequirements.size > MAX_REQUIREMENTS) {
@@ -2562,51 +2567,18 @@ export function EstimateTab() {
     
     try {
       const selectedReqs = requirements.filter(r => selectedRequirements.has(r.id))
-      
-      const payload = {
-        requirements: selectedReqs.map(r => ({
-          id: r.id,
-          referenceNumber: r.referenceNumber,
-          title: r.title,
-          description: r.description,
-          type: r.type,
-          category: r.category,
-          source: r.source,
-        })),
-        availableRoles: companyRoles.length > 0 
-          ? companyRoles.map(r => ({
-              id: r.id,
-              name: r.title,
-              description: r.description || `${r.laborCategory || 'General'} role`,
-              category: r.laborCategory || 'technical',
-            }))
-        : selectedRoles.map(r => ({
-              id: r.id,
-              name: r.name,
-              description: `${r.category} role`,
-              category: r.category || 'technical',
-            })),
 
-        existingWbsNumbers: wbsElements.map(el => el.wbsNumber),
-        contractContext: {
-          title: solicitation.title || 'Government Contract',
-          agency: solicitation.clientAgency || 'Federal Agency',
-          contractType: solicitation.contractType || 'tm',
-          periodOfPerformance: {
-            baseYear: solicitation.periodOfPerformance.baseYear,
-            optionYears: solicitation.periodOfPerformance.optionYears,
-          }
-        }
-      }
-      
       const progressInterval = setInterval(() => {
         setGenerationProgress(prev => Math.min(prev + 5, 85))
       }, 500)
       
-      const response = await fetch('/api/generate-wbs', {
+      // Use proposal-specific route with intelligence gate
+      const response = await fetch(`/api/proposals/${proposalId}/generate-wbs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          selectedRequirementIds: selectedReqs.map(r => r.id),
+        }),
       })
       
       clearInterval(progressInterval)

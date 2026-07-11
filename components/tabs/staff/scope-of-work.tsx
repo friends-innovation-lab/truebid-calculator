@@ -134,15 +134,28 @@ export function ScopeOfWork() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false)
   const [contractIntelligence, setContractIntelligence] = useState<ContractIntelligence | null>(null)
+  const [intelligenceVersionId, setIntelligenceVersionId] = useState<string | null>(null)
 
-  // Load contract intelligence
+  // Load contract intelligence from working_data (legacy) and versioned API
   useEffect(() => {
     if (!proposalId) return
+
+    // Load from working_data for backwards compatibility
     proposalsApi.get(proposalId)
       .then((res: unknown) => {
         const data = res as { proposal?: { workingData?: { contractIntelligence?: ContractIntelligence } } }
         if (data.proposal?.workingData?.contractIntelligence) {
           setContractIntelligence(data.proposal.workingData.contractIntelligence)
+        }
+      })
+      .catch(() => {})
+
+    // Load from versioned intelligence API
+    fetch(`/api/proposals/${proposalId}/intelligence`)
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data?.version?.status === 'confirmed') {
+          setIntelligenceVersionId(data.version.id)
         }
       })
       .catch(() => {})
@@ -274,6 +287,9 @@ export function ScopeOfWork() {
       const response = await fetch(`/api/proposals/${proposalId}/generate-wbs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intelligenceVersionId: intelligenceVersionId || undefined,
+        }),
       })
 
       if (!response.ok) {

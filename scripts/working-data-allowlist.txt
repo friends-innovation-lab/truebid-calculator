@@ -14,8 +14,6 @@ hooks/use-proposal-sync.ts
 
 # AI extraction results (temporary storage)
 app/api/extract-rfp/route.ts
-app/api/generate-wbs/route.ts
-app/api/proposals/[id]/extract-contract-intelligence/route.ts
 
 # Legacy imports/exports
 app/api/proposals/route.ts

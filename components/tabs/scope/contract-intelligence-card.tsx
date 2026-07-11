@@ -1,11 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { toast } from 'sonner'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { proposalsApi } from '@/lib/api'
 import { computePeriods } from '@/lib/types/contract-intelligence'
 import type {
   ContractIntelligence,
@@ -13,10 +12,19 @@ import type {
   Discipline,
   RateSource,
   ExtractedRole,
+  ContractPeriod,
 } from '@/lib/types/contract-intelligence'
-import { Trash2, Plus, Info } from 'lucide-react'
+import { Trash2, Plus, Info, Edit2, Save } from 'lucide-react'
 
 // ==================== TYPES ====================
+
+interface IntelligenceVersion {
+  id: string
+  versionNumber: number
+  status: 'draft' | 'confirmed' | 'superseded'
+  confirmationHash: string | null
+  rowVersion: number
+}
 
 interface ContractIntelligenceCardProps {
   intelligence: ContractIntelligence
@@ -80,6 +88,83 @@ export function ContractIntelligenceCard({
 }: ContractIntelligenceCardProps) {
   const [data, setData] = useState<ContractIntelligence>(intelligence)
   const [isSaving, setIsSaving] = useState(false)
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [version, setVersion] = useState<IntelligenceVersion | null>(null)
+
+  // Load versioned intelligence on mount
+  useEffect(() => {
+    async function loadVersion() {
+      try {
+        const response = await fetch(`/api/proposals/${proposalId}/intelligence`)
+        if (response.ok) {
+          const result = await response.json()
+          if (result.version) {
+            setVersion({
+              id: result.version.id,
+              versionNumber: result.version.versionNumber,
+              status: result.version.status,
+              confirmationHash: result.version.confirmationHash,
+              rowVersion: result.version.rowVersion,
+            })
+
+            // Load data from versioned tables if available
+            if (result.factsJson || result.periods || result.disciplines || result.laborRequirements) {
+              const loadedData: ContractIntelligence = {
+                documentType: result.factsJson?.documentType || data.documentType,
+                vehicle: result.factsJson?.vehicle || data.vehicle,
+                contractType: result.factsJson?.contractType || data.contractType,
+                setAside: result.factsJson?.setAside || data.setAside,
+                rateSource: result.factsJson?.rateSource || data.rateSource,
+                periods: result.periods?.map((p: { name: string; months: number; cumulativeMonthsEnd: number; gsaRateYear: 1 | 2 | 3 | 4 | 5 }) => ({
+                  name: p.name,
+                  months: p.months,
+                  cumulativeMonthsEnd: p.cumulativeMonthsEnd,
+                  gsaRateYear: p.gsaRateYear,
+                })) || data.periods,
+                disciplines: {
+                  required: result.disciplines?.map((d: { discipline: Discipline }) => d.discipline) || data.disciplines?.required || [],
+                  confidence: result.disciplines?.[0]?.confidence || data.disciplines?.confidence || 'medium',
+                  sourceText: result.disciplines?.[0]?.sourceText || data.disciplines?.sourceText || '',
+                },
+                roles: result.laborRequirements?.map((l: {
+                  title: string
+                  laborCategory: string | null
+                  hoursPerMonth: number | null
+                  utilizationPct: number | null
+                  appearsInPeriods: string[]
+                  confidence: Confidence
+                  sourceText: string | null
+                }) => ({
+                  title: l.title,
+                  laborCategory: l.laborCategory,
+                  hoursPerMonth: l.hoursPerMonth,
+                  utilizationPct: l.utilizationPct,
+                  appearsInPeriods: l.appearsInPeriods || [],
+                  confidence: l.confidence,
+                  sourceText: l.sourceText || '',
+                })) || data.roles,
+                confirmed: result.version.status === 'confirmed',
+                confirmedAt: result.version.confirmedAt,
+                extractedAt: result.version.extractedAt || data.extractedAt,
+              }
+              setData(loadedData)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load intelligence version:', error)
+      }
+    }
+    loadVersion()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proposalId])
+
+  // Track unsaved changes
+  const markUnsaved = useCallback(() => {
+    if (version?.status === 'draft') {
+      setHasUnsavedChanges(true)
+    }
+  }, [version?.status])
 
   // ==================== HANDLERS ====================
 
@@ -88,6 +173,7 @@ export function ContractIntelligenceCard({
     value: ContractIntelligence[K]
   ) => {
     setData((prev) => ({ ...prev, [field]: value }))
+    markUnsaved()
   }
 
   const updateDocumentType = (
@@ -97,6 +183,7 @@ export function ContractIntelligenceCard({
       ...prev,
       documentType: { ...prev.documentType, value },
     }))
+    markUnsaved()
   }
 
   const updateVehicle = (value: string) => {
@@ -104,6 +191,7 @@ export function ContractIntelligenceCard({
       ...prev,
       vehicle: { ...prev.vehicle, value: value || null },
     }))
+    markUnsaved()
   }
 
   const updateContractType = (
@@ -113,6 +201,7 @@ export function ContractIntelligenceCard({
       ...prev,
       contractType: { ...prev.contractType, value },
     }))
+    markUnsaved()
   }
 
   const updateSetAside = (value: ContractIntelligence['setAside']['value']) => {
@@ -120,6 +209,7 @@ export function ContractIntelligenceCard({
       ...prev,
       setAside: { ...prev.setAside, value },
     }))
+    markUnsaved()
   }
 
   const updateRateSource = (value: RateSource) => {
@@ -127,6 +217,7 @@ export function ContractIntelligenceCard({
       ...prev,
       rateSource: { ...prev.rateSource, value },
     }))
+    markUnsaved()
   }
 
   const updatePeriodMonths = (index: number, months: number) => {
@@ -172,6 +263,7 @@ export function ContractIntelligenceCard({
       ...prev,
       disciplines: { ...prev.disciplines, required: updated },
     }))
+    markUnsaved()
   }
 
   const updateRole = (index: number, updates: Partial<ExtractedRole>) => {
@@ -205,34 +297,152 @@ export function ContractIntelligenceCard({
     updateField('roles', newRoles)
   }
 
-  const handleConfirm = async () => {
+  // Save draft changes to versioned tables
+  const handleSaveDraft = async () => {
+    if (!version?.id || version.status !== 'draft') return
+
     setIsSaving(true)
     try {
-      const confirmed: ContractIntelligence = {
-        ...data,
-        confirmed: true,
-        confirmedAt: new Date().toISOString(),
+      // Build PATCH payload
+      const factsJson = {
+        documentType: data.documentType,
+        vehicle: data.vehicle,
+        contractType: data.contractType,
+        setAside: data.setAside,
+        rateSource: data.rateSource,
       }
 
-      // Get existing working_data and merge
-      const response = (await proposalsApi.get(proposalId)) as {
-        proposal: { workingData?: Record<string, unknown> }
-      }
-      const existingWorkingData = response.proposal?.workingData || {}
+      const periods = data.periods.map((p: ContractPeriod, idx: number) => ({
+        name: p.name,
+        months: p.months,
+        cumulativeMonthsEnd: p.cumulativeMonthsEnd,
+        gsaRateYear: p.gsaRateYear,
+        sortOrder: idx,
+      }))
 
-      await proposalsApi.update(proposalId, {
-        working_data: {
-          ...existingWorkingData,
-          contractIntelligence: confirmed,
-        },
+      const disciplines = (data.disciplines?.required || []).map((d: Discipline) => ({
+        discipline: d,
+        confidence: data.disciplines?.confidence || 'medium',
+        sourceText: data.disciplines?.sourceText,
+      }))
+
+      const laborRequirements = data.roles.map((r: ExtractedRole) => ({
+        title: r.title,
+        laborCategory: r.laborCategory || undefined,
+        hoursPerMonth: r.hoursPerMonth || undefined,
+        utilizationPct: r.utilizationPct || undefined,
+        appearsInPeriods: r.appearsInPeriods,
+        confidence: r.confidence,
+        sourceText: r.sourceText,
+      }))
+
+      const response = await fetch(`/api/proposals/${proposalId}/intelligence`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          versionId: version.id,
+          expectedVersion: version.rowVersion,
+          factsJson,
+          contractType: data.contractType?.value,
+          periods,
+          disciplines,
+          laborRequirements,
+        }),
       })
 
-      setData(confirmed)
-      onConfirmed(confirmed)
-      toast.success('Contract structure confirmed. You can now generate the WBS.')
+      if (response.ok) {
+        const result = await response.json()
+        setVersion((prev) => prev ? { ...prev, rowVersion: result.version.rowVersion } : prev)
+        setHasUnsavedChanges(false)
+        toast.success('Changes saved')
+      } else {
+        const errorData = await response.json()
+        if (errorData.code === 'STALE_VERSION') {
+          toast.error('Someone else edited this. Please refresh and try again.')
+        } else {
+          toast.error(errorData.error || 'Failed to save changes')
+        }
+      }
     } catch (error) {
-      console.error('Failed to save contract intelligence:', error)
+      console.error('Failed to save draft:', error)
       toast.error('Failed to save. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleConfirm = async () => {
+    // If there are unsaved changes, save them first
+    if (hasUnsavedChanges && version?.id && version.status === 'draft') {
+      await handleSaveDraft()
+    }
+
+    setIsSaving(true)
+    try {
+      // Confirm via versioned API
+      if (version?.id && version.status === 'draft') {
+        const confirmResponse = await fetch(`/api/proposals/${proposalId}/intelligence/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ versionId: version.id }),
+        })
+        if (confirmResponse.ok) {
+          const confirmResult = await confirmResponse.json()
+          setVersion({
+            id: confirmResult.version.id,
+            versionNumber: version.versionNumber,
+            status: 'confirmed',
+            confirmationHash: confirmResult.version.confirmationHash,
+            rowVersion: confirmResult.version.rowVersion,
+          })
+
+          const confirmed: ContractIntelligence = {
+            ...data,
+            confirmed: true,
+            confirmedAt: confirmResult.version.confirmedAt,
+          }
+          setData(confirmed)
+          onConfirmed(confirmed)
+          toast.success('Contract structure confirmed. You can now generate the WBS.')
+        } else {
+          const errorData = await confirmResponse.json()
+          toast.error(errorData.error || 'Failed to confirm')
+        }
+      }
+    } catch (error) {
+      console.error('Failed to confirm contract intelligence:', error)
+      toast.error('Failed to save. Please try again.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleSupersede = async () => {
+    setIsSaving(true)
+    try {
+      const response = await fetch(`/api/proposals/${proposalId}/intelligence/supersede`, {
+        method: 'POST',
+      })
+      if (response.ok) {
+        const result = await response.json()
+        setVersion({
+          id: result.newVersion.id,
+          versionNumber: result.newVersion.versionNumber,
+          status: 'draft',
+          confirmationHash: null,
+          rowVersion: 1,
+        })
+        // Reset local confirmed state to allow editing
+        setData((prev) => ({ ...prev, confirmed: false, confirmedAt: null }))
+        setHasUnsavedChanges(false)
+        toast.success('Created new draft. You can now edit the intelligence.')
+      } else {
+        const errorData = await response.json()
+        toast.error(errorData.error || 'Failed to create new draft')
+      }
+    } catch (error) {
+      console.error('Failed to supersede:', error)
+      toast.error('Failed to create new draft')
     } finally {
       setIsSaving(false)
     }
@@ -262,6 +472,9 @@ export function ContractIntelligenceCard({
     accessibility: 'Accessibility',
   }
 
+  const isDraft = version?.status === 'draft'
+  const isConfirmed = data.confirmed || version?.status === 'confirmed'
+
   return (
     <Card className="p-0 mt-4">
       {/* Header */}
@@ -269,20 +482,55 @@ export function ContractIntelligenceCard({
         <div>
           <h3 className="text-sm font-semibold text-gray-900">
             Contract Intelligence
+            {version && (
+              <span className="ml-2 text-xs font-normal text-gray-400">
+                v{version.versionNumber}
+              </span>
+            )}
           </h3>
           <p className="text-xs text-gray-500 mt-0.5">
-            Review and confirm before generating WBS
+            {isConfirmed
+              ? 'Confirmed - ready for WBS generation'
+              : 'Review and confirm before generating WBS'}
           </p>
         </div>
-        {data.confirmed ? (
-          <Badge className="bg-green-50 text-green-700 border-green-200">
-            Confirmed
-          </Badge>
-        ) : (
-          <Badge className="bg-amber-50 text-amber-700 border-amber-200">
-            Needs review
-          </Badge>
-        )}
+        <div className="flex items-center gap-2">
+          {isConfirmed ? (
+            <>
+              <Badge className="bg-green-50 text-green-700 border-green-200">
+                Confirmed
+              </Badge>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSupersede}
+                disabled={isSaving}
+                className="text-xs"
+              >
+                <Edit2 className="w-3 h-3 mr-1" />
+                Edit
+              </Button>
+            </>
+          ) : (
+            <>
+              <Badge className="bg-amber-50 text-amber-700 border-amber-200">
+                {isDraft ? 'Draft' : 'Needs review'}
+              </Badge>
+              {hasUnsavedChanges && isDraft && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveDraft}
+                  disabled={isSaving}
+                  className="text-xs"
+                >
+                  <Save className="w-3 h-3 mr-1" />
+                  Save
+                </Button>
+              )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* Body */}
@@ -301,7 +549,8 @@ export function ContractIntelligenceCard({
                     e.target.value as ContractIntelligence['documentType']['value']
                   )
                 }
-                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white"
+                disabled={isConfirmed}
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="RFP">RFP</option>
                 <option value="RFQ">RFQ</option>
@@ -321,8 +570,9 @@ export function ContractIntelligenceCard({
                 type="text"
                 value={data.vehicle?.value || ''}
                 onChange={(e) => updateVehicle(e.target.value)}
+                disabled={isConfirmed}
                 placeholder="e.g. GSA MAS, Direct"
-                className="text-sm border border-gray-200 rounded px-2 py-1.5"
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 disabled:bg-gray-50 disabled:text-gray-500"
               />
               <ConfidencePill confidence={data.vehicle?.confidence || 'low'} />
             </div>
@@ -337,7 +587,8 @@ export function ContractIntelligenceCard({
                     e.target.value as ContractIntelligence['contractType']['value']
                   )
                 }
-                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white"
+                disabled={isConfirmed}
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="FFP">FFP</option>
                 <option value="T&M">T&M</option>
@@ -359,7 +610,8 @@ export function ContractIntelligenceCard({
                     e.target.value as ContractIntelligence['setAside']['value']
                   )
                 }
-                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white"
+                disabled={isConfirmed}
+                className="text-sm border border-gray-200 rounded px-2 py-1.5 bg-white disabled:bg-gray-50 disabled:text-gray-500"
               >
                 <option value="8(a)">8(a)</option>
                 <option value="WOSB">WOSB</option>
@@ -380,11 +632,12 @@ export function ContractIntelligenceCard({
                 <button
                   key={source}
                   onClick={() => updateRateSource(source)}
+                  disabled={isConfirmed}
                   className={`flex-1 py-1.5 px-3 font-medium transition-colors ${
                     data.rateSource?.value === source
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-600 hover:bg-gray-50'
-                  }`}
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {source === 'internal'
                     ? 'Internal'
@@ -426,7 +679,8 @@ export function ContractIntelligenceCard({
                     onChange={(e) =>
                       updatePeriodMonths(index, parseInt(e.target.value) || 1)
                     }
-                    className="w-full text-sm text-center border border-gray-200 rounded px-1 py-0.5"
+                    disabled={isConfirmed}
+                    className="w-full text-sm text-center border border-gray-200 rounded px-1 py-0.5 disabled:bg-gray-50 disabled:text-gray-500"
                   />
                 </div>
                 <div className="px-3 py-2 text-sm text-gray-500 text-center">
@@ -436,7 +690,7 @@ export function ContractIntelligenceCard({
                   Year {period.gsaRateYear}
                 </div>
                 <div className="px-3 py-2 flex items-center justify-center">
-                  {index > 0 && (
+                  {index > 0 && !isConfirmed && (
                     <button
                       onClick={() => removePeriod(index)}
                       className="text-gray-400 hover:text-red-500"
@@ -448,13 +702,15 @@ export function ContractIntelligenceCard({
               </div>
             ))}
           </div>
-          <button
-            onClick={addOptionPeriod}
-            className="mt-2 text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1"
-          >
-            <Plus className="w-3 h-3" />
-            Add Option Period
-          </button>
+          {!isConfirmed && (
+            <button
+              onClick={addOptionPeriod}
+              className="mt-2 text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" />
+              Add Option Period
+            </button>
+          )}
         </div>
 
         {/* Section 3: Disciplines */}
@@ -467,11 +723,12 @@ export function ContractIntelligenceCard({
                 <button
                   key={discipline}
                   onClick={() => toggleDiscipline(discipline)}
+                  disabled={isConfirmed}
                   className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
                     isActive
                       ? 'bg-gray-900 text-white'
                       : 'bg-white text-gray-600 border border-gray-200 hover:border-gray-400'
-                  }`}
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {disciplineLabels[discipline]}
                 </button>
@@ -514,7 +771,8 @@ export function ContractIntelligenceCard({
                       type="text"
                       value={role.title}
                       onChange={(e) => updateRole(index, { title: e.target.value })}
-                      className="w-full text-sm border border-gray-200 rounded px-2 py-0.5"
+                      disabled={isConfirmed}
+                      className="w-full text-sm border border-gray-200 rounded px-2 py-0.5 disabled:bg-gray-50 disabled:text-gray-500"
                     />
                     {role.confidence !== 'high' && (
                       <div className="mt-1">
@@ -532,7 +790,8 @@ export function ContractIntelligenceCard({
                           hoursPerMonth: parseInt(e.target.value) || null,
                         })
                       }
-                      className="w-full text-sm text-center border border-gray-200 rounded px-1 py-0.5"
+                      disabled={isConfirmed}
+                      className="w-full text-sm text-center border border-gray-200 rounded px-1 py-0.5 disabled:bg-gray-50 disabled:text-gray-500"
                     />
                   </div>
                   <div className="px-3 py-2 text-sm text-gray-500 text-center">
@@ -541,24 +800,28 @@ export function ContractIntelligenceCard({
                       : '-'}
                   </div>
                   <div className="px-3 py-2 flex items-center justify-center">
-                    <button
-                      onClick={() => removeRole(index)}
-                      className="text-gray-400 hover:text-red-500"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
+                    {!isConfirmed && (
+                      <button
+                        onClick={() => removeRole(index)}
+                        className="text-gray-400 hover:text-red-500"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
-          <button
-            onClick={addRole}
-            className="mt-2 text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1"
-          >
-            <Plus className="w-3 h-3" />
-            Add Role
-          </button>
+          {!isConfirmed && (
+            <button
+              onClick={addRole}
+              className="mt-2 text-xs text-gray-500 hover:text-gray-900 flex items-center gap-1"
+            >
+              <Plus className="w-3 h-3" />
+              Add Role
+            </button>
+          )}
         </div>
       </div>
 
@@ -566,12 +829,12 @@ export function ContractIntelligenceCard({
       <div className="px-6 py-4 border-t border-[#E8E7E2]">
         <Button
           onClick={handleConfirm}
-          disabled={isSaving || data.confirmed}
+          disabled={isSaving || isConfirmed}
           className="w-full bg-gray-900 hover:bg-gray-800 text-white disabled:opacity-50"
         >
           {isSaving
             ? 'Saving...'
-            : data.confirmed
+            : isConfirmed
             ? 'Confirmed'
             : 'Confirm Contract Intelligence'}
         </Button>

@@ -2,7 +2,9 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import { computePeriods } from '@/lib/types/contract-intelligence'
-import type { ContractIntelligence } from '@/lib/types/contract-intelligence'
+import type { Discipline, Confidence } from '@/lib/types/contract-intelligence'
+import { runCommand, createCreateIntelligenceDraftCommand } from '@/lib/commands'
+import type { FactsJson } from '@/lib/commands/intelligence/types'
 
 export async function POST(
   request: Request,
@@ -29,7 +31,7 @@ export async function POST(
   const { id: proposalId } = await params
 
   try {
-    // Load proposal with working_data
+    // Load proposal with working_data to get solicitation text
     const { data: proposal, error: fetchError } = await supabase
       .from('proposals')
       .select('working_data')
@@ -173,71 +175,113 @@ ${solicitationText.slice(0, 15000)}`,
       extracted.optionPeriodMonths || []
     )
 
-    const contractIntelligence: ContractIntelligence = {
-      documentType: extracted.documentType as ContractIntelligence['documentType'],
-      vehicle: extracted.vehicle as ContractIntelligence['vehicle'],
-      contractType: extracted.contractType as ContractIntelligence['contractType'],
-      setAside: extracted.setAside as ContractIntelligence['setAside'],
-      rateSource: extracted.rateSource as ContractIntelligence['rateSource'],
-      periods,
-      disciplines: extracted.disciplines as ContractIntelligence['disciplines'],
-      roles: (extracted.roles || []) as ContractIntelligence['roles'],
-      confirmed: false,
-      confirmedAt: null,
-      extractedAt: new Date().toISOString(),
+    // Build factsJson from extracted fields
+    const factsJson: FactsJson = {}
+    if (extracted.documentType) {
+      factsJson.documentType = {
+        value: extracted.documentType.value as FactsJson['documentType'] extends { value: infer V } ? V : never,
+        confidence: extracted.documentType.confidence as Confidence,
+      }
+    }
+    if (extracted.vehicle) {
+      factsJson.vehicle = {
+        value: extracted.vehicle.value,
+        confidence: extracted.vehicle.confidence as Confidence,
+      }
+    }
+    if (extracted.contractType) {
+      factsJson.contractType = {
+        value: extracted.contractType.value as FactsJson['contractType'] extends { value: infer V } ? V : never,
+        confidence: extracted.contractType.confidence as Confidence,
+      }
+    }
+    if (extracted.setAside) {
+      factsJson.setAside = {
+        value: extracted.setAside.value as FactsJson['setAside'] extends { value: infer V } ? V : never,
+        confidence: extracted.setAside.confidence as Confidence,
+      }
+    }
+    if (extracted.rateSource) {
+      factsJson.rateSource = {
+        value: extracted.rateSource.value as FactsJson['rateSource'] extends { value: infer V } ? V : never,
+        confidence: extracted.rateSource.confidence as Confidence,
+      }
     }
 
-    console.log('[extract-contract-intelligence] Extracted:', JSON.stringify({
-      documentType: contractIntelligence.documentType.value,
-      periods: contractIntelligence.periods.length,
-      disciplines: contractIntelligence.disciplines?.required,
-      roles: contractIntelligence.roles.length
+    // Transform disciplines to command input format
+    const disciplines = extracted.disciplines?.required?.map((d: string) => ({
+      discipline: d as Discipline,
+      confidence: (extracted.disciplines?.confidence || 'medium') as Confidence,
+      sourceText: extracted.disciplines?.sourceText,
+    })) || []
+
+    // Transform roles to labor requirements
+    const laborRequirements = (extracted.roles || []).map((r) => ({
+      title: r.title,
+      laborCategory: r.laborCategory ?? undefined,
+      hoursPerMonth: r.hoursPerMonth ?? undefined,
+      utilizationPct: r.utilizationPct ?? undefined,
+      appearsInPeriods: r.appearsInPeriods || [],
+      confidence: (r.confidence || 'medium') as Confidence,
+      sourceText: r.sourceText,
     }))
 
-    // Load current working_data fresh to avoid stale data
-    const { data: current, error: fetchCurrentError } = await supabase
-      .from('proposals')
-      .select('working_data')
-      .eq('id', proposalId)
-      .single()
+    // Transform periods for command input
+    const periodsInput = periods.map((p, idx) => ({
+      name: p.name,
+      months: p.months,
+      cumulativeMonthsEnd: p.cumulativeMonthsEnd,
+      gsaRateYear: p.gsaRateYear,
+      sortOrder: idx,
+    }))
 
-    if (fetchCurrentError || !current) {
-      console.error('[extract-contract-intelligence] Failed to fetch current data:', fetchCurrentError)
+    console.log('[extract-contract-intelligence] Extracted:', JSON.stringify({
+      documentType: factsJson.documentType?.value,
+      periods: periodsInput.length,
+      disciplines: disciplines.map((d: { discipline: string }) => d.discipline),
+      laborRequirements: laborRequirements.length,
+    }))
+
+    // Use CreateIntelligenceDraft command to persist to versioned tables
+    const command = createCreateIntelligenceDraftCommand(supabase)
+    const result = await runCommand(supabase, command, {
+      proposalId,
+      factsJson,
+      contractType: extracted.contractType?.value,
+      periods: periodsInput,
+      disciplines,
+      laborRequirements,
+    })
+
+    if (!result.success || !result.data) {
+      console.error('[extract-contract-intelligence] Command failed:', result.error)
       return NextResponse.json(
-        { error: 'Proposal not found' },
-        { status: 404 }
-      )
-    }
-
-    // Merge contractIntelligence into existing working_data
-    const { error: saveError } = await supabase
-      .from('proposals')
-      .update({
-        working_data: {
-          ...(current.working_data as Record<string, unknown> || {}),
-          contractIntelligence,
-        },
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', proposalId)
-
-    if (saveError) {
-      console.error('[contract-intelligence] Save failed:', JSON.stringify(saveError))
-      return NextResponse.json(
-        { error: 'Save failed' },
+        { error: result.error?.message || 'Failed to save intelligence' },
         { status: 500 }
       )
     }
 
-    console.log('[contract-intelligence] Saved successfully:', JSON.stringify({
+    const { versionId, versionNumber, status } = result.data
+
+    console.log('[extract-contract-intelligence] Created intelligence version:', JSON.stringify({
       proposalId,
-      documentType: contractIntelligence.documentType?.value,
-      periods: contractIntelligence.periods?.length,
-      disciplines: contractIntelligence.disciplines?.required,
-      roles: contractIntelligence.roles?.length
+      versionId,
+      versionNumber,
+      status,
     }))
 
-    return NextResponse.json({ contractIntelligence })
+    // Return the new version info along with extracted data for immediate UI display
+    return NextResponse.json({
+      version: {
+        id: versionId,
+        versionNumber,
+        status,
+      },
+      factsJson,
+      periods: periodsInput,
+      disciplines,
+      laborRequirements,
+    })
   } catch (error) {
     console.error('Extract contract intelligence error:', error)
 

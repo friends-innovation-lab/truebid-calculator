@@ -62,3 +62,43 @@ export {
   type UpdateProposalMetadataInput,
   type UpdateProposalMetadataOutput,
 } from './proposals/update-proposal-metadata'
+
+// Re-export intelligence commands
+export {
+  // Commands
+  createCreateIntelligenceDraftCommand,
+  createUpdateIntelligenceFactsCommand,
+  createConfirmIntelligenceVersionCommand,
+  createSupersedeIntelligenceVersionCommand,
+  // Guards
+  requireConfirmedIntelligence,
+  loadIntelligenceVersion,
+  getCurrentIntelligenceVersion,
+  // Hash utilities
+  loadAndHashIntelligence,
+  computeHash,
+  canonicalize,
+  // Types
+  type IntelligenceStatus,
+  type IntelligenceVersionRow,
+  type IntelligencePeriodRow,
+  type IntelligenceDisciplineRow,
+  type IntelligenceLaborRequirementRow,
+  type FactsJson,
+  type ConfidenceValue,
+  type CoercedPeriod,
+  type CoercedDiscipline,
+  type CoercedLaborRequirement,
+  type CoercedIntelligenceVersion,
+  type CreateIntelligenceDraftInput,
+  type CreateIntelligenceDraftOutput,
+  type UpdateIntelligenceFactsInput,
+  type UpdateIntelligenceFactsOutput,
+  type ConfirmIntelligenceVersionInput,
+  type ConfirmIntelligenceVersionOutput,
+  type SupersedeIntelligenceVersionInput,
+  type SupersedeIntelligenceVersionOutput,
+  type IntelligenceGuardResult,
+  type IntelligenceGuardError,
+  type IntelligenceGuardResponse,
+} from './intelligence'

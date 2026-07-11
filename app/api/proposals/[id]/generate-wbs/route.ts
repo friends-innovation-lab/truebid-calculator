@@ -2,7 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { syncRolesFromWBS } from '@/lib/wbs-to-roles'
-import type { ContractIntelligence } from '@/lib/types/contract-intelligence'
+import { resolveTenantContext } from '@/lib/tenancy'
+import { requireConfirmedIntelligence } from '@/lib/commands'
 
 const SYSTEM_PROMPT = `You are a senior government proposal manager and technical architect with deep expertise in staffing federal IT delivery teams.
 
@@ -309,10 +310,31 @@ export async function POST(
 
   const { id: proposalId } = await params
 
+  // Parse request body for intelligenceVersionId and optional requirement filter
+  let body: {
+    intelligenceVersionId?: string
+    selectedRequirementIds?: string[]
+  } = {}
+  try {
+    body = await request.json()
+  } catch {
+    // Body is optional for backwards compatibility during migration
+  }
+
+  // Resolve tenant context for guard
+  let tenantId: string
+  try {
+    const tenantContext = await resolveTenantContext(supabase)
+    tenantId = tenantContext.tenant.id
+  } catch (error) {
+    console.error('[generate-wbs] Tenant resolution failed:', error)
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+
   // Fetch proposal with full data
   const { data: proposal, error: fetchError } = await supabase
     .from('proposals')
-    .select('working_data, contract_type, period_of_performance')
+    .select('working_data, contract_type, period_of_performance, active_intelligence_version_id')
     .eq('id', proposalId)
     .single()
 
@@ -320,8 +342,52 @@ export async function POST(
     return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
   }
 
+  // Use provided versionId or fall back to active version
+  const intelligenceVersionId = body.intelligenceVersionId || proposal.active_intelligence_version_id
+
+  // GATE: Require confirmed intelligence version
+  if (!intelligenceVersionId) {
+    return NextResponse.json({
+      error: 'No confirmed intelligence version found. Please confirm contract intelligence before generating WBS.',
+      code: 'INTELLIGENCE_REQUIRED'
+    }, { status: 400 })
+  }
+
+  const guardResult = await requireConfirmedIntelligence(
+    supabase,
+    proposalId,
+    intelligenceVersionId,
+    tenantId
+  )
+
+  if (!guardResult.valid) {
+    console.error('[generate-wbs] Guard failed:', guardResult.code, guardResult.message)
+    const status = guardResult.code === 'NOT_FOUND' ? 404
+      : guardResult.code === 'HASH_MISMATCH' ? 500
+      : 400
+    return NextResponse.json({
+      error: guardResult.message,
+      code: guardResult.code
+    }, { status })
+  }
+
+  // Extract intelligence data from guard result
+  const disciplines = guardResult.disciplines.map(d => d.discipline)
+  const confirmedRoles = guardResult.laborRequirements.map(lr => ({
+    title: lr.title,
+    laborCategory: lr.laborCategory,
+    hoursPerMonth: lr.hoursPerMonth,
+    utilizationPct: lr.utilizationPct,
+  }))
+  const periods = guardResult.periods.map(p => ({
+    name: p.name,
+    months: p.months,
+    cumulativeMonthsEnd: p.cumulativeMonthsEnd,
+    gsaRateYear: p.gsaRateYear,
+  }))
+
   const workingData = (proposal.working_data || {}) as Record<string, unknown>
-  const requirements = (workingData.extractedRequirements || []) as {
+  let requirements = (workingData.extractedRequirements || []) as {
     id: string
     title: string
     text?: string
@@ -333,17 +399,19 @@ export async function POST(
     source?: string
   }[]
 
-  if (requirements.length === 0) {
-    return NextResponse.json({
-      error: 'No requirements extracted yet. Go to Scope → Solicitation to extract requirements first.'
-    }, { status: 400 })
+  // Filter requirements if selectedRequirementIds provided
+  if (body.selectedRequirementIds && body.selectedRequirementIds.length > 0) {
+    const selectedIds = new Set(body.selectedRequirementIds)
+    requirements = requirements.filter(r => selectedIds.has(r.id))
   }
 
-  // Load contract intelligence for discipline constraints
-  const intelligence = workingData.contractIntelligence as ContractIntelligence | undefined
-  const disciplines = intelligence?.disciplines?.required || []
-  const confirmedRoles = intelligence?.roles || []
-  const periods = intelligence?.periods || []
+  if (requirements.length === 0) {
+    return NextResponse.json({
+      error: body.selectedRequirementIds
+        ? 'None of the selected requirements were found.'
+        : 'No requirements extracted yet. Go to Scope → Solicitation to extract requirements first.'
+    }, { status: 400 })
+  }
 
   // Extract setup context
   const periodOfPerformance = (proposal.period_of_performance || {}) as { baseYear?: boolean; optionYears?: number }
@@ -416,7 +484,7 @@ Generate WBS tasks ONLY within these disciplines. If a task falls outside these 
 ${confirmedRoles.length > 0 ? `
 ROLES CONFIRMED FOR THIS CONTRACT:
 ${confirmedRoles.map(r =>
-  `${r.title}: ${r.hoursPerMonth || 0} hours/month (${Math.round((r.hoursPerMonth || 0) / 160 * 100)}% utilization)`
+  `${r.title}: ${r.hoursPerMonth ?? 0} hours/month (${Math.round((r.hoursPerMonth ?? 0) / 160 * 100)}% utilization)`
 ).join('\n')}
 
 Generate WBS tasks that can be staffed by these specific roles. Do not generate tasks requiring roles not in this list.
