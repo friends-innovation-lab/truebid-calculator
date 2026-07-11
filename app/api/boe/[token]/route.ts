@@ -30,16 +30,24 @@ export async function GET(
     return NextResponse.json({ error: 'This link has expired' }, { status: 410 })
   }
 
-  // Fetch proposal with working_data
+  // Fetch proposal with working_data and company_id
   const { data: proposal, error: proposalError } = await supabase
     .from('proposals')
-    .select('id, title, agency, contract_type, solicitation_number, working_data, total_value, period_of_performance')
+    .select('id, title, agency, contract_type, solicitation_number, working_data, total_value, period_of_performance, company_id')
     .eq('id', shareLink.proposal_id)
     .single()
 
   if (proposalError || !proposal) {
     return NextResponse.json({ error: 'Proposal not found' }, { status: 404 })
   }
+
+  // Fetch indirect rates from company_settings (canonical source)
+  // This ensures BOE always reflects current company rates, not stale working_data snapshots
+  const { data: companySettings } = await supabase
+    .from('company_settings')
+    .select('fringe_rate, overhead_rate, ga_rate')
+    .eq('company_id', proposal.company_id)
+    .single()
 
   // Update view count and last viewed timestamp
   await supabase
@@ -83,12 +91,13 @@ export async function GET(
     years?: Record<string, boolean>
   }[]
 
-  // Extract indirect rates if present
-  const indirectRates = workingData.indirectRates as {
-    fringe?: number
-    overhead?: number
-    ga?: number
-  } | undefined
+  // Use company_settings as canonical source for indirect rates
+  // Rates are live: changing settings reprices all open proposals and shared BOE links
+  const indirectRates = companySettings ? {
+    fringe: companySettings.fringe_rate as number | undefined,
+    overhead: companySettings.overhead_rate as number | undefined,
+    ga: companySettings.ga_rate as number | undefined,
+  } : null
 
   // Extract proposalSetup for option years
   const proposalSetup = workingData.proposalSetup as {

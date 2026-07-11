@@ -1207,6 +1207,7 @@ interface AppContextType {
   // Indirect Rates (Audit-Ready)
   indirectRates: IndirectRates;
   setIndirectRates: (rates: IndirectRates) => void;
+  indirectRatesConfigured: boolean; // false = NULL rates, setup required before pricing
   
   // Profit Targets
   profitTargets: ProfitTargets;
@@ -1752,6 +1753,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     lastUpdated: '2025-11-25',
   });
   const [indirectRatesLoaded, setIndirectRatesLoaded] = useState(false);
+  // Tracks whether real rates are configured vs fallback defaults
+  // NULL rates from DB = not configured, must be set before pricing
+  const [indirectRatesConfigured, setIndirectRatesConfigured] = useState(true);
 
   // Load indirect rates and profit targets from API on mount
   useEffect(() => {
@@ -1762,13 +1766,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const response = await settingsApi.get() as { settings: Record<string, unknown> | null };
         if (response.settings) {
           const s = response.settings;
-          // Load indirect rates
-          setIndirectRatesState(prev => ({
-            ...prev,
-            fringe: (s.fringe_rate as number) ?? prev.fringe,
-            overhead: (s.overhead_rate as number) ?? prev.overhead,
-            ga: (s.ga_rate as number) ?? prev.ga,
-          }));
+          // Check if rates are configured (not NULL in database)
+          const hasConfiguredRates =
+            s.fringe_rate != null &&
+            s.overhead_rate != null &&
+            s.ga_rate != null;
+
+          setIndirectRatesConfigured(hasConfiguredRates);
+
+          // Load indirect rates - use DB values if present, else keep fallback defaults
+          // Note: if rates are NULL, indirectRatesConfigured=false signals "setup required"
+          if (hasConfiguredRates) {
+            setIndirectRatesState(prev => ({
+              ...prev,
+              fringe: s.fringe_rate as number,
+              overhead: s.overhead_rate as number,
+              ga: s.ga_rate as number,
+            }));
+          }
           // Load profit targets if present
           if (s.profit_targets && typeof s.profit_targets === 'object') {
             const pt = s.profit_targets as Record<string, number>;
@@ -2714,6 +2729,7 @@ const getContractYearsArray = (): { key: string; label: string; enabled: boolean
     // Indirect Rates
     indirectRates,
     setIndirectRates,
+    indirectRatesConfigured, // false = rates are NULL, setup required
     
     // Profit Targets
     profitTargets,

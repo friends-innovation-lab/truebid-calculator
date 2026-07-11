@@ -212,6 +212,19 @@ gsa_year           = floor((cumulative_month - 1) / 12) + 1
 
 **Rate normalization:** Use `normalizeRateToDecimal()` at boundaries where input may be percentage (21.16) or decimal (0.2116).
 
+**Canonical rate source: `company_settings` table**
+
+Indirect rates (fringe, overhead, G&A) have ONE source of truth: the `company_settings` table.
+
+- **Settings page** (`/account/rates`): Reads and writes to `company_settings` via API
+- **Roles & Pricing panel**: Reads from context, which loads from `company_settings` on mount
+- **BOE share links**: Reads directly from `company_settings` (not `working_data` snapshots)
+- **Export**: Uses context rates, sourced from `company_settings`
+
+**Consequence (accepted interim behavior):** Changing rates in Settings reprices ALL open proposals and refreshes shared BOE links immediately. There is no rate versioning — rates are tenant-wide and live. Phase 5 will introduce versioned rate sets for proposal-level rate snapshots.
+
+**Settings API is never cached.** The `/api/companies/settings` endpoint returns `Cache-Control: no-store` to ensure reads always reflect the latest database state.
+
 ### Multi-Tenancy (`lib/tenancy/`)
 
 Tenant context resolution for multi-company support.

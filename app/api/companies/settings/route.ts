@@ -32,11 +32,12 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
+  // No caching — settings must reflect latest database state
   return NextResponse.json(
     { settings: data },
     {
       headers: {
-        'Cache-Control': 'private, s-maxage=300, stale-while-revalidate=600',
+        'Cache-Control': 'no-store, max-age=0',
       },
     }
   )
