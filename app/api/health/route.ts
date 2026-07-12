@@ -16,28 +16,28 @@ export async function GET() {
     if (pingError) throw pingError
     db = 'ok'
 
-    // 2. Count proposals visible for FFTC tenant (the "invisible row" check)
-    const { data: company } = await supabase
-      .from('companies')
-      .select('id')
-      .eq('name', 'FFTC')
-      .single()
+    // 2. Count non-archived proposals (mirrors dashboard visibility)
+    // Service role bypasses RLS, so this counts all proposals any user would see
+    const { count, error: countError } = await supabase
+      .from('proposals')
+      .select('*', { count: 'exact', head: true })
+      .eq('archived', false)
 
-    if (company) {
-      const { count } = await supabase
-        .from('proposals')
-        .select('*', { count: 'exact', head: true })
-        .eq('company_id', company.id)
-        .eq('archived', false)
-
-      proposals_visible = count ?? 0
-    }
+    if (countError) throw countError
+    proposals_visible = count ?? 0
   } catch {
     db = 'fail'
   }
 
+  // Return 503 if unhealthy — allows plain HTTP status monitoring
+  const healthy = db === 'ok' && proposals_visible > 0
+  const status = healthy ? 200 : 503
+
   return NextResponse.json(
     { db, proposals_visible, version, timestamp },
-    { headers: { 'Cache-Control': 'no-store' } }
+    {
+      status,
+      headers: { 'Cache-Control': 'no-store' }
+    }
   )
 }
