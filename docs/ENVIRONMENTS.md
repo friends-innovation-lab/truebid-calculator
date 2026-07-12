@@ -58,11 +58,14 @@ cp .env.example .env.local
 npm run dev
 ```
 
-### Test Login Credentials
+### Test Login Credentials (Local Only)
 
-After `supabase db reset`, a synthetic user is available:
+After `supabase db reset`, a synthetic user is available for local development:
 - **Email:** `lapedra@cityfriends.tech`
-- **Password:** `password123`
+- **Password:** `password123` (local only — never use this password on remote environments)
+
+**Note:** This user is created via direct SQL insert, which only works locally.
+For staging, see "Staging Test User Setup" below.
 
 ### Local Commands
 
@@ -97,6 +100,25 @@ supabase db push --db-url "$STAGING_DB_URL"
 Redirect URLs configured in Supabase dashboard:
 - `https://*-truebid.vercel.app/**` (preview deployments)
 - `https://staging.truebid.io/**` (if custom domain)
+
+### Staging Test User Setup
+
+**IMPORTANT:** Do NOT apply `supabase/seed.sql` to staging. Direct auth.users inserts bypass GoTrue and create users that cannot log in.
+
+To create/fix a test user in staging:
+
+```bash
+# Set staging credentials
+export STAGING_SUPABASE_URL=https://tcobyquewjootwxpqijq.supabase.co
+export STAGING_SERVICE_ROLE_KEY=<from-supabase-dashboard>
+
+# Run the fix script
+npx tsx scripts/fix-staging-auth.ts
+```
+
+This creates a user via the Admin API (GoTrue-compatible):
+- **Email:** `lapedra@cityfriends.tech`
+- **Password:** Generated at runtime (displayed once, not stored)
 
 ### Loading Sanitized Production Data
 

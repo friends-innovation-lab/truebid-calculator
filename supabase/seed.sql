@@ -3,6 +3,15 @@
 -- ============================================================================
 -- Creates a usable local app after `supabase db reset`
 --
+-- ⚠️  LOCAL ONLY — DO NOT RUN AGAINST STAGING OR PRODUCTION ⚠️
+--
+-- This seed file inserts directly into auth.users, which ONLY works with
+-- local Supabase (Docker). Hosted Supabase (staging/prod) uses GoTrue,
+-- which rejects direct SQL inserts — users created this way cannot log in.
+--
+-- For staging/production user setup, use the Supabase Admin API:
+--   npx tsx scripts/fix-staging-auth.ts
+--
 -- Contents:
 --   1. FFTC company + synthetic auth user (Lapedra)
 --   2. Tenant + membership (owner role)
@@ -17,9 +26,13 @@
 -- =============================================================================
 -- 1. SYNTHETIC AUTH USER (Lapedra)
 -- =============================================================================
--- Note: In local Supabase, we insert directly into auth.users
--- The password hash is for 'password123' (bcrypt)
--- In staging/prod, auth users are created via Auth UI or API
+-- ⚠️  LOCAL ONLY: Direct auth.users inserts bypass GoTrue.
+-- Hosted Supabase (staging/prod) will reject logins for these users.
+--
+-- For staging/prod: Use scripts/fix-staging-auth.ts or Supabase Studio
+-- to create users via the Admin API (auth.admin.createUser).
+--
+-- Password: 'password123' (bcrypt hash below)
 
 INSERT INTO auth.users (
   id,
