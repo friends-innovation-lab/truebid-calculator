@@ -6,9 +6,9 @@ import { useParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useAppContext } from '@/contexts/app-context'
 import { requirementsApi, proposalsApi } from '@/lib/api'
-import { 
-  Upload, 
-  FileText, 
+import {
+  Upload,
+  FileText,
   CheckCircle2,
   Sparkles,
   ArrowRight,
@@ -20,6 +20,8 @@ import {
   MapPin,
   Pencil,
   RefreshCw,
+  Plus,
+  Loader2,
 } from 'lucide-react'
 import { ErrorAlert } from '@/components/ui/error-alert'
 import { contractTypeLabels, setAsideLabels } from '@/lib/solicitation-type'
@@ -124,16 +126,29 @@ export function UploadTab({ onContinue }: UploadTabProps) {
   const [progress, setProgress] = useState(0)
   const [progressText, setProgressText] = useState('')
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  
+
   // Expanded details view
   const [showDetails, setShowDetails] = useState(false)
+
+  // Multi-document support (Phase 4B)
+  interface SolicitationDocument {
+    id: string
+    filename: string
+    doc_type: string
+    status: string
+    page_count: number | null
+  }
+  const [documents, setDocuments] = useState<SolicitationDocument[]>([])
+  const [isAddingDocument, setIsAddingDocument] = useState(false)
 
   // ==================== RESTORE STATE FROM CONTEXT ON MOUNT ====================
   useEffect(() => {
     console.log('[Upload] useEffect running, proposalId:', proposalId)
-    async function loadRequirements() {
+    async function loadData() {
       if (!proposalId) return
-      console.log('[Upload] Loading requirements for', proposalId)
+      console.log('[Upload] Loading data for', proposalId)
+
+      // Load requirements
       try {
         const response = await requirementsApi.list(proposalId as string)
         if (response.requirements && response.requirements.length > 0) {
@@ -143,8 +158,21 @@ export function UploadTab({ onContinue }: UploadTabProps) {
       } catch (error) {
         console.warn('[UploadTab] Failed to load requirements:', error)
       }
+
+      // Load existing documents (Phase 4B multi-document support)
+      try {
+        const docsResponse = await fetch(`/api/proposals/${proposalId}/documents`)
+        if (docsResponse.ok) {
+          const docsData = await docsResponse.json()
+          if (docsData.documents && docsData.documents.length > 0) {
+            setDocuments(docsData.documents)
+          }
+        }
+      } catch (error) {
+        console.warn('[UploadTab] Failed to load documents:', error)
+      }
     }
-    loadRequirements()
+    loadData()
 
     // If solicitation has data (was previously analyzed), restore the complete state
     if (solicitation.analyzedFromDocument && solicitation.solicitationNumber) {
@@ -403,6 +431,60 @@ export function UploadTab({ onContinue }: UploadTabProps) {
     setErrorMessage(null)
   }
 
+  // Add additional document to existing set (Phase 4B)
+  const handleAddDocument = async (file: File) => {
+    if (!proposalId) return
+
+    setIsAddingDocument(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const response = await fetch(`/api/proposals/${proposalId}/documents`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to upload document')
+      }
+
+      const data = await response.json()
+
+      // Add to local documents list
+      setDocuments(prev => [...prev, data.document])
+
+      // Refresh documents list to get updated classification
+      setTimeout(async () => {
+        try {
+          const docsResponse = await fetch(`/api/proposals/${proposalId}/documents`)
+          if (docsResponse.ok) {
+            const docsData = await docsResponse.json()
+            setDocuments(docsData.documents || [])
+          }
+        } catch (e) {
+          console.warn('[Upload] Failed to refresh documents:', e)
+        }
+      }, 3000) // Wait for classification to complete
+
+    } catch (error) {
+      console.error('[Upload] Add document error:', error)
+      setErrorMessage(error instanceof Error ? error.message : 'Failed to add document')
+    } finally {
+      setIsAddingDocument(false)
+    }
+  }
+
+  const handleAddDocumentSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      handleAddDocument(files[0])
+    }
+    // Reset input for re-selection of same file
+    e.target.value = ''
+  }
+
   const handleContinue = () => {
     if (onContinue) {
       onContinue()
@@ -629,9 +711,9 @@ export function UploadTab({ onContinue }: UploadTabProps) {
                 </div>
 
                 {/* Edit Button */}
-                <Button 
-                  variant="outline" 
-                  size="sm" 
+                <Button
+                  variant="outline"
+                  size="sm"
                   onClick={(e) => { e.stopPropagation(); openSolicitationEditor(); }}
                   className="w-full"
                 >
@@ -641,6 +723,68 @@ export function UploadTab({ onContinue }: UploadTabProps) {
               </div>
             )}
           </div>
+
+          {/* Documents List (Phase 4B Multi-Document Support) */}
+          {documents.length > 0 && (
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <p className="text-xs font-medium text-gray-700 uppercase tracking-wide">
+                  Uploaded Documents ({documents.length})
+                </p>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {documents.map((doc) => (
+                  <div key={doc.id} className="px-4 py-2.5 flex items-center gap-3">
+                    <FileText className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-gray-900 truncate">{doc.filename}</p>
+                      <p className="text-xs text-gray-500">
+                        {doc.doc_type?.replace('_', ' ').toUpperCase() || 'Classifying...'}
+                        {doc.page_count && ` · ${doc.page_count} pages`}
+                      </p>
+                    </div>
+                    {doc.status === 'classified' && (
+                      <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    )}
+                    {doc.status === 'uploaded' && (
+                      <Loader2 className="w-4 h-4 text-blue-500 animate-spin flex-shrink-0" />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {/* Add Document Button */}
+              <div className="px-4 py-3 bg-gray-50 border-t border-gray-200">
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={handleAddDocumentSelect}
+                  className="hidden"
+                  id="add-document-upload"
+                  disabled={isAddingDocument}
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={() => document.getElementById('add-document-upload')?.click()}
+                  disabled={isAddingDocument}
+                >
+                  {isAddingDocument ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="w-3.5 h-3.5 mr-2" />
+                      Add Document
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
 
 {/* Actions */}
           <div className="flex items-center justify-between pt-2">
