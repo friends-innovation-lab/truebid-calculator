@@ -11,13 +11,9 @@
 
 // Mock the Supabase client
 const mockRpc = jest.fn()
-const mockLimit = jest.fn()
-const mockSelect = jest.fn(() => ({ limit: mockLimit }))
-const mockFrom = jest.fn(() => ({ select: mockSelect }))
 
 jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => ({
-    from: mockFrom,
     rpc: mockRpc,
   })),
 }))
@@ -31,19 +27,12 @@ describe('Health endpoint', () => {
   })
 
   function setupMocks(options: {
-    dbError?: boolean
     proposalsCount?: number
     rpcError?: boolean
   }) {
-    const { dbError = false, proposalsCount = 0, rpcError = false } = options
+    const { proposalsCount = 0, rpcError = false } = options
 
-    // DB connectivity check (tenants table)
-    mockLimit.mockResolvedValue({
-      data: dbError ? null : [{ id: 'tenant-1' }],
-      error: dbError ? { message: 'Connection failed' } : null,
-    })
-
-    // RPC call for proposal count
+    // RPC call for proposal count (also serves as connectivity check)
     mockRpc.mockResolvedValue({
       data: rpcError ? null : proposalsCount,
       error: rpcError ? { message: 'RPC failed' } : null,
@@ -98,21 +87,6 @@ describe('Health endpoint', () => {
     })
   })
 
-  describe('when DB connection fails (503)', () => {
-    beforeEach(() => {
-      setupMocks({ dbError: true })
-    })
-
-    it('returns 503 with db: fail', async () => {
-      const response = await GET()
-      const json = await response.json()
-
-      expect(response.status).toBe(503)
-      expect(json.db).toBe('fail')
-      expect(json.proposals_visible).toBe(0)
-    })
-  })
-
   describe('when RPC fails (503)', () => {
     beforeEach(() => {
       setupMocks({ rpcError: true })
@@ -124,6 +98,7 @@ describe('Health endpoint', () => {
 
       expect(response.status).toBe(503)
       expect(json.db).toBe('fail')
+      expect(json.proposals_visible).toBe(0)
     })
   })
 

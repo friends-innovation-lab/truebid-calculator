@@ -19,15 +19,13 @@ export async function GET() {
   try {
     const supabase = createAnonClient()
 
-    // 1. DB connectivity check (anon can read tenants via RLS or this simple query)
-    const { error: pingError } = await supabase.from('tenants').select('id').limit(1)
-    if (pingError) throw pingError
-    db = 'ok'
-
-    // 2. Call SECURITY DEFINER function to get proposal count
+    // Call SECURITY DEFINER function to get proposal count
     // Function runs with definer privileges, anon has EXECUTE grant only
+    // This also serves as the DB connectivity check
     const { data, error: rpcError } = await supabase.rpc('health_check_proposal_count')
     if (rpcError) throw rpcError
+
+    db = 'ok'
     proposals_visible = data ?? 0
   } catch {
     db = 'fail'
