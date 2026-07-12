@@ -474,7 +474,7 @@ async function testConservationGates(): Promise<void> {
     .single()
 
   const legacyPeriods = (proposal?.working_data as any)?.proposalSetup?.periods || []
-  const legacyPeriodMap = new Map(legacyPeriods.map((p: any) => [p.name, p.months]))
+  const legacyPeriodMap = new Map<string, number>(legacyPeriods.map((p: any) => [p.name, p.months as number]))
 
   let legacyLaborTotal = 0
   for (const req of (laborReqs || [])) {
