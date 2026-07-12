@@ -41,7 +41,11 @@ export {
   requireConfirmedIntelligence,
   loadIntelligenceVersion,
   getCurrentIntelligenceVersion,
+  getConfirmedIntelligenceVersion,
 } from './guards'
+
+// Guard types
+export type { IntelligenceProjectionResult } from './guards'
 
 // Hash utilities
 export {

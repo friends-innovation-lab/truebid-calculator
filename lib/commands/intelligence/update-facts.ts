@@ -77,6 +77,9 @@ export function createUpdateIntelligenceFactsCommand(
       if (input.contractType !== undefined) {
         versionUpdate.contract_type = input.contractType
       }
+      if (input.staffingModel !== undefined) {
+        versionUpdate.staffing_model = input.staffingModel
+      }
 
       // Update version if there are changes
       if (Object.keys(versionUpdate).length > 0) {
@@ -285,12 +288,14 @@ export function createUpdateIntelligenceFactsCommand(
         {
           factsJson: versionRow.facts_json,
           contractType: versionRow.contract_type,
+          staffingModel: versionRow.staffing_model,
         },
         {
           factsJson: input.factsJson ?? versionRow.facts_json,
           contractType: input.contractType ?? versionRow.contract_type,
+          staffingModel: input.staffingModel ?? versionRow.staffing_model,
         },
-        ['factsJson', 'contractType']
+        ['factsJson', 'contractType', 'staffingModel']
       )
 
       const auditEventId = await writeAuditEvent(supabase, {

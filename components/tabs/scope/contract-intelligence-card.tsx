@@ -13,6 +13,7 @@ import type {
   RateSource,
   ExtractedRole,
   ContractPeriod,
+  StaffingModel,
 } from '@/lib/types/contract-intelligence'
 import { Trash2, Plus, Info, Edit2, Save } from 'lucide-react'
 
@@ -143,6 +144,8 @@ export function ContractIntelligenceCard({
                   confidence: l.confidence,
                   sourceText: l.sourceText || '',
                 })) || data.roles,
+                // Phase 4B: Load staffing model from version
+                staffingModel: result.version.staffingModel || data.staffingModel || 'unclear',
                 confirmed: result.version.status === 'confirmed',
                 confirmedAt: result.version.confirmedAt,
                 extractedAt: result.version.extractedAt || data.extractedAt,
@@ -269,14 +272,13 @@ export function ContractIntelligenceCard({
   const updateRole = (index: number, updates: Partial<ExtractedRole>) => {
     const newRoles = [...data.roles]
     newRoles[index] = { ...newRoles[index], ...updates }
-
-    // Auto-calculate utilization if hours changed
-    if (updates.hoursPerMonth !== undefined) {
-      const hours = updates.hoursPerMonth || 0
-      newRoles[index].utilizationPct = hours > 0 ? Number((hours / 160).toFixed(2)) : null
-    }
-
+    // Note: No auto-calculation - hours and utilization are independently editable
     updateField('roles', newRoles)
+  }
+
+  const updateStaffingModel = (model: StaffingModel) => {
+    setData((prev) => ({ ...prev, staffingModel: model }))
+    markUnsaved()
   }
 
   const addRole = () => {
@@ -344,6 +346,7 @@ export function ContractIntelligenceCard({
           expectedVersion: version.rowVersion,
           factsJson,
           contractType: data.contractType?.value,
+          staffingModel: data.staffingModel, // Phase 4B: Include staffing model
           periods,
           disciplines,
           laborRequirements,
@@ -649,6 +652,37 @@ export function ContractIntelligenceCard({
             </div>
             <ConfidencePill confidence={data.rateSource?.confidence || 'low'} />
           </div>
+
+          {/* Staffing Model Selector (Phase 4B) */}
+          <div className="mt-4">
+            <FieldLabel>Staffing Model</FieldLabel>
+            <div className="flex rounded border border-gray-200 overflow-hidden text-xs mt-1">
+              {([
+                { value: 'prescribed', label: 'Prescribed', description: 'RFP specifies exact roles' },
+                { value: 'offeror_proposed', label: 'Offeror Proposed', description: 'We propose team' },
+                { value: 'unclear', label: 'Unclear', description: 'Needs clarification' },
+              ] as const).map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => updateStaffingModel(option.value)}
+                  disabled={isConfirmed}
+                  title={option.description}
+                  className={`flex-1 py-1.5 px-3 font-medium transition-colors ${
+                    data.staffingModel === option.value
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {data.staffingModel === 'unclear' && !isConfirmed && (
+              <div className="mt-2 text-xs text-amber-600">
+                Staffing model must be resolved before confirming
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Section 2: Period Structure */}
@@ -794,10 +828,22 @@ export function ContractIntelligenceCard({
                       className="w-full text-sm text-center border border-gray-200 rounded px-1 py-0.5 disabled:bg-gray-50 disabled:text-gray-500"
                     />
                   </div>
-                  <div className="px-3 py-2 text-sm text-gray-500 text-center">
-                    {role.utilizationPct
-                      ? `${Math.round(role.utilizationPct * 100)}%`
-                      : '-'}
+                  <div className="px-3 py-2">
+                    <input
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={role.utilizationPct ? Math.round(role.utilizationPct * 100) : ''}
+                      onChange={(e) => {
+                        const pct = parseInt(e.target.value)
+                        updateRole(index, {
+                          utilizationPct: isNaN(pct) ? null : pct / 100,
+                        })
+                      }}
+                      disabled={isConfirmed}
+                      placeholder="-"
+                      className="w-full text-sm text-center border border-gray-200 rounded px-1 py-0.5 disabled:bg-gray-50 disabled:text-gray-500"
+                    />
                   </div>
                   <div className="px-3 py-2 flex items-center justify-center">
                     {!isConfirmed && (

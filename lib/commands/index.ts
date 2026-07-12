@@ -74,11 +74,13 @@ export {
   requireConfirmedIntelligence,
   loadIntelligenceVersion,
   getCurrentIntelligenceVersion,
+  getConfirmedIntelligenceVersion,
   // Hash utilities
   loadAndHashIntelligence,
   computeHash,
   canonicalize,
   // Types
+  type IntelligenceProjectionResult,
   type IntelligenceStatus,
   type IntelligenceVersionRow,
   type IntelligencePeriodRow,

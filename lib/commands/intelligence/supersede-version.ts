@@ -108,6 +108,11 @@ export function createSupersedeIntelligenceVersionCommand(
       // Create new draft version
       const nextVersionNumber = activeVersionRow.version_number + 1
 
+      // Copy ALL fields from active version to new draft
+      // Enumerated copy list (against intelligence_versions schema):
+      // - facts_json: JSONB containing documentType, vehicle, contractType, setAside, rateSource
+      // - contract_type: denormalized contract type
+      // - staffing_model: 'prescribed' | 'offeror_proposed' | 'unclear'
       const { data: newVersion, error: newVersionError } = await supabase
         .from('intelligence_versions')
         .insert({
@@ -117,6 +122,7 @@ export function createSupersedeIntelligenceVersionCommand(
           status: 'draft',
           facts_json: activeVersionRow.facts_json,
           contract_type: activeVersionRow.contract_type,
+          staffing_model: activeVersionRow.staffing_model, // BUG #2 FIX: was missing
           row_version: 1,
         })
         .select('id, version_number, status')
@@ -188,6 +194,11 @@ export function createSupersedeIntelligenceVersionCommand(
       }
 
       // Copy labor requirements to new version
+      // Enumerated copy list (against intelligence_labor_requirements schema):
+      // - title, labor_category, hours_per_month, utilization_pct
+      // - appears_in_periods, confidence, source_text
+      // - is_prescribed: Phase 4B prescribed staffing flag
+      // - labor_category_id, match_type, match_confidence: Phase 5 catalog match fields
       if (laborReqs && laborReqs.length > 0) {
         const laborReqsToInsert = (laborReqs as IntelligenceLaborRequirementRow[]).map((l) => ({
           version_id: newVersion.id,
@@ -198,6 +209,11 @@ export function createSupersedeIntelligenceVersionCommand(
           appears_in_periods: l.appears_in_periods,
           confidence: l.confidence,
           source_text: l.source_text,
+          // BUG #2 FIX: Phase 4B/5 fields were missing
+          is_prescribed: l.is_prescribed,
+          labor_category_id: l.labor_category_id,
+          match_type: l.match_type,
+          match_confidence: l.match_confidence,
         }))
 
         const { error: laborReqsError } = await supabase

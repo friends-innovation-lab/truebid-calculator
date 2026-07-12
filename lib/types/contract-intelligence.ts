@@ -1,5 +1,7 @@
 export type Confidence = 'high' | 'medium' | 'low'
 
+export type StaffingModel = 'prescribed' | 'offeror_proposed' | 'unclear'
+
 export type Discipline =
   | 'engineering'
   | 'design'
@@ -50,6 +52,8 @@ export type ContractIntelligence = {
     value: RateSource
     confidence: Confidence
   }
+  // Phase 4B: Staffing model - whether RFP prescribes roles or offeror proposes
+  staffingModel?: StaffingModel
   periods: ContractPeriod[]
   disciplines: {
     required: Discipline[]

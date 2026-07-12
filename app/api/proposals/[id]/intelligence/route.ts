@@ -63,6 +63,7 @@ export async function GET(
         status: versionData.version.status,
         confirmationHash: versionData.version.confirmationHash,
         contractType: versionData.version.contractType,
+        staffingModel: versionData.version.staffingModel, // Phase 4B
         extractedAt: versionData.version.extractedAt,
         confirmedAt: versionData.version.confirmedAt,
         rowVersion: versionData.version.rowVersion,
@@ -102,6 +103,7 @@ export async function PATCH(
     expectedVersion?: number
     factsJson?: Record<string, unknown>
     contractType?: string
+    staffingModel?: 'prescribed' | 'offeror_proposed' | 'unclear' // Phase 4B
     periods?: Array<{
       name: string
       months: number
@@ -156,6 +158,7 @@ export async function PATCH(
       expectedVersion: body.expectedVersion,
       factsJson: body.factsJson,
       contractType: body.contractType,
+      staffingModel: body.staffingModel, // Phase 4B
       periods: body.periods,
       disciplines: body.disciplines as Parameters<typeof command.execute>[1]['disciplines'],
       laborRequirements: body.laborRequirements as Parameters<typeof command.execute>[1]['laborRequirements'],

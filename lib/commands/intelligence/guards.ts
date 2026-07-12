@@ -161,6 +161,76 @@ export async function loadIntelligenceVersion(
 }
 
 /**
+ * Result type for intelligence version projection.
+ * Confirmed versions return full data; unconfirmed returns needs-intelligence state.
+ */
+export type IntelligenceProjectionResult =
+  | { confirmed: true; versionId: string }
+  | { confirmed: false; needsIntelligence: true; hasDraft: boolean }
+
+/**
+ * Get the current CONFIRMED intelligence version for a proposal.
+ *
+ * IMPORTANT: This function ONLY returns confirmed versions (via active_intelligence_version_id).
+ * Draft versions are NEVER returned - they are invisible to projections.
+ * When no confirmed version exists, returns needsIntelligence state.
+ *
+ * @param supabase - Authenticated Supabase client
+ * @param proposalId - The proposal ID
+ * @param tenantId - The tenant ID for access control
+ * @returns Confirmed version ID, or needs-intelligence state if none confirmed
+ */
+export async function getConfirmedIntelligenceVersion(
+  supabase: SupabaseClient,
+  proposalId: string,
+  tenantId: string
+): Promise<IntelligenceProjectionResult> {
+  // ONLY check for active confirmed version on proposal
+  // Draft versions are NEVER returned by this function
+  const { data: proposal } = await supabase
+    .from('proposals')
+    .select('active_intelligence_version_id')
+    .eq('id', proposalId)
+    .single()
+
+  if (proposal?.active_intelligence_version_id) {
+    // Verify the version belongs to this tenant
+    const { data: version } = await supabase
+      .from('intelligence_versions')
+      .select('tenant_id, status')
+      .eq('id', proposal.active_intelligence_version_id)
+      .single()
+
+    if (version && (version as { tenant_id: string }).tenant_id === tenantId) {
+      return {
+        confirmed: true,
+        versionId: proposal.active_intelligence_version_id,
+      }
+    }
+  }
+
+  // No confirmed version - check if there's a draft (for UI messaging only)
+  const { data: draftVersion } = await supabase
+    .from('intelligence_versions')
+    .select('id, tenant_id')
+    .eq('proposal_id', proposalId)
+    .eq('status', 'draft')
+    .limit(1)
+    .single()
+
+  const hasDraft = !!(draftVersion && (draftVersion as { tenant_id: string }).tenant_id === tenantId)
+
+  return {
+    confirmed: false,
+    needsIntelligence: true,
+    hasDraft,
+  }
+}
+
+/**
+ * @deprecated Use getConfirmedIntelligenceVersion instead.
+ * This function returns draft versions which violates projection integrity.
+ *
  * Get the current intelligence version for a proposal.
  * Returns the active confirmed version if one exists, otherwise the latest draft.
  *
