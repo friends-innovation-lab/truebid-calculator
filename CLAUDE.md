@@ -160,6 +160,8 @@ Features that are intentionally limited pending future work:
 
 - **Compliance matrix** — `compliance/generate` and `compliance/regenerate` routes predate multi-document support (Phase 4B). They look for `working_data.solicitationRawText` which is not populated by multi-document uploads. The component shows a graceful empty-state for multi-document proposals. Frozen pending writing-module revival.
 
+- **Multi-document upload UI** — UI supports single-document upload; document-set extraction available via API only (`/api/proposals/{id}/documents`). SetAside-class facts (e.g., WOSB, 8(a)) require the instructions document which is not yet uploadable through the UI. Phase D backlog.
+
 ## Environment Variables
 
 See `.env.example` for required keys:
