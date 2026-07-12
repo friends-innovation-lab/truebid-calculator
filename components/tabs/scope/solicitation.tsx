@@ -24,6 +24,8 @@ import {
   Minus,
   Plus,
   Check,
+  FileText,
+  Loader2,
 } from 'lucide-react'
 import { ContractIntelligenceCard } from './contract-intelligence-card'
 import type { ContractIntelligence } from '@/lib/types/contract-intelligence'
@@ -50,6 +52,17 @@ function getPdfjs(): Promise<typeof import('pdfjs-dist')> {
 // ============================================================================
 // TYPES
 // ============================================================================
+
+interface SolicitationDocument {
+  id: string
+  filename: string
+  doc_type: 'pws_sow' | 'instructions' | 'qa_amendment' | 'pricing_template' | 'other'
+  doc_type_source: 'ai_classified' | 'user_confirmed'
+  classification_confidence: number | null
+  status: 'uploaded' | 'classified' | 'extracted' | 'failed'
+  page_count: number | null
+  uploaded_at: string
+}
 
 interface AISummary {
   whatTheyWant: string
@@ -122,13 +135,20 @@ function PDFViewer({
   onReplace,
   onDownload,
   onPageCountChange,
+  documents,
+  onAddDocuments,
+  isAddingDocuments,
 }: {
   pdfState: PDFState
   onFileUpload: (file: File) => void
   onReplace: () => void
   onDownload: () => void
   onPageCountChange?: (numPages: number) => void
+  documents: SolicitationDocument[]
+  onAddDocuments: (files: File[]) => void
+  isAddingDocuments: boolean
 }) {
+  const addDocInputRef = useRef<HTMLInputElement>(null)
   const [isDragging, setIsDragging] = useState(false)
   const [pageNum, setPageNum] = useState(1)
   const [scale, setScale] = useState(1.0)
@@ -220,6 +240,17 @@ function PDFViewer({
     if (files && files.length > 0 && files[0].type === 'application/pdf') {
       onFileUpload(files[0])
     }
+  }
+
+  const handleAddDocumentsSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (files && files.length > 0) {
+      const pdfFiles = Array.from(files).filter(f => f.type === 'application/pdf')
+      if (pdfFiles.length > 0) {
+        onAddDocuments(pdfFiles)
+      }
+    }
+    e.target.value = ''
   }
 
   const goToPrevPage = () => {
@@ -340,6 +371,25 @@ function PDFViewer({
           </span>
         </div>
         <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => addDocInputRef.current?.click()}
+            className="h-7 text-[11px]"
+            disabled={isAddingDocuments}
+          >
+            {isAddingDocuments ? (
+              <>
+                <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                Adding...
+              </>
+            ) : (
+              <>
+                <Plus className="w-3 h-3 mr-1" />
+                Add Document
+              </>
+            )}
+          </Button>
           <Button variant="ghost" size="sm" onClick={onReplace} className="h-7 text-[11px]">
             Replace
           </Button>
@@ -348,6 +398,49 @@ function PDFViewer({
           </Button>
         </div>
       </div>
+
+      {/* Document list (if multiple) */}
+      {documents.length > 1 && (
+        <div
+          className="flex items-center gap-2 px-4 py-2 overflow-x-auto shrink-0"
+          style={{ backgroundColor: '#FAFAF8', borderBottom: '0.5px solid #E8E7E2' }}
+        >
+          <span className="text-[10px] font-semibold shrink-0" style={{ color: '#6B6A65' }}>
+            {documents.length} documents:
+          </span>
+          {documents.map((doc) => (
+            <div
+              key={doc.id}
+              className="flex items-center gap-1.5 px-2 py-1 rounded shrink-0"
+              style={{ backgroundColor: '#FFFFFF', border: '0.5px solid #E8E7E2' }}
+            >
+              <FileText className="w-3 h-3" style={{ color: '#6B6A65' }} />
+              <span className="text-[11px]" style={{ color: 'var(--ink)' }}>
+                {doc.filename.length > 30 ? doc.filename.slice(0, 27) + '...' : doc.filename}
+              </span>
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded"
+                style={{
+                  backgroundColor: doc.doc_type === 'pws_sow' ? '#E6F1FB' : '#F4F3EF',
+                  color: doc.doc_type === 'pws_sow' ? '#042C53' : '#6B6A65',
+                }}
+              >
+                {doc.doc_type.replace('_', ' ')}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Hidden input for adding multiple documents */}
+      <input
+        ref={addDocInputRef}
+        type="file"
+        accept=".pdf"
+        multiple
+        className="hidden"
+        onChange={handleAddDocumentsSelect}
+      />
 
       {/* Toolbar */}
       <div
@@ -972,8 +1065,31 @@ export function Solicitation() {
   const [extractionSteps, setExtractionSteps] = useState<ExtractionStep[]>(initialExtractionSteps)
   const [isExtracting, setIsExtracting] = useState(false)
 
+  // Multi-document state
+  const [documents, setDocuments] = useState<SolicitationDocument[]>([])
+  const [isAddingDocuments, setIsAddingDocuments] = useState(false)
+
   // File input ref for replace
   const replaceInputRef = useRef<HTMLInputElement>(null)
+
+  // Load documents from solicitation_documents table
+  useEffect(() => {
+    if (!proposalId) return
+
+    const loadDocuments = async () => {
+      try {
+        const res = await fetch(`/api/proposals/${proposalId}/documents`)
+        if (res.ok) {
+          const data = await res.json()
+          setDocuments(data.documents || [])
+        }
+      } catch (error) {
+        console.warn('[Solicitation] Failed to load documents:', error)
+      }
+    }
+
+    loadDocuments()
+  }, [proposalId])
 
   // Load existing data on mount
   useEffect(() => {
@@ -1636,6 +1752,59 @@ export function Solicitation() {
     }
   }
 
+  // Add documents to the solicitation_documents table (sequential upload)
+  const handleAddDocuments = async (files: File[]) => {
+    if (!proposalId || files.length === 0) return
+
+    setIsAddingDocuments(true)
+    const newDocs: SolicitationDocument[] = []
+    let successCount = 0
+    let failCount = 0
+
+    for (const file of files) {
+      try {
+        const formData = new FormData()
+        formData.append('file', file)
+
+        const res = await fetch(`/api/proposals/${proposalId}/documents`, {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          if (data.document) {
+            newDocs.push(data.document)
+            successCount++
+          }
+        } else {
+          const errorData = await res.json().catch(() => ({}))
+          console.error(`[Solicitation] Failed to upload ${file.name}:`, errorData.error)
+          failCount++
+        }
+      } catch (error) {
+        console.error(`[Solicitation] Error uploading ${file.name}:`, error)
+        failCount++
+      }
+    }
+
+    // Update documents list with new documents
+    if (newDocs.length > 0) {
+      setDocuments(prev => [...prev, ...newDocs])
+    }
+
+    setIsAddingDocuments(false)
+
+    // Show result toast
+    if (successCount > 0 && failCount === 0) {
+      toast.success(`Added ${successCount} document${successCount > 1 ? 's' : ''}`)
+    } else if (successCount > 0 && failCount > 0) {
+      toast.warning(`Added ${successCount}, failed ${failCount}`)
+    } else if (failCount > 0) {
+      toast.error(`Failed to add ${failCount} document${failCount > 1 ? 's' : ''}`)
+    }
+  }
+
   return (
     <>
       {/* Split screen container - fills parent via flex */}
@@ -1648,6 +1817,9 @@ export function Solicitation() {
             onReplace={handleReplace}
             onDownload={handleDownload}
             onPageCountChange={(numPages) => setPdfState(prev => ({ ...prev, numPages }))}
+            documents={documents}
+            onAddDocuments={handleAddDocuments}
+            isAddingDocuments={isAddingDocuments}
           />
         </div>
 
