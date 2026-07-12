@@ -4,19 +4,25 @@
  * Health endpoint tests
  *
  * Unit tests with mocked Supabase client.
- * Integration test against seeded local DB requires running:
- *   supabase db reset && npm run test -- __tests__/api/health.test.ts
+ * Integration test against seeded local DB:
+ *   supabase db reset && curl http://localhost:3000/api/health
+ *   Expected: status 200, proposals_visible >= 1
  */
 
-// Mock setup must be hoisted
-jest.mock('@/lib/supabase/server', () => ({
-  createServiceClient: jest.fn(),
+// Mock the Supabase client
+const mockRpc = jest.fn()
+const mockLimit = jest.fn()
+const mockSelect = jest.fn(() => ({ limit: mockLimit }))
+const mockFrom = jest.fn(() => ({ select: mockSelect }))
+
+jest.mock('@supabase/supabase-js', () => ({
+  createClient: jest.fn(() => ({
+    from: mockFrom,
+    rpc: mockRpc,
+  })),
 }))
 
 import { GET } from '@/app/api/health/route'
-import { createServiceClient } from '@/lib/supabase/server'
-
-const mockCreateServiceClient = createServiceClient as jest.MockedFunction<typeof createServiceClient>
 
 describe('Health endpoint', () => {
   beforeEach(() => {
@@ -25,29 +31,23 @@ describe('Health endpoint', () => {
   })
 
   function setupMocks(options: {
-    companiesError?: boolean
+    dbError?: boolean
     proposalsCount?: number
-    proposalsError?: boolean
+    rpcError?: boolean
   }) {
-    const { companiesError = false, proposalsCount = 0, proposalsError = false } = options
+    const { dbError = false, proposalsCount = 0, rpcError = false } = options
 
-    const mockEq = jest.fn().mockResolvedValue({
-      count: proposalsError ? null : proposalsCount,
-      error: proposalsError ? { message: 'Query failed' } : null,
+    // DB connectivity check (tenants table)
+    mockLimit.mockResolvedValue({
+      data: dbError ? null : [{ id: 'tenant-1' }],
+      error: dbError ? { message: 'Connection failed' } : null,
     })
 
-    const mockLimit = jest.fn().mockResolvedValue({
-      data: companiesError ? null : [{ id: 'company-1' }],
-      error: companiesError ? { message: 'Connection failed' } : null,
+    // RPC call for proposal count
+    mockRpc.mockResolvedValue({
+      data: rpcError ? null : proposalsCount,
+      error: rpcError ? { message: 'RPC failed' } : null,
     })
-
-    const mockSelect = jest.fn()
-      .mockReturnValueOnce({ limit: mockLimit })
-      .mockReturnValueOnce({ eq: mockEq })
-
-    mockCreateServiceClient.mockReturnValue({
-      from: jest.fn().mockReturnValue({ select: mockSelect }),
-    } as unknown as ReturnType<typeof createServiceClient>)
   }
 
   describe('when DB is healthy with proposals', () => {
@@ -66,6 +66,12 @@ describe('Health endpoint', () => {
       expect(json.timestamp).toBeDefined()
     })
 
+    it('calls health_check_proposal_count RPC', async () => {
+      await GET()
+
+      expect(mockRpc).toHaveBeenCalledWith('health_check_proposal_count')
+    })
+
     it('includes commit SHA from environment', async () => {
       process.env.VERCEL_GIT_COMMIT_SHA = 'abc123'
       setupMocks({ proposalsCount: 1 })
@@ -77,7 +83,7 @@ describe('Health endpoint', () => {
     })
   })
 
-  describe('when DB is healthy but no proposals', () => {
+  describe('when DB is healthy but no proposals (503)', () => {
     beforeEach(() => {
       setupMocks({ proposalsCount: 0 })
     })
@@ -92,9 +98,9 @@ describe('Health endpoint', () => {
     })
   })
 
-  describe('when DB connection fails', () => {
+  describe('when DB connection fails (503)', () => {
     beforeEach(() => {
-      setupMocks({ companiesError: true })
+      setupMocks({ dbError: true })
     })
 
     it('returns 503 with db: fail', async () => {
@@ -104,6 +110,20 @@ describe('Health endpoint', () => {
       expect(response.status).toBe(503)
       expect(json.db).toBe('fail')
       expect(json.proposals_visible).toBe(0)
+    })
+  })
+
+  describe('when RPC fails (503)', () => {
+    beforeEach(() => {
+      setupMocks({ rpcError: true })
+    })
+
+    it('returns 503 with db: fail', async () => {
+      const response = await GET()
+      const json = await response.json()
+
+      expect(response.status).toBe(503)
+      expect(json.db).toBe('fail')
     })
   })
 
@@ -121,12 +141,20 @@ describe('Health endpoint', () => {
 })
 
 /**
- * Integration test expectation (run manually against seeded local DB):
+ * Integration test (manual, against seeded local DB):
  *
- * After `supabase db reset`, the seed creates 1 non-archived proposal.
- * Hitting http://localhost:3000/api/health should return:
- *   - status: 200
+ * 1. supabase db reset (applies migrations + seed)
+ * 2. npm run dev
+ * 3. curl http://localhost:3000/api/health
+ *
+ * Expected:
+ *   - HTTP status: 200
  *   - db: "ok"
- *   - proposals_visible: 1
+ *   - proposals_visible: 1 (seed creates 1 non-archived proposal)
  *   - version: "local"
+ *
+ * Zero-proposal test:
+ *   UPDATE proposals SET archived = true;
+ *   curl http://localhost:3000/api/health
+ *   Expected: HTTP 503, proposals_visible: 0
  */

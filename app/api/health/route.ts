@@ -1,5 +1,13 @@
-import { createServiceClient } from '@/lib/supabase/server'
+import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+
+// Anon client for health check - no service role key on public path
+function createAnonClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
 
 export async function GET() {
   const version = process.env.VERCEL_GIT_COMMIT_SHA || 'local'
@@ -9,22 +17,18 @@ export async function GET() {
   let proposals_visible = 0
 
   try {
-    const supabase = createServiceClient()
+    const supabase = createAnonClient()
 
-    // 1. DB connectivity check
-    const { error: pingError } = await supabase.from('companies').select('id').limit(1)
+    // 1. DB connectivity check (anon can read tenants via RLS or this simple query)
+    const { error: pingError } = await supabase.from('tenants').select('id').limit(1)
     if (pingError) throw pingError
     db = 'ok'
 
-    // 2. Count non-archived proposals (mirrors dashboard visibility)
-    // Service role bypasses RLS, so this counts all proposals any user would see
-    const { count, error: countError } = await supabase
-      .from('proposals')
-      .select('*', { count: 'exact', head: true })
-      .eq('archived', false)
-
-    if (countError) throw countError
-    proposals_visible = count ?? 0
+    // 2. Call SECURITY DEFINER function to get proposal count
+    // Function runs with definer privileges, anon has EXECUTE grant only
+    const { data, error: rpcError } = await supabase.rpc('health_check_proposal_count')
+    if (rpcError) throw rpcError
+    proposals_visible = data ?? 0
   } catch {
     db = 'fail'
   }
