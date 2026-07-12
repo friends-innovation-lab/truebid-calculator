@@ -187,6 +187,7 @@ export type ValidationViolationType =
   | 'missing_prime_or_sub'
   | 'invalid_period'
   | 'sub_missing_name'
+  | 'invalid_role_prescribed'  // Role not in prescribed vocabulary (Pillar 2)
 
 export interface ValidationViolation {
   type: ValidationViolationType

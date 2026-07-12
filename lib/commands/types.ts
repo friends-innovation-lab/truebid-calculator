@@ -57,6 +57,7 @@ export type CommandErrorCode =
   | 'VALIDATION_FAILED' // Input validation failed
   | 'INVALID_STATE' // Aggregate in wrong state for operation
   | 'INTERNAL_ERROR' // Unexpected error
+  | 'STAFFING_MODEL_UNCLEAR' // Pillar 2: Cannot confirm until staffing model resolved
 
 /**
  * Optimistic concurrency conflict details.

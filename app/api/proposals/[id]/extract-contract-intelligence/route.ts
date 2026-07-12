@@ -208,9 +208,13 @@ Please fix these issues and try again. Ensure all required fields are present an
       hoursPerMonth: r.hoursPerMonth ?? undefined,
       utilizationPct: r.utilizationPct ?? undefined,
       appearsInPeriods: r.appearsInPeriods ?? [],
+      isPrescribed: r.isPrescribed ?? false,
       confidence: r.confidence as Confidence,
       sourceText: r.sourceText,
     }))
+
+    // Extract staffing model
+    const staffingModel = extracted.staffingModel?.value ?? 'unclear'
 
     // Transform periods for command input
     const periodsInput = periods.map((p, idx) => ({
@@ -226,6 +230,7 @@ Please fix these issues and try again. Ensure all required fields are present an
       periods: periodsInput.length,
       disciplines: disciplines.map((d: { discipline: string }) => d.discipline),
       laborRequirements: laborRequirements.length,
+      staffingModel,
     }))
 
     // Use CreateIntelligenceDraft command to persist to versioned tables
@@ -234,6 +239,7 @@ Please fix these issues and try again. Ensure all required fields are present an
       proposalId,
       factsJson,
       contractType: extracted.contractType.value,
+      staffingModel,
       periods: periodsInput,
       disciplines,
       laborRequirements,

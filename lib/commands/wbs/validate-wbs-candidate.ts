@@ -9,6 +9,7 @@
  * 2. Every assignment has prime_or_sub set
  * 3. Every assignment's period_label IN intelligence_periods for this version
  * 4. If sub, subcontractor_name is provided
+ * 5. If staffingModel === 'prescribed', role must be in prescribed vocabulary
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -17,19 +18,56 @@ import type {
   ValidationResult,
   ValidationViolation,
 } from './types'
+import type { StaffingModel } from '../intelligence/types'
+
+/**
+ * Normalize role title for comparison.
+ * Handles common variations: case, spacing, abbreviations, senior/lead prefixes.
+ */
+function normalizeRoleTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .trim()
+    // Normalize common separators
+    .replace(/[-_]/g, ' ')
+    // Collapse multiple spaces
+    .replace(/\s+/g, ' ')
+    // Remove common prefixes that don't change the role
+    .replace(/^(senior|sr\.?|lead|principal|staff)\s+/i, '')
+    // Normalize common abbreviations
+    .replace(/\bpm\b/gi, 'product manager')
+    .replace(/\bhcd\b/gi, 'human centered design')
+    .replace(/\bux\b/gi, 'user experience')
+    .replace(/\bui\b/gi, 'user interface')
+    .replace(/\bdev\b/gi, 'developer')
+    .replace(/\bengr?\b/gi, 'engineer')
+}
 
 interface IntelligenceContext {
   disciplines: string[]
   periodLabels: string[]
+  staffingModel: StaffingModel
+  prescribedRoles: string[] // Role titles when staffingModel === 'prescribed'
 }
 
 /**
- * Load intelligence context (disciplines and periods) for validation
+ * Load intelligence context (disciplines, periods, staffing model, prescribed roles) for validation
  */
 export async function loadIntelligenceContext(
   supabase: SupabaseClient,
   intelligenceVersionId: string
 ): Promise<IntelligenceContext> {
+  // Load version to get staffing model
+  const { data: version, error: versionError } = await supabase
+    .from('intelligence_versions')
+    .select('staffing_model')
+    .eq('id', intelligenceVersionId)
+    .single()
+
+  if (versionError) {
+    throw new Error(`Failed to load intelligence version: ${versionError.message}`)
+  }
+
   // Load disciplines
   const { data: disciplines, error: discError } = await supabase
     .from('intelligence_disciplines')
@@ -50,9 +88,22 @@ export async function loadIntelligenceContext(
     throw new Error(`Failed to load periods: ${perError.message}`)
   }
 
+  // Load prescribed roles (only those with is_prescribed = true)
+  const { data: laborReqs, error: laborError } = await supabase
+    .from('intelligence_labor_requirements')
+    .select('title')
+    .eq('version_id', intelligenceVersionId)
+    .eq('is_prescribed', true)
+
+  if (laborError) {
+    throw new Error(`Failed to load labor requirements: ${laborError.message}`)
+  }
+
   return {
     disciplines: (disciplines || []).map(d => d.discipline),
     periodLabels: (periods || []).map(p => p.name),
+    staffingModel: (version?.staffing_model as StaffingModel) ?? 'unclear',
+    prescribedRoles: (laborReqs || []).map(l => l.title),
   }
 }
 
@@ -115,6 +166,23 @@ export function validateWbsCandidate(
           roleTitle: assignment.roleTitle,
           details: `Subcontractor assignments require subcontractor_name`,
         })
+      }
+
+      // Check 5: If prescribed staffing, role must be in prescribed vocabulary
+      if (context.staffingModel === 'prescribed' && context.prescribedRoles.length > 0) {
+        const roleMatches = context.prescribedRoles.some(pr =>
+          normalizeRoleTitle(pr) === normalizeRoleTitle(assignment.roleTitle)
+        )
+        if (!roleMatches) {
+          violations.push({
+            type: 'invalid_role_prescribed',
+            taskWbsCode: task.wbsCode,
+            taskTitle: task.title,
+            assignmentIndex: i,
+            roleTitle: assignment.roleTitle,
+            details: `Role "${assignment.roleTitle}" not in prescribed vocabulary. This RFP specifies exact roles: ${context.prescribedRoles.join(', ')}`,
+          })
+        }
       }
     }
   }

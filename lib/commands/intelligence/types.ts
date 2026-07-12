@@ -11,6 +11,7 @@ import type { Confidence, Discipline, RateSource } from '@/lib/types/contract-in
 // =============================================================================
 
 export type IntelligenceStatus = 'draft' | 'confirmed' | 'superseded'
+export type StaffingModel = 'prescribed' | 'offeror_proposed' | 'unclear'
 
 export interface IntelligenceVersionRow {
   id: string
@@ -21,6 +22,7 @@ export interface IntelligenceVersionRow {
   confirmation_hash: string | null
   facts_json: FactsJson
   contract_type: string | null
+  staffing_model: StaffingModel
   row_version: number
   extracted_at: string
   confirmed_at: string | null
@@ -58,6 +60,7 @@ export interface IntelligenceLaborRequirementRow {
   hours_per_month: string | null // NUMERIC comes as string from Postgres
   utilization_pct: string | null // NUMERIC comes as string from Postgres
   appears_in_periods: string[]
+  is_prescribed: boolean
   confidence: Confidence
   source_text: string | null
   created_at: string
@@ -108,6 +111,7 @@ export interface CoercedLaborRequirement {
   hoursPerMonth: number | null // Coerced from NUMERIC string
   utilizationPct: number | null // Coerced from NUMERIC string
   appearsInPeriods: string[]
+  isPrescribed: boolean
   confidence: Confidence
   sourceText: string | null
 }
@@ -121,6 +125,7 @@ export interface CoercedIntelligenceVersion {
   confirmationHash: string | null
   factsJson: FactsJson
   contractType: string | null
+  staffingModel: StaffingModel
   rowVersion: number
   extractedAt: string
   confirmedAt: string | null
@@ -135,6 +140,7 @@ export interface CreateIntelligenceDraftInput {
   proposalId: string
   factsJson?: FactsJson
   contractType?: string
+  staffingModel?: StaffingModel
   periods?: Array<{
     name: string
     months: number
@@ -153,6 +159,7 @@ export interface CreateIntelligenceDraftInput {
     hoursPerMonth?: number
     utilizationPct?: number
     appearsInPeriods?: string[]
+    isPrescribed?: boolean
     confidence: Confidence
     sourceText?: string
   }>
@@ -169,6 +176,7 @@ export interface UpdateIntelligenceFactsInput {
   expectedVersion?: number
   factsJson?: FactsJson
   contractType?: string
+  staffingModel?: StaffingModel
   periods?: Array<{
     name: string
     months: number
@@ -187,6 +195,7 @@ export interface UpdateIntelligenceFactsInput {
     hoursPerMonth?: number
     utilizationPct?: number
     appearsInPeriods?: string[]
+    isPrescribed?: boolean
     confidence: Confidence
     sourceText?: string
   }>

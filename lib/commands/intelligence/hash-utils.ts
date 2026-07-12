@@ -64,6 +64,7 @@ export function coerceLaborRequirement(row: IntelligenceLaborRequirementRow): Co
     hoursPerMonth: coerceNumeric(row.hours_per_month),
     utilizationPct: coerceNumeric(row.utilization_pct),
     appearsInPeriods: row.appears_in_periods ?? [],
+    isPrescribed: row.is_prescribed ?? false,
     confidence: row.confidence,
     sourceText: row.source_text,
   }
@@ -79,6 +80,7 @@ export function coerceVersion(row: IntelligenceVersionRow): CoercedIntelligenceV
     confirmationHash: row.confirmation_hash,
     factsJson: row.facts_json,
     contractType: row.contract_type,
+    staffingModel: row.staffing_model ?? 'unclear',
     rowVersion: row.row_version,
     extractedAt: row.extracted_at,
     confirmedAt: row.confirmed_at,

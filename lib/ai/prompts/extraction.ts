@@ -43,7 +43,30 @@ DISCIPLINE EXTRACTION RULES — CRITICAL:
 5. A contract titled "Human-Centered Design" may require only 'research' if the actual work is research
 6. Include at most 2-3 disciplines unless the PWS explicitly describes work across more areas
 
-Be conservative — only include disciplines where the PWS explicitly describes deliverables or activities in that area.`
+Be conservative — only include disciplines where the PWS explicitly describes deliverables or activities in that area.
+
+PERIOD EXTRACTION RULES — CRITICAL:
+1. Periods = priced CLIN structure. Count the distinct pricing columns (Base Year, Option Year 1, etc.) in the pricing template or CLIN table.
+2. Transition/phase-in is a MILESTONE within the base period, NEVER a separate period.
+3. "Ramp-up", "mobilization", "transition-in" are work items, not periods — they occur within Base Year.
+4. Periods drive GSA rate year mapping. If the contract has Base + 3 Option Years, that's 4 periods regardless of phase-in language.
+5. If pricing template columns show: Base Year | Option Year 1 | Option Year 2 | Option Year 3 → return 4 periods.
+6. Do NOT count "phase-in" or "transition" as additional periods beyond the priced structure.
+
+STAFFING MODEL EXTRACTION RULES — CRITICAL:
+1. staffingModel = 'prescribed' when the RFP explicitly names required roles:
+   - "Key Personnel" section naming specific positions
+   - LCAT table with named positions (not generic labor categories)
+   - "The contractor SHALL provide a [Role Name]"
+   - "Minimum staffing of [Role] and [Role]"
+2. staffingModel = 'offeror_proposed' when the RFP allows offeror discretion:
+   - "Propose a staffing approach"
+   - "Offeror shall determine team composition"
+   - "Staffing plan to be provided by offeror"
+   - No named Key Personnel requirements
+3. staffingModel = 'unclear' when neither signal is present or language is ambiguous
+4. For each role, set isPrescribed = true ONLY if the role is explicitly named in the RFP (Key Personnel, required position)
+5. Inferred roles (derived from scope of work, not explicitly named) get isPrescribed = false`
 }
 
 /**

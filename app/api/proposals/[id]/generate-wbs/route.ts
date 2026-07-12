@@ -508,11 +508,16 @@ export async function POST(
 
   // Extract intelligence data from guard result
   const disciplines = guardResult.disciplines.map(d => d.discipline)
+  const staffingModel = guardResult.version.staffingModel
+  const prescribedRoles = guardResult.laborRequirements
+    .filter(lr => lr.isPrescribed)
+    .map(lr => lr.title)
   const confirmedRoles = guardResult.laborRequirements.map(lr => ({
     title: lr.title,
     laborCategory: lr.laborCategory,
     hoursPerMonth: lr.hoursPerMonth,
     utilizationPct: lr.utilizationPct,
+    isPrescribed: lr.isPrescribed,
   }))
   const periods = guardResult.periods.map(p => ({
     name: p.name,
@@ -616,13 +621,27 @@ ${disciplines.join(', ')}
 
 Generate WBS tasks ONLY within these disciplines. If a task falls outside these disciplines, do not include it. A PM/HCD contract does not need engineering tasks. An engineering contract does not need research tasks. Read the disciplines list and stay within it.
 ` : ''}
-${confirmedRoles.length > 0 ? `
+${staffingModel === 'prescribed' && prescribedRoles.length > 0 ? `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+PRESCRIBED STAFFING — CRITICAL
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+This RFP PRESCRIBES exact roles. You MUST use ONLY these role titles:
+${prescribedRoles.join(', ')}
+
+This is a CLOSED VOCABULARY. Do NOT invent new role titles. Do NOT use synonyms.
+Use EXACTLY the role titles listed above. Any other role title is a violation.
+
+${confirmedRoles.filter(r => r.isPrescribed).map(r =>
+  `• ${r.title}: ${r.hoursPerMonth ?? 0} hours/month (${Math.round((r.hoursPerMonth ?? 0) / 160 * 100)}% utilization)`
+).join('\n')}
+` : confirmedRoles.length > 0 ? `
 ROLES CONFIRMED FOR THIS CONTRACT:
 ${confirmedRoles.map(r =>
   `${r.title}: ${r.hoursPerMonth ?? 0} hours/month (${Math.round((r.hoursPerMonth ?? 0) / 160 * 100)}% utilization)`
 ).join('\n')}
 
-Generate WBS tasks that can be staffed by these specific roles. Do not generate tasks requiring roles not in this list.
+Generate WBS tasks that can be staffed by these specific roles. Prefer roles from this list.
 ` : ''}
 ${periods.length > 0 ? `
 CONTRACT PERIODS:

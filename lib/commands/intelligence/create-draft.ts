@@ -71,6 +71,7 @@ export function createCreateIntelligenceDraftCommand(
           status: 'draft',
           facts_json: input.factsJson ?? {},
           contract_type: input.contractType ?? null,
+          staffing_model: input.staffingModel ?? 'unclear',
           row_version: 1,
         })
         .select('id, version_number, status')
@@ -151,6 +152,7 @@ export function createCreateIntelligenceDraftCommand(
           hours_per_month: l.hoursPerMonth ?? null,
           utilization_pct: l.utilizationPct ?? null,
           appears_in_periods: l.appearsInPeriods ?? [],
+          is_prescribed: l.isPrescribed ?? false,
           confidence: l.confidence,
           source_text: l.sourceText ?? null,
         }))

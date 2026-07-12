@@ -26,6 +26,13 @@ export const setAsideSchema = z.enum([
 // Rate source enum
 export const rateSourceSchema = z.enum(['internal', 'gsa_mas', 'sub'])
 
+// Staffing model enum - Phase 4B Pillar 2
+export const staffingModelSchema = z.enum([
+  'prescribed',       // RFP specifies exact roles (closed vocabulary)
+  'offeror_proposed', // Offeror proposes team composition
+  'unclear'           // Needs user clarification
+])
+
 // Discipline enum - CANONICAL vocabulary from intelligence_disciplines table
 // MUST match: engineering, hcd, product, research, management, data, security, devops
 export const disciplineSchema = z.enum([
@@ -46,6 +53,7 @@ export const extractedRoleSchema = z.object({
   hoursPerMonth: z.number().nullable().describe('Hours per month if explicitly stated'),
   utilizationPct: z.number().nullable().describe('Utilization percentage if stated (e.g. 0.8 for 80%)'),
   appearsInPeriods: z.array(z.string()).describe('Period names where role appears'),
+  isPrescribed: z.boolean().describe('True if explicitly named as key personnel or required position, not inferred'),
   confidence: confidenceSchema,
   sourceText: z.string().describe('Exact quote from document')
 })
@@ -80,6 +88,11 @@ export const contractIntelligenceExtractionSchema = z.object({
     confidence: confidenceSchema,
     sourceText: z.string().describe('Exact quote identifying these disciplines')
   }),
+  staffingModel: z.object({
+    value: staffingModelSchema,
+    confidence: confidenceSchema,
+    reasoning: z.string().describe('One sentence explaining why this staffing model was determined')
+  }).describe('Whether RFP prescribes specific roles (closed vocabulary) or allows offeror-proposed staffing'),
   roles: z.array(extractedRoleSchema).describe('Labor requirements from document')
 })
 
@@ -157,6 +170,20 @@ export const contractIntelligenceJsonSchema = {
       },
       required: ['required', 'confidence', 'sourceText']
     },
+    staffingModel: {
+      type: 'object',
+      properties: {
+        value: {
+          type: 'string',
+          enum: ['prescribed', 'offeror_proposed', 'unclear'],
+          description: 'prescribed: RFP names specific roles (Key Personnel, LCAT table). offeror_proposed: RFP lets offeror propose team. unclear: ambiguous.'
+        },
+        confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+        reasoning: { type: 'string', description: 'One sentence explaining the staffing model determination' }
+      },
+      required: ['value', 'confidence', 'reasoning'],
+      description: 'Whether RFP prescribes specific roles or allows offeror-proposed staffing'
+    },
     roles: {
       type: 'array',
       items: {
@@ -167,13 +194,14 @@ export const contractIntelligenceJsonSchema = {
           hoursPerMonth: { type: ['number', 'null'], description: 'Hours per month if stated' },
           utilizationPct: { type: ['number', 'null'], description: 'Utilization as decimal (e.g. 0.8)' },
           appearsInPeriods: { type: 'array', items: { type: 'string' } },
+          isPrescribed: { type: 'boolean', description: 'True if explicitly named as key personnel or required position' },
           confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
           sourceText: { type: 'string', description: 'Exact quote from document' }
         },
-        required: ['title', 'confidence', 'sourceText']
+        required: ['title', 'isPrescribed', 'confidence', 'sourceText']
       },
       description: 'Labor requirements extracted from document'
     }
   },
-  required: ['documentType', 'vehicle', 'contractType', 'setAside', 'rateSource', 'basePeriodMonths', 'optionPeriodMonths', 'disciplines', 'roles']
+  required: ['documentType', 'vehicle', 'contractType', 'setAside', 'rateSource', 'basePeriodMonths', 'optionPeriodMonths', 'disciplines', 'staffingModel', 'roles']
 } as const

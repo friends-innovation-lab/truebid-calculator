@@ -77,6 +77,35 @@ export function createConfirmIntelligenceVersionCommand(
         })
       }
 
+      // PILLAR 2: Block confirmation if staffing model is unclear
+      // This requires user resolution before proceeding
+      if (versionRow.staffing_model === 'unclear') {
+        return {
+          success: false,
+          error: {
+            code: 'STAFFING_MODEL_UNCLEAR',
+            message: 'Cannot confirm: staffing model needs clarification',
+            details: {
+              reason: 'STAFFING_MODEL_UNCLEAR',
+              explanation: 'The AI could not determine whether this RFP prescribes exact roles (Key Personnel) or allows offeror-proposed staffing. Please review the extracted roles and select the correct staffing model before confirming.',
+              actionRequired: 'SELECT_STAFFING_MODEL',
+              options: [
+                {
+                  value: 'prescribed',
+                  label: 'Prescribed (RFP specifies exact roles)',
+                  description: 'The RFP names specific Key Personnel or required positions. WBS generation will use only these roles.',
+                },
+                {
+                  value: 'offeror_proposed',
+                  label: 'Offeror Proposed (we choose team composition)',
+                  description: 'The RFP allows the offeror to propose team structure. WBS generation will suggest appropriate roles.',
+                },
+              ],
+            },
+          },
+        }
+      }
+
       // CRITICAL: Load fresh from DB and compute hash
       // This ensures we hash the same data that will be verified by the guard
       const hashResult = await loadAndHashIntelligence(supabase, input.versionId)
