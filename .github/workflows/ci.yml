@@ -45,7 +45,18 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm test -- --ci --passWithNoTests
+      - run: mkdir -p test-results
+      - run: npm test -- --ci --passWithNoTests --json --outputFile=test-results/jest-results.json
+      - name: Test Summary
+        if: always()
+        run: |
+          if [ -f test-results/jest-results.json ]; then
+            TOTAL=$(jq '.numTotalTests' test-results/jest-results.json)
+            PASSED=$(jq '.numPassedTests' test-results/jest-results.json)
+            FAILED=$(jq '.numFailedTests' test-results/jest-results.json)
+            echo "### Test Results" >> $GITHUB_STEP_SUMMARY
+            echo "**Total:** $TOTAL | **Passed:** $PASSED | **Failed:** $FAILED" >> $GITHUB_STEP_SUMMARY
+          fi
 
   migration-check:
     name: Migration Check

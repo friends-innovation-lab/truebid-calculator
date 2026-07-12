@@ -345,6 +345,14 @@ All new persistence uses normalized tables + commands. Existing writers continue
 
 2. **Credential confirmations must not restate the secret.** When confirming a secret was not persisted, state the non-persistence fact without repeating the secret value itself.
 
+### Deployment Attestation
+
+Deployment completion is claimed ONLY by citing the green attestation run (link or run id). A deploy report without an attestation reference is not a report.
+
+### Test Citation
+
+Test results in any report cite the results file or CI run. Counts are copied from reporter output, never typed.
+
 ### AI Eval Harness
 
 **Any prompt, schema, or model change in the active AI pipeline requires an eval run.**

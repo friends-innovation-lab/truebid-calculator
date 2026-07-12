@@ -196,6 +196,23 @@ supabase migration list --db-url "$PROD_DB_URL"
 └──────────────────┘
 ```
 
+## Upgrade Triggers
+
+### PITR (Point-in-Time Recovery)
+
+**Status:** NOT enabled
+
+**Rationale:** Cost not justified at single-tenant/zero-revenue stage. Current recovery posture:
+- Daily automatic backups
+- Migration reproducibility
+- Fresh `pg_dump` before risky migrations
+
+This was proven in the 2026-07-11 incident: full recovery, zero net loss.
+
+**Trigger:** Enable PITR the day a second tenant's data enters production, priced into their subscription.
+
+**Storage Objects Limitation:** Supabase backups do NOT include storage bucket objects. Document re-upload is part of the restore runbook.
+
 ## Standing Rules
 
 ### Database

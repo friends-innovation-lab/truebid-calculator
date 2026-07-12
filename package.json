@@ -12,6 +12,7 @@
     "test:coverage": "jest --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
+    "test:proof": "mkdir -p test-results && jest --json --outputFile=test-results/jest-$(date +%Y%m%d-%H%M%S).json && node scripts/test-summary.js",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "evals": "tsx evals/run.ts",

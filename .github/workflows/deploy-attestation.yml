@@ -1,0 +1,57 @@
+name: Deploy Attestation
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  attest-production:
+    name: Verify Production Deployment
+    runs-on: ubuntu-latest
+    # Wait for Vercel deployment via GitHub Deployment API
+    environment:
+      name: Production
+      url: https://truebid.lab.cityfriends.tech
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wait for deployment and verify SHA
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://truebid.lab.cityfriends.tech' }}
+        run: |
+          HEALTH_URL="${PRODUCTION_URL}/api/health"
+          echo "Verifying deployment at: $HEALTH_URL"
+          echo "Expected SHA: $EXPECTED_SHA"
+
+          # Wait up to 5 minutes for deployment (30 attempts × 10s)
+          for i in {1..30}; do
+            RESPONSE=$(curl -sf "$HEALTH_URL" 2>/dev/null || echo '{}')
+            ACTUAL_SHA=$(echo "$RESPONSE" | jq -r '.version // empty')
+            DB_STATUS=$(echo "$RESPONSE" | jq -r '.db // empty')
+
+            if [ "$ACTUAL_SHA" = "$EXPECTED_SHA" ]; then
+              echo "✅ Deployment verified!"
+
+              # Write summary
+              echo "### Deployment Attestation" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Commit:** \`$ACTUAL_SHA\`" >> $GITHUB_STEP_SUMMARY
+              echo "**Database:** $DB_STATUS" >> $GITHUB_STEP_SUMMARY
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "**Health Response:**" >> $GITHUB_STEP_SUMMARY
+              echo '```json' >> $GITHUB_STEP_SUMMARY
+              echo "$RESPONSE" | jq . >> $GITHUB_STEP_SUMMARY
+              echo '```' >> $GITHUB_STEP_SUMMARY
+
+              exit 0
+            fi
+
+            echo "Waiting... attempt $i/30 (current: ${ACTUAL_SHA:-none})"
+            sleep 10
+          done
+
+          echo "❌ Deployment verification failed after 5 minutes"
+          echo "Expected: $EXPECTED_SHA"
+          echo "Got: ${ACTUAL_SHA:-none}"
+          exit 1
