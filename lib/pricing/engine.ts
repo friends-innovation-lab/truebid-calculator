@@ -38,7 +38,7 @@ import {
 Decimal.set({ precision: 20, rounding: Decimal.ROUND_HALF_UP })
 
 /** Current formula version for audit trail */
-export const FORMULA_VERSION = 'v1.0.0'
+export const FORMULA_VERSION = 'v1.1.0'
 
 /** Default standard hours for rate calculation */
 export const DEFAULT_STANDARD_HOURS = 2080
@@ -75,12 +75,18 @@ export function normalizeRateToDecimal(
  *
  * This is THE source of truth for rate calculations.
  *
- * @param input - Pricing input with salary, rates, and profit
+ * @param input - Pricing input with salary, rates, profit, and optional escalation
  * @returns Complete breakdown of the calculation
  * @throws PricingValidationError if inputs are invalid
  */
 export function calculateFullyBurdenedRate(input: PricingInput): PricingBreakdown {
-  const { annualSalary, rates, profitRate, standardHours = DEFAULT_STANDARD_HOURS } = input
+  const {
+    annualSalary,
+    rates,
+    profitRate,
+    standardHours = DEFAULT_STANDARD_HOURS,
+    escalation,
+  } = input
 
   // Validate inputs
   if (annualSalary < 0) {
@@ -118,6 +124,22 @@ export function calculateFullyBurdenedRate(input: PricingInput): PricingBreakdow
       profitRate
     )
   }
+  if (escalation) {
+    if (escalation.rate < 0) {
+      throw new PricingValidationError(
+        'Escalation rate cannot be negative',
+        'escalation.rate',
+        escalation.rate
+      )
+    }
+    if (escalation.yearIndex < 1) {
+      throw new PricingValidationError(
+        'Escalation year index must be at least 1',
+        'escalation.yearIndex',
+        escalation.yearIndex
+      )
+    }
+  }
 
   // Use Decimal.js for precision
   const salary = new Decimal(annualSalary)
@@ -153,8 +175,26 @@ export function calculateFullyBurdenedRate(input: PricingInput): PricingBreakdow
   // profit_amount = cost_before_profit * profit_rate
   const profitAmount = costBeforeProfit.times(profit)
 
-  // fully_burdened = cost_before_profit + profit_amount
-  const fullyBurdenedRate = costBeforeProfit.plus(profitAmount)
+  // base_fully_burdened = cost_before_profit + profit_amount
+  let fullyBurdenedRate = costBeforeProfit.plus(profitAmount)
+
+  // Apply escalation if provided (GSA path does NOT provide this)
+  // Year 1 = no escalation, Year 2+ = compound escalation
+  let escalationRateApplied: number | null = null
+  let escalationYearIndex: number | null = null
+
+  if (escalation) {
+    escalationRateApplied = escalation.rate
+    escalationYearIndex = escalation.yearIndex
+
+    if (escalation.yearIndex > 1) {
+      // multiplier = (1 + escalation_rate) ^ (year - 1)
+      const escRate = new Decimal(escalation.rate)
+      const yearsToEscalate = escalation.yearIndex - 1
+      const multiplier = escRate.plus(1).pow(yearsToEscalate)
+      fullyBurdenedRate = fullyBurdenedRate.times(multiplier)
+    }
+  }
 
   // Convert back to numbers
   // Keep 6 decimals for intermediate values (audit/verification precision)
@@ -173,6 +213,8 @@ export function calculateFullyBurdenedRate(input: PricingInput): PricingBreakdow
     fullyBurdenedRate: fullyBurdenedRate.toDecimalPlaces(2).toNumber(),
     rates,
     profitRate,
+    escalationRateApplied,
+    escalationYearIndex,
     formulaVersion: FORMULA_VERSION,
   }
 }

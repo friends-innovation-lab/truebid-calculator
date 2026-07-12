@@ -22,6 +22,17 @@ export interface IndirectRates {
 }
 
 /**
+ * Optional escalation parameters for rate calculation.
+ * GSA contracts do NOT use this — they have pre-escalated schedule rates.
+ */
+export interface EscalationParams {
+  /** Annual escalation rate as decimal (0.03 = 3%) */
+  rate: number
+  /** Year index (1 = base year with no escalation, 2+ = escalation applied) */
+  yearIndex: number
+}
+
+/**
  * Input for calculating a fully burdened rate.
  */
 export interface PricingInput {
@@ -33,6 +44,8 @@ export interface PricingInput {
   profitRate: number
   /** Standard hours per year for rate calculation (defaults to 2080) */
   standardHours?: number
+  /** Optional escalation params. Omit for GSA (uses pre-escalated schedule rates). */
+  escalation?: EscalationParams
 }
 
 /**
@@ -61,13 +74,25 @@ export interface PricingBreakdown {
   costBeforeProfit: number
   /** Profit amount per hour */
   profitAmount: number
-  /** Fully burdened rate (cost + profit) */
+  /** Fully burdened rate (cost + profit, after escalation if applied) */
   fullyBurdenedRate: number
 
   /** Input rates used */
   rates: IndirectRates
   /** Input profit rate used */
   profitRate: number
+
+  /**
+   * Escalation rate applied (null for GSA or when no escalation requested).
+   * Stored as decimal (0.03 = 3%).
+   */
+  escalationRateApplied: number | null
+  /**
+   * Escalation year index (null for GSA or when no escalation requested).
+   * 1 = base year (no escalation), 2+ = escalation applied.
+   */
+  escalationYearIndex: number | null
+
   /** Formula version for audit trail */
   formulaVersion: string
 }

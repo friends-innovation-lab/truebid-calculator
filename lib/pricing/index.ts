@@ -22,6 +22,7 @@
 // Re-export types
 export {
   type IndirectRates,
+  type EscalationParams,
   type PricingInput,
   type PricingBreakdown,
   type FTEInput,

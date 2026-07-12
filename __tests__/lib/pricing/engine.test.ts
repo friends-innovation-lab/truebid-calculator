@@ -530,7 +530,120 @@ describe('Pricing Engine', () => {
     it('exports correct default values', () => {
       expect(DEFAULT_STANDARD_HOURS).toBe(2080)
       expect(DEFAULT_BILLABLE_HOURS_PER_YEAR).toBe(1920)
-      expect(FORMULA_VERSION).toBe('v1.0.0')
+      expect(FORMULA_VERSION).toBe('v1.1.0')
+    })
+  })
+
+  describe('escalation in calculateFullyBurdenedRate', () => {
+    const FFTC_RATES = {
+      fringe: 0.2116,
+      overhead: 0.3426,
+      ga: 0.1983,
+    }
+
+    /**
+     * Without escalation: escalationRateApplied and escalationYearIndex are null
+     * This is the GSA path - GSA contracts use pre-escalated schedule rates
+     */
+    it('returns null escalation fields when no escalation provided (GSA path)', () => {
+      const result = calculateFullyBurdenedRate({
+        annualSalary: 120000,
+        rates: FFTC_RATES,
+        profitRate: 0.10,
+      })
+
+      expect(result.escalationRateApplied).toBeNull()
+      expect(result.escalationYearIndex).toBeNull()
+      expect(result.fullyBurdenedRate).toBe(123.70)
+    })
+
+    /**
+     * Year 1 escalation: rate is stored but not applied (multiplier = 1)
+     */
+    it('stores escalation params but does not apply for year 1', () => {
+      const result = calculateFullyBurdenedRate({
+        annualSalary: 120000,
+        rates: FFTC_RATES,
+        profitRate: 0.10,
+        escalation: { rate: 0.03, yearIndex: 1 },
+      })
+
+      expect(result.escalationRateApplied).toBe(0.03)
+      expect(result.escalationYearIndex).toBe(1)
+      // Year 1 = no escalation, same as without escalation
+      expect(result.fullyBurdenedRate).toBe(123.70)
+    })
+
+    /**
+     * Year 2 escalation: 3% applied
+     *
+     * Arithmetic:
+     *   base fully_burdened = 123.70 (from test #1 with 10% profit)
+     *   escalated = 123.70 * 1.03^1 = 123.70 * 1.03 = 127.411
+     *   rounded to 2dp = 127.41
+     */
+    it('applies escalation for year 2+', () => {
+      const result = calculateFullyBurdenedRate({
+        annualSalary: 120000,
+        rates: FFTC_RATES,
+        profitRate: 0.10,
+        escalation: { rate: 0.03, yearIndex: 2 },
+      })
+
+      expect(result.escalationRateApplied).toBe(0.03)
+      expect(result.escalationYearIndex).toBe(2)
+      // 123.70 * 1.03 = 127.411 → 127.41
+      expect(result.fullyBurdenedRate).toBe(127.41)
+    })
+
+    /**
+     * Year 3 escalation: 3% compounded
+     *
+     * Arithmetic:
+     *   base fully_burdened (unrounded) = 123.703...
+     *   escalated = 123.703... * 1.03^2 = 123.703 * 1.0609 = 131.2379...
+     *   rounded to 2dp with HALF_UP = 131.24
+     */
+    it('applies compound escalation for year 3', () => {
+      const result = calculateFullyBurdenedRate({
+        annualSalary: 120000,
+        rates: FFTC_RATES,
+        profitRate: 0.10,
+        escalation: { rate: 0.03, yearIndex: 3 },
+      })
+
+      expect(result.escalationRateApplied).toBe(0.03)
+      expect(result.escalationYearIndex).toBe(3)
+      // Escalation is applied to the full-precision intermediate, then rounded
+      expect(result.fullyBurdenedRate).toBe(131.24)
+    })
+
+    /**
+     * Validation: negative escalation rate throws
+     */
+    it('throws error for negative escalation rate', () => {
+      expect(() =>
+        calculateFullyBurdenedRate({
+          annualSalary: 120000,
+          rates: FFTC_RATES,
+          profitRate: 0.10,
+          escalation: { rate: -0.03, yearIndex: 2 },
+        })
+      ).toThrow(PricingValidationError)
+    })
+
+    /**
+     * Validation: yearIndex < 1 throws
+     */
+    it('throws error for yearIndex < 1', () => {
+      expect(() =>
+        calculateFullyBurdenedRate({
+          annualSalary: 120000,
+          rates: FFTC_RATES,
+          profitRate: 0.10,
+          escalation: { rate: 0.03, yearIndex: 0 },
+        })
+      ).toThrow(PricingValidationError)
     })
   })
 })

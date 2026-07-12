@@ -188,3 +188,26 @@ export {
   type AssignmentDiff,
   type DiffStatus,
 } from './wbs'
+
+// Re-export pricing commands
+export {
+  // Commands
+  createComputePricingScenarioCommand,
+  createApprovePricingScenarioCommand,
+  createUpdateChargeCodesCommand,
+  // Types
+  type RateConfigSnapshot,
+  type PricingScenarioStatus,
+  type SalarySource,
+  type ProfitSource,
+  type PricingScenarioSummary,
+  type PricingLine,
+  type ScenarioTotals,
+  type ComputePricingScenarioInput,
+  type ComputePricingScenarioOutput,
+  type ApprovePricingScenarioInput,
+  type ApprovePricingScenarioOutput,
+  type ChargeCodeEntry,
+  type UpdateChargeCodesInput,
+  type UpdateChargeCodesOutput,
+} from './pricing'

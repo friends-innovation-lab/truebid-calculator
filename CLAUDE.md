@@ -162,6 +162,13 @@ Features that are intentionally limited pending future work:
 
 - **Multi-document upload UI** — UI supports single-document upload; document-set extraction available via API only (`/api/proposals/{id}/documents`). SetAside-class facts (e.g., WOSB, 8(a)) require the instructions document which is not yet uploadable through the UI. Phase D backlog.
 
+- **Legacy contract-total vs pricing scenario divergence (Phase 6A)** — The legacy Roles & Pricing panel computes contract totals using period definitions from `working_data.proposalSetup.periods` (unconfirmed, manual entry). Pricing scenarios compute labor_loading lines using period definitions from `intelligence_periods` (confirmed intelligence, RFP-extracted). These may differ when:
+  - Legacy data was entered before intelligence confirmation
+  - User manually edited proposalSetup periods without reconfirming intelligence
+  - Intelligence extraction corrected period durations from the RFP
+
+  **Resolution path:** Displays converge when the panel reads from `pricing_scenarios` in Phase 6B/D. Until then, the delta is decomposed and attributed in the conservation gate (must be fully explained with zero residual). If intelligence periods are incorrect, the fix is supersede-and-reconfirm, not code change.
+
 ## Environment Variables
 
 See `.env.example` for required keys:
