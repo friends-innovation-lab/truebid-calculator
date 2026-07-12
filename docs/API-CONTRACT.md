@@ -309,11 +309,15 @@ Accept or discard a WBS candidate.
 
 ### GET `/api/proposals/[id]/roles`
 
-Fetch projected roles from staffing_assignments + working_data.
+Fetch projected roles from staffing_assignments + labor catalog.
 
-**Field-location split:**
+**Field-location split (Phase 5):**
 - Hours by period → from `staffing_assignments` table
-- Pricing (salary, rates) → from `working_data.roles`
+- Salary → from `tenant_labor_categories.levels` OR `staffing_assignments.salary_override_cents`
+- Level/step → from `staffing_assignments.level_key`, `step_index`
+- Rate source → from `staffing_assignments.rate_source` ('catalog' | 'manual')
+- Indirect rates → from `company_settings` table
+- Legacy pricing → from `working_data.roles` (read-only fallback)
 
 **Inputs:** None (proposal ID in URL)
 
@@ -348,6 +352,72 @@ Fetch projected roles from staffing_assignments + working_data.
 **Error Shapes:**
 - `401` - Unauthorized
 - `500` - Internal error
+
+---
+
+## Labor Catalog Endpoints (Phase 5)
+
+### GET `/api/tenant/disciplines`
+
+List tenant disciplines.
+
+**Outputs:**
+```json
+{
+  "disciplines": [
+    { "key": "engineering", "displayName": "Engineering", "sortOrder": 10, "active": true }
+  ]
+}
+```
+
+---
+
+### GET `/api/tenant/labor-categories`
+
+List tenant labor categories with optional filtering.
+
+**Query params:** `?discipline=engineering&active=true`
+
+**Outputs:**
+```json
+{
+  "categories": [
+    {
+      "id": "uuid",
+      "key": "backend_developer",
+      "title": "Back-end Developer",
+      "disciplineKey": "engineering",
+      "levels": { "levels": [{ "level": "IC3", "steps": [120000, 126000] }] },
+      "hasSalaryData": true
+    }
+  ]
+}
+```
+
+---
+
+### POST `/api/tenant/labor-categories/resolve`
+
+Resolve a role title to a catalog category.
+
+**Inputs:**
+```json
+{
+  "roleTitle": "HCD Lead"
+}
+```
+
+**Outputs:**
+```json
+{
+  "matchType": "exact" | "alias" | "fuzzy" | "unmapped",
+  "confidence": 0.95,
+  "categoryId": "uuid" | null,
+  "categoryTitle": "UX Researcher",
+  "aliasUsed": "HCD Lead",
+  "contextNote": "Work is studies, synthesis, interviews, usability testing"
+}
+```
 
 ---
 
