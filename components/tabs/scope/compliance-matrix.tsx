@@ -159,7 +159,13 @@ export function ComplianceMatrix() {
       setStats(statsResponse.stats)
       // wbsElements removed — WBS column no longer displayed
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate matrix')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to generate matrix'
+      // Detect multi-document incompatibility (frozen route limitation)
+      if (errorMessage.includes('RFP text') || errorMessage.includes('Upload a PDF')) {
+        setError('Compliance matrix is not yet available for multi-document proposals. This feature is coming in a future update.')
+      } else {
+        setError(errorMessage)
+      }
     } finally {
       setIsGenerating(false)
     }
@@ -191,7 +197,13 @@ export function ComplianceMatrix() {
       setStats(statsResponse.stats)
       // wbsElements removed — WBS column no longer displayed
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to regenerate matrix')
+      const errorMessage = err instanceof Error ? err.message : 'Failed to regenerate matrix'
+      // Detect multi-document incompatibility (frozen route limitation)
+      if (errorMessage.includes('RFP text') || errorMessage.includes('Upload a PDF')) {
+        setError('Compliance matrix is not yet available for multi-document proposals. This feature is coming in a future update.')
+      } else {
+        setError(errorMessage)
+      }
     } finally {
       setIsGenerating(false)
     }

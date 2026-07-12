@@ -154,6 +154,12 @@ TypeScript strictness: `noUnusedLocals` and `noUnusedParameters` are not enabled
 
 ESLint: `@typescript-eslint/no-explicit-any` is currently disabled. Tighten once `@ts-nocheck` files are fixed.
 
+## Known Limitations (Frozen Features)
+
+Features that are intentionally limited pending future work:
+
+- **Compliance matrix** — `compliance/generate` and `compliance/regenerate` routes predate multi-document support (Phase 4B). They look for `working_data.solicitationRawText` which is not populated by multi-document uploads. The component shows a graceful empty-state for multi-document proposals. Frozen pending writing-module revival.
+
 ## Environment Variables
 
 See `.env.example` for required keys:
@@ -328,6 +334,8 @@ All new persistence uses normalized tables + commands. Existing writers continue
    - Connect to actual database (local Supabase for unit/integration, staging for E2E)
    - Execute actual commands/queries
    - Verify actual state changes in the database
+
+5. **E2E flows must exercise the user's actual path.** An API-level pass does not verify a UI capability. E2E tests must navigate the UI, trigger actions through components, and verify the full flow a user would experience. Testing `/api/foo` directly does not prove the button that calls it works.
 
 ### Deployment Reports
 
