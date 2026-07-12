@@ -1,0 +1,135 @@
+{
+  "versionId": "camp-eval-corpus-v1",
+  "contractType": "FFP",
+  "factsJson": {
+    "vehicle": {
+      "value": "GSA Multiple Award Schedule (MAS)",
+      "confidence": "high"
+    },
+    "setAside": {
+      "value": null,
+      "confidence": "low",
+      "note": "TODO: Extract from RFQ when document provided"
+    },
+    "rateSource": {
+      "value": "gsa_mas",
+      "reasoning": "GSA MAS contract vehicle",
+      "confidence": "high"
+    },
+    "contractType": {
+      "value": "FFP",
+      "confidence": "high"
+    },
+    "documentType": {
+      "value": "RFQ",
+      "confidence": "high"
+    }
+  },
+  "periods": [
+    {
+      "name": "Base Year",
+      "months": 12
+    },
+    {
+      "name": "Option Year 1",
+      "months": 12
+    },
+    {
+      "name": "Option Year 2",
+      "months": 12
+    },
+    {
+      "name": "Option Year 3",
+      "months": 12
+    }
+  ],
+  "disciplines": [
+    "engineering",
+    "design",
+    "product",
+    "research",
+    "management",
+    "devops"
+  ],
+  "laborRequirements": [
+    {
+      "title": "Delivery Manager",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "Product Manager",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "Design Lead",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "Product Designer",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "UX Researcher",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "DoS Subject Matter Expert",
+      "laborCategory": null,
+      "hoursPerMonth": 80,
+      "note": "0.5 FTE in base year only"
+    },
+    {
+      "title": "Service Designer",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "IT Training Specialist",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "Technical Lead",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "Frontend Engineer",
+      "laborCategory": null,
+      "hoursPerMonth": 320,
+      "note": "2x FTE"
+    },
+    {
+      "title": "Backend Engineer",
+      "laborCategory": null,
+      "hoursPerMonth": 320,
+      "note": "2x FTE base year, 3x option years"
+    },
+    {
+      "title": "DevOps Engineer",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    },
+    {
+      "title": "QA Engineer",
+      "laborCategory": null,
+      "hoursPerMonth": 160,
+      "isPrescribed": false
+    }
+  ],
+  "staffingModel": "offeror_proposed"
+}

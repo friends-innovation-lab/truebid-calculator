@@ -1,0 +1,110 @@
+{
+  "runId": "eval-1783855228906",
+  "timestamp": "2026-07-12T11:20:28.906Z",
+  "samples": [
+    {
+      "sampleId": "camp",
+      "extraction": {
+        "fieldScores": {
+          "contractType": {
+            "match": true,
+            "actual": "T&M",
+            "expected": "T&M"
+          },
+          "vehicle": {
+            "match": true,
+            "actual": "GSA MAS 54151S",
+            "expected": "GSA Multiple Award Schedule (MAS)"
+          },
+          "setAside": {
+            "match": true,
+            "actual": "UNKNOWN",
+            "expected": "UNKNOWN"
+          },
+          "periodsCount": {
+            "match": true,
+            "actual": "3",
+            "expected": "3"
+          },
+          "disciplines": {
+            "match": true,
+            "actual": "engineering, design, research, product, devops, security (P=0.83 R=0.83)",
+            "expected": "engineering, design, product, research, management, devops"
+          },
+          "laborRequirements": {
+            "match": false,
+            "actual": "8",
+            "expected": "13"
+          }
+        },
+        "f1": 0.8333333333333334
+      },
+      "disciplineViolations": {
+        "violations": [],
+        "count": 0,
+        "allRoles": []
+      },
+      "schemaParseSuccess": false
+    },
+    {
+      "sampleId": "pm-hcd",
+      "extraction": {
+        "fieldScores": {
+          "contractType": {
+            "match": true,
+            "actual": "FFP",
+            "expected": "FFP"
+          },
+          "vehicle": {
+            "match": true,
+            "actual": "GSA MAS",
+            "expected": "GSA Multiple Award Schedule (MAS)"
+          },
+          "setAside": {
+            "match": true,
+            "actual": "WOSB",
+            "expected": "WOSB (requires: SF-1449, skipped)"
+          },
+          "periodsCount": {
+            "match": true,
+            "actual": "4",
+            "expected": "4"
+          },
+          "disciplines": {
+            "match": true,
+            "actual": "product, research (P=1.00 R=1.00)",
+            "expected": "product, research"
+          },
+          "laborRequirements": {
+            "match": true,
+            "actual": "2",
+            "expected": "2"
+          }
+        },
+        "f1": 1
+      },
+      "disciplineViolations": {
+        "violations": [],
+        "count": 0,
+        "allRoles": [
+          "Delivery Manager",
+          "Product Manager",
+          "Content/UX Writer",
+          "UX Researcher",
+          "Product Designer"
+        ]
+      },
+      "schemaParseSuccess": true
+    }
+  ],
+  "summary": {
+    "extractionF1": 0.9166666666666667,
+    "schemaPassRate": 0.5,
+    "disciplineViolationCount": 0,
+    "cost": {
+      "inputTokens": 50775,
+      "outputTokens": 27539,
+      "usd": 0.56541
+    }
+  }
+}

@@ -1,0 +1,107 @@
+{
+  "metadata": {
+    "proposalId": "camp-eval-corpus",
+    "solicitationNumber": "19AQMM25Q0273",
+    "solicitationName": "Consular Appointment Management Program (CAMP)",
+    "generatedAt": "2026-07-12",
+    "source": "Manual ground truth from Lapedra verification + camp-scoping-data.ts"
+  },
+  "intelligence": {
+    "contractType": {
+      "expected": "T&M",
+      "required": true,
+      "sourceDocument": "RFQ",
+      "note": "Document states 'hybrid task order with firm-fixed-price per sprint (FFPPS), Time and Materials (T&M), and cost reimbursement'. T&M is dominant pricing structure."
+    },
+    "vehicle": {
+      "expected": "GSA Multiple Award Schedule (MAS)",
+      "required": false,
+      "sourceDocument": "RFQ"
+    },
+    "setAside": {
+      "expected": "unknown",
+      "required": false,
+      "sourceDocument": "RFQ",
+      "note": "No set-aside designation found in RFQ document"
+    },
+    "periods": {
+      "count": 4,
+      "details": [
+        {
+          "name": "Base Year",
+          "months": "12.00"
+        },
+        {
+          "name": "Option Year 1",
+          "months": "12.00"
+        },
+        {
+          "name": "Option Year 2",
+          "months": "12.00"
+        },
+        {
+          "name": "Option Year 3",
+          "months": "12.00"
+        }
+      ],
+      "note": "Periods = priced CLIN structure from pricing template. Transition/phase-in is a milestone within base, not a separate period."
+    },
+    "disciplines": {
+      "expected": [
+        "engineering",
+        "design",
+        "product",
+        "research",
+        "management",
+        "devops"
+      ],
+      "forbidden": [],
+      "note": "Contrast sample: full-stack team vs pm-hcd's research-only"
+    },
+    "laborRequirements": {
+      "count": 13,
+      "titles": [
+        "Delivery Manager",
+        "Product Manager",
+        "Design Lead",
+        "Product Designer",
+        "UX Researcher",
+        "DoS Subject Matter Expert",
+        "Service Designer",
+        "IT Training Specialist",
+        "Technical Lead",
+        "Frontend Engineer",
+        "Backend Engineer",
+        "DevOps Engineer",
+        "QA Engineer"
+      ],
+      "isPrescribed": false
+    },
+    "staffingModel": {
+      "expected": "offeror_proposed",
+      "note": "Contrast to pm-hcd: CAMP allows offeror to propose team composition"
+    }
+  },
+  "wbs": {
+    "parentTaskCount": 21,
+    "totalTaskCount": 21,
+    "totalAssignments": 80,
+    "totalHours": 27840,
+    "disciplineCompliance": {
+      "allowedDisciplines": [
+        "engineering",
+        "design",
+        "product",
+        "research",
+        "management",
+        "devops"
+      ],
+      "forbiddenRoles": []
+    },
+    "hoursPlausibility": {
+      "minTotalHours": 20000,
+      "maxTotalHours": 35000,
+      "note": "14.5 FTE × 1920 hrs = 27,840 hrs target (4 years)"
+    }
+  }
+}

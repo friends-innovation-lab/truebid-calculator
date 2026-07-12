@@ -61,7 +61,12 @@
       "titles": [
         "Human-Centered Design Lead",
         "Senior Product Manager"
-      ]
+      ],
+      "isPrescribed": true
+    },
+    "staffingModel": {
+      "expected": "prescribed",
+      "note": "PWS Section 6 explicitly names Key Personnel: Senior Product Manager and Human-Centered Design Lead"
     }
   },
   "wbs": {

@@ -1,0 +1,107 @@
+[
+  {
+    "id": "REQ-001",
+    "title": "Program Management & Agile Delivery",
+    "text": "Provide continuous program oversight to ensure on-time, on-budget delivery of CAMP capabilities. Sprint planning, daily standups, sprint reviews, retrospectives across 26 two-week sprints. Weekly status meetings with federal Product Owner. Monthly Contract Status Reports. Risk identification and mitigation tracking. Resource management including clearance tracking and capacity planning."
+  },
+  {
+    "id": "REQ-002",
+    "title": "Transition-In & Knowledge Transfer",
+    "text": "Enable seamless takeover from incumbent contractor while minimizing disruption to ongoing CAMP operations and maintaining continuity of service for 300+ consular posts. Review incumbent documentation and codebase. Shadow incumbent team during overlap period. Document tribal knowledge and undocumented processes. Complete security onboarding."
+  },
+  {
+    "id": "REQ-003",
+    "title": "Public Appointment Booking Flow",
+    "text": "Public customers are able to schedule an appointment in less than five minutes. Enhancing the customer experience for ACS scheduling. Design and develop complete public-facing booking flow including: appointment type selection, post/location search, date/time slot selection, applicant information collection, fee payment via Pay.gov integration, confirmation and calendar integration. Support Spanish and additional languages per post requirements. Ensure 100% Section 508 compliance and 5th grade reading level."
+  },
+  {
+    "id": "REQ-004",
+    "title": "Admin Calendar & Capacity Management",
+    "text": "Visually allocate appointment categories slots to timeslots on a calendar view. Efficiently open up and manage appointment slots. Consular-facing resource and capacity scheduling. Design and develop admin calendar interface with: visual slot allocation by appointment type, bulk operations for opening/closing slots, recurring schedule templates, officer/window assignment, capacity analytics dashboard, real-time availability updates."
+  },
+  {
+    "id": "REQ-005",
+    "title": "Reports Dashboard & Analytics",
+    "text": "View a reports dashboard with appointment metrics worldwide. Analyze appointment allocations and demand. Design and develop analytics dashboard with: global appointment metrics visualization, post-level drill-downs, demand forecasting displays, utilization reports, export functionality for reporting."
+  },
+  {
+    "id": "REQ-006",
+    "title": "Pay.gov Payment Integration",
+    "text": "Pay any fees via Pay.gov. Integrate Pay.gov hosted payment pages into booking flow. Handle payment confirmation callbacks. Support fee refunds and adjustments. Implement payment status tracking and reconciliation."
+  },
+  {
+    "id": "REQ-007",
+    "title": "DS-160/CEAC Validation Integration",
+    "text": "Validate an applicant has a valid DS-160. Integration with eCRBA. Implement barcode scanning/entry for DS-160 confirmation. Call CEAC validation API. Handle validation responses and display appropriate messages."
+  },
+  {
+    "id": "REQ-008",
+    "title": "Email Notification System",
+    "text": "Emailing appointment confirmations. Implement SES email integration. Design email templates for: booking confirmation, reminder (24hr, 1hr), cancellation, rescheduling, payment receipt. Support multi-language templates."
+  },
+  {
+    "id": "REQ-009",
+    "title": "BESPIN Platform Integration & CI/CD",
+    "text": "Tenant of BESPIN. Drone GitOps. Deployments to production at least once every sprint. Configure Drone CI pipelines. Implement GitOps deployment patterns. Set up Terraform infrastructure as code. Configure development, testing, staging, and production environments. Implement automated security scanning (SAST)."
+  },
+  {
+    "id": "REQ-010",
+    "title": "Authentication & User Management",
+    "text": "OKTA and Cognito authentication. Maintain and enhance OKTA SSO integration for admin users. Configure Cognito for public user registration/login. Implement role-based access control (RBAC) for admin functions. Support MFA requirements."
+  },
+  {
+    "id": "REQ-011",
+    "title": "Post Onboarding & Rollout Support",
+    "text": "Rollout CAMP to posts overseas. Provide onboarding support to posts. Develop post onboarding playbook. Create post-specific configuration guides. Conduct virtual onboarding sessions for post staff. Provide go-live support during transition."
+  },
+  {
+    "id": "REQ-012",
+    "title": "Training Materials Development",
+    "text": "Work with Training team to produce training materials (webinars, user guides, etc.). Provider user training, documentation, websites, and videos. Develop video tutorials for key workflows. Create user guides in multiple formats (PDF, web). Build interactive webinars for admin users."
+  },
+  {
+    "id": "REQ-013",
+    "title": "USWDS Design System & Section 508 Compliance",
+    "text": "CAMP uses a modified version of USWDS. 100% Section 508 compliance testing. 5th grade reading level. Govern USWDS component library for CAMP. Define and maintain accessibility standards (WCAG 2.2 AA). Conduct regular 508 compliance audits."
+  },
+  {
+    "id": "REQ-014",
+    "title": "Legacy System Data Migration",
+    "text": "Three legacy scheduling solutions currently in place. Minimize transition impact to the user community. Analyze legacy system data schemas. Design data migration ETL processes. Execute test migrations in staging. Coordinate cut-over scheduling with posts."
+  },
+  {
+    "id": "REQ-015",
+    "title": "Tier 2/3 Application Support",
+    "text": "Tier 2 and 3 will be performed by the contractor. Monitor system, network, application, database logs. Respond to Tier 2 escalations (application issues). Investigate and resolve Tier 3 issues (deep technical). Participate in incident response."
+  },
+  {
+    "id": "REQ-016",
+    "title": "Scheduling API & Availability Engine",
+    "text": "API-centric approach. Core booking logic. Develop and maintain scheduling API endpoints. Implement availability calculation algorithms. Handle booking conflicts and race conditions. Support appointment modifications and cancellations."
+  },
+  {
+    "id": "REQ-017",
+    "title": "Product Strategy & Backlog Management",
+    "text": "Develop and prioritize a full gamut of user stories. Contribute to the development of the product vision, product roadmap(s). Maintain and prioritize product backlog. Write user stories with acceptance criteria. Facilitate sprint planning and reviews."
+  },
+  {
+    "id": "REQ-018",
+    "title": "User Research & Satisfaction Measurement",
+    "text": "Achieve a 90% satisfaction rate among customers regarding the use of CAMP. Conduct desk research, including reviewing user research conducted prior to the beginning of this contract. Ensure diverse groups of users are represented. Conduct ongoing usability testing each sprint. Recruit diverse user participants globally."
+  },
+  {
+    "id": "REQ-019",
+    "title": "Fraud Detection & Prevention",
+    "text": "Prevention and/or identification of Fraudulent Appointments. Detecting and prevent fraudulent appointment scheduling. Design admin interface for fraud detection views. Implement rule engine for suspicious pattern detection."
+  },
+  {
+    "id": "REQ-020",
+    "title": "Post Configuration & Customization",
+    "text": "Post to configure various aspects of the system. Post specific needs will be identified during discovery. Design post configuration interface. Implement appointment type customization. Support service window configuration."
+  },
+  {
+    "id": "REQ-021",
+    "title": "Quality Assurance & Test Automation",
+    "text": "Testing integrated into the project. Unit testing, automated integration, component testing. Minimize escaped defects. Develop and maintain test strategy. Create and execute functional test cases. Build automated regression test suite."
+  }
+]

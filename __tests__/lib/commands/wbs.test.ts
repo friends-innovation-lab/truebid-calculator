@@ -25,6 +25,8 @@ describe('ValidateWbsCandidate', () => {
   const validContext = {
     disciplines: ['Software Development', 'Project Management', 'Testing'],
     periodLabels: ['Base Year', 'Option Year 1', 'Option Year 2'],
+    staffingModel: 'offeror_proposed' as const,
+    prescribedRoles: [],
   }
 
   describe('collects ALL violations (not fail-fast)', () => {
@@ -259,6 +261,116 @@ describe('ValidateWbsCandidate', () => {
 
       const result = validateWbsCandidate(tasks, validContext)
       expect(result.valid).toBe(true)
+    })
+  })
+
+  // ==========================================================================
+  // PILLAR 2: PRESCRIBED STAFFING CONSTRAINT
+  // ==========================================================================
+
+  describe('prescribed staffing enforcement', () => {
+    const prescribedContext = {
+      disciplines: ['research', 'product'],
+      periodLabels: ['Base Year', 'Option Year 1'],
+      staffingModel: 'prescribed' as const,
+      prescribedRoles: ['Senior Product Manager', 'Human Centered Design Lead'],
+    }
+
+    it('rejects roles outside prescribed vocabulary', () => {
+      const tasks: TaskInput[] = [
+        {
+          wbsCode: '1.1',
+          title: 'User Research',
+          staffing: [
+            {
+              roleTitle: 'UX Researcher', // NOT in prescribed vocabulary
+              discipline: 'research',
+              primeOrSub: 'prime',
+              periodLabel: 'Base Year',
+              hours: 160,
+            },
+          ],
+        },
+      ]
+
+      const result = validateWbsCandidate(tasks, prescribedContext)
+
+      expect(result.valid).toBe(false)
+      expect(result.violations).toHaveLength(1)
+      expect(result.violations[0].type).toBe('invalid_role_prescribed')
+      expect(result.violations[0].details).toContain('UX Researcher')
+      expect(result.violations[0].details).toContain('prescribed vocabulary')
+    })
+
+    it('accepts exact matches from prescribed vocabulary', () => {
+      const tasks: TaskInput[] = [
+        {
+          wbsCode: '1.1',
+          title: 'Product Strategy',
+          staffing: [
+            {
+              roleTitle: 'Senior Product Manager', // Exact match
+              discipline: 'product',
+              primeOrSub: 'prime',
+              periodLabel: 'Base Year',
+              hours: 160,
+            },
+          ],
+        },
+      ]
+
+      const result = validateWbsCandidate(tasks, prescribedContext)
+
+      expect(result.valid).toBe(true)
+    })
+
+    it('accepts normalized matches (case-insensitive, prefix-stripped)', () => {
+      const tasks: TaskInput[] = [
+        {
+          wbsCode: '1.1',
+          title: 'HCD Work',
+          staffing: [
+            {
+              roleTitle: 'human centered design lead', // lowercase variant
+              discipline: 'research',
+              primeOrSub: 'prime',
+              periodLabel: 'Base Year',
+              hours: 160,
+            },
+          ],
+        },
+      ]
+
+      const result = validateWbsCandidate(tasks, prescribedContext)
+
+      expect(result.valid).toBe(true)
+    })
+
+    it('does not enforce vocabulary when staffingModel is offeror_proposed', () => {
+      const offerorContext = {
+        ...prescribedContext,
+        staffingModel: 'offeror_proposed' as const,
+      }
+
+      const tasks: TaskInput[] = [
+        {
+          wbsCode: '1.1',
+          title: 'Custom Work',
+          staffing: [
+            {
+              roleTitle: 'AI Prompt Engineer', // Novel role, not in list
+              discipline: 'research',
+              primeOrSub: 'prime',
+              periodLabel: 'Base Year',
+              hours: 160,
+            },
+          ],
+        },
+      ]
+
+      const result = validateWbsCandidate(tasks, offerorContext)
+
+      expect(result.valid).toBe(true) // No vocabulary enforcement
     })
   })
 
