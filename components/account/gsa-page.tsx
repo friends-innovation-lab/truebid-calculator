@@ -313,7 +313,7 @@ function GSAScheduleRates() {
 
   // Calculate totals
   const totalSins = gsaSins.length
-  const totalLaborCategories = gsaSins.reduce((sum, sin) => sum + sin.laborCategories.length, 0)
+  const totalLaborCategories = gsaSins.reduce((sum, sin) => sum + (sin.laborCategories?.length || 0), 0)
 
   return (
     <div className="space-y-4">
@@ -373,7 +373,7 @@ function GSAScheduleRates() {
                     />
                   </div>
                   <Badge variant="secondary" className="text-xs shrink-0">
-                    {sin.laborCategories.length} rate{sin.laborCategories.length !== 1 ? 's' : ''}
+                    {sin.laborCategories?.length || 0} rate{(sin.laborCategories?.length || 0) !== 1 ? 's' : ''}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
@@ -397,7 +397,7 @@ function GSAScheduleRates() {
               {expandedSin === sin.id && (
                 <div className="px-4 py-4 space-y-3 border-t border-gray-200 bg-white">
                   {/* Column headers */}
-                  {sin.laborCategories.length > 0 && (
+                  {(sin.laborCategories?.length || 0) > 0 && (
                     <div className="grid grid-cols-12 gap-2 px-1 text-xs text-gray-500 font-medium">
                       <span className="col-span-4">Labor Category</span>
                       <span className="col-span-2">Ceiling Rate</span>
@@ -406,8 +406,8 @@ function GSAScheduleRates() {
                       <span className="col-span-1"></span>
                     </div>
                   )}
-                  
-                  {sin.laborCategories.map((lc) => (
+
+                  {(sin.laborCategories || []).map((lc) => (
                     <div key={lc.id} className="grid grid-cols-12 gap-2 items-center">
                       <Input
                         value={lc.laborCategory}
