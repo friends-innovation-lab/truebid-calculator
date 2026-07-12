@@ -491,7 +491,7 @@ async function testConservationGates(): Promise<void> {
       : legacyPeriods.map((p: any) => p.name)
 
     for (const periodName of targetPeriods) {
-      const months = legacyPeriodMap.get(periodName) || 0
+      const months: number = legacyPeriodMap.get(periodName) ?? 0
       const hours = hpm * months
       const salary = 12000000
       const breakdown = calculateFullyBurdenedRate({
@@ -522,8 +522,8 @@ async function testConservationGates(): Promise<void> {
 
   let attributedDelta = 0
   for (const period of (periods || [])) {
-    const legacyMo = legacyPeriodMap.get(period.name) || 0
-    const intMo = period.months || 0
+    const legacyMo: number = legacyPeriodMap.get(period.name) ?? 0
+    const intMo: number = period.months ?? 0
     const deltaMo = intMo - legacyMo
 
     if (deltaMo !== 0) {
