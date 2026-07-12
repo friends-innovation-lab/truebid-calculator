@@ -478,11 +478,13 @@ async function testConservationGates(): Promise<void> {
 
   let legacyLaborTotal = 0
   for (const req of (laborReqs || [])) {
-    let hoursPerMonth = req.hours_per_month
+    let hoursPerMonth: number | null = req.hours_per_month
     if (hoursPerMonth === null && req.utilization_pct !== null) {
       hoursPerMonth = (req.utilization_pct / 100) * STANDARD_HOURS_PER_MONTH
     }
     if (hoursPerMonth === null) continue
+
+    const hpm = hoursPerMonth // TypeScript narrows this to number
 
     const targetPeriods = req.appears_in_periods?.length > 0
       ? req.appears_in_periods
@@ -490,7 +492,7 @@ async function testConservationGates(): Promise<void> {
 
     for (const periodName of targetPeriods) {
       const months = legacyPeriodMap.get(periodName) || 0
-      const hours = hoursPerMonth * months
+      const hours = hpm * months
       const salary = 12000000
       const breakdown = calculateFullyBurdenedRate({
         annualSalary: salary / 100,
@@ -521,7 +523,7 @@ async function testConservationGates(): Promise<void> {
   let attributedDelta = 0
   for (const period of (periods || [])) {
     const legacyMo = legacyPeriodMap.get(period.name) || 0
-    const intMo = period.months
+    const intMo = period.months || 0
     const deltaMo = intMo - legacyMo
 
     if (deltaMo !== 0) {

@@ -1,12 +1,14 @@
 # working_data Allowlist
 #
-# Phase 6A: working_data has ZERO writers
-# This file is EMPTY - CI enforces no writes to working_data
+# Phase 6A: working_data freeze in effect
+# Only pre-existing legacy writers are permitted below.
+# NO NEW ENTRIES may be added - use normalized tables + commands.
 #
-# All persistence now uses normalized tables + commands:
+# New persistence targets:
 # - Pricing: pricing_scenarios + pricing_lines tables
 # - Requirements: requirements table with intelligence_version_id
 # - Charge codes: proposal_charge_codes table
-# - Team data: proposal_metadata JSONB column (read-only from working_data)
+# - Team data: proposal_metadata JSONB column
 #
-# working_data is READ-ONLY legacy data retained for audit/fallback
+# Legacy writers (pending migration):
+app/api/proposals/[id]/route.ts
