@@ -328,7 +328,7 @@ ${rfqExtracted.text}`
     tools: [{
       name: 'extract_contract_intelligence',
       description: 'Extract structured contract intelligence',
-      input_schema: contractIntelligenceJsonSchema as Anthropic.Tool.InputSchema
+      input_schema: contractIntelligenceJsonSchema as unknown as Anthropic.Tool.InputSchema
     }],
     tool_choice: { type: 'tool', name: 'extract_contract_intelligence' },
     messages: [{ role: 'user', content: extractionUserPrompt }]
