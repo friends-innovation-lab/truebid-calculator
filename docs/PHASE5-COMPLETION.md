@@ -166,3 +166,25 @@ Updated:
 - [x] Bill rates conserved to the penny (28/28)
 - [x] API-CONTRACT.md updated
 - [x] Field-location map finalized
+
+---
+
+## Phase 5 Closure
+
+**Accepted:** 2026-07-12 12:48 PT
+
+### Final Production State
+- **SHA:** `4fad288`
+- **tenant_labor_categories:** 34 roles (verified)
+- **labor_category_aliases:** 36 aliases (verified)
+- **Penny conservation:** 28/28 ✓
+- **Proposals loading:** ✓
+
+### UI Rewire Deferred
+The `/account/labor` page still reads from `company_roles` (11 roles). Rewiring to `tenant_labor_categories` (34 roles) is Phase D backlog.
+
+### Credentials Rotated
+Service keys used during deployment should be rotated per standing security practice.
+
+### Handover Complete
+Phase 5 backend infrastructure is production-live. Next phase may proceed.
