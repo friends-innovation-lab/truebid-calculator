@@ -385,7 +385,7 @@ async function main() {
   } else {
     const hasSalaryData = businessAnalyst.levels?.levels &&
       businessAnalyst.levels.levels.length > 0 &&
-      businessAnalyst.levels.levels.some(l => l.steps && l.steps.length > 0)
+      businessAnalyst.levels.levels.some((l: { level: string; steps: number[] }) => l.steps && l.steps.length > 0)
 
     if (!hasSalaryData) {
       report('Test 5: Needs-Setup (BA)', 'PASS', {
