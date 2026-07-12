@@ -23,6 +23,7 @@ import {
 
 describe('ValidateWbsCandidate', () => {
   const validContext = {
+    tenantId: 'test-tenant-uuid',
     disciplines: ['Software Development', 'Project Management', 'Testing'],
     periodLabels: ['Base Year', 'Option Year 1', 'Option Year 2'],
     staffingModel: 'offeror_proposed' as const,
@@ -270,6 +271,7 @@ describe('ValidateWbsCandidate', () => {
 
   describe('prescribed staffing enforcement', () => {
     const prescribedContext = {
+      tenantId: 'test-tenant-uuid',
       disciplines: ['research', 'product'],
       periodLabels: ['Base Year', 'Option Year 1'],
       staffingModel: 'prescribed' as const,

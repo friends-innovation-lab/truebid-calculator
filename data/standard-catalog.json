@@ -1,0 +1,335 @@
+{
+  "$schema": "./standard-catalog.schema.json",
+  "_comment": "REVIEW GATE: This catalog requires Lapedra's approval before seeding.",
+  "_version": "1.0.0",
+  "_date": "2026-07-12",
+
+  "disciplines": [
+    { "key": "engineering", "displayName": "Engineering", "sortOrder": 10 },
+    { "key": "design", "displayName": "Design", "sortOrder": 20 },
+    { "key": "research", "displayName": "Research", "sortOrder": 30 },
+    { "key": "product", "displayName": "Product", "sortOrder": 40 },
+    { "key": "delivery", "displayName": "Delivery", "sortOrder": 50 },
+    { "key": "program-management", "displayName": "Program Management", "sortOrder": 60 },
+    { "key": "content", "displayName": "Content Strategy", "sortOrder": 70 },
+    { "key": "accessibility", "displayName": "Accessibility", "sortOrder": 80 },
+    { "key": "data", "displayName": "Data & Analytics", "sortOrder": 90 },
+    { "key": "security", "displayName": "Security", "sortOrder": 100 }
+  ],
+
+  "fftcRoles": [
+    {
+      "key": "backend_developer",
+      "title": "Back-end Developer",
+      "disciplineKey": "engineering",
+      "aliases": ["Software Engineer", "Backend Engineer"],
+      "hasSalaryData": true
+    },
+    {
+      "key": "frontend_developer",
+      "title": "Front-end Developer",
+      "disciplineKey": "engineering",
+      "aliases": ["UI Developer", "Frontend Engineer"],
+      "hasSalaryData": true
+    },
+    {
+      "key": "devops_engineer",
+      "title": "DevOps Engineer",
+      "disciplineKey": "engineering",
+      "aliases": ["DevOps", "Infrastructure Engineer", "Cloud Engineer"],
+      "hasSalaryData": true
+    },
+    {
+      "key": "qa_engineer",
+      "title": "QA Engineer",
+      "disciplineKey": "engineering",
+      "aliases": ["QA", "Quality Assurance Engineer", "Test Engineer", "SDET"],
+      "hasSalaryData": true
+    },
+    {
+      "key": "product_manager",
+      "title": "Product Manager",
+      "disciplineKey": "product",
+      "aliases": [
+        { "alias": "PM" },
+        { "alias": "Product Lead" },
+        { "alias": "Product Owner", "contextNote": "Agile RFP title for product work" }
+      ],
+      "hasSalaryData": true
+    },
+    {
+      "key": "product_designer",
+      "title": "Product Designer",
+      "disciplineKey": "design",
+      "aliases": [
+        { "alias": "UX/UI Designer" },
+        { "alias": "UX Designer" },
+        { "alias": "UI Designer" },
+        { "alias": "HCD Lead", "contextNote": "Work is wireframes, prototypes, design systems, UI specs" }
+      ],
+      "hasSalaryData": true
+    },
+    {
+      "key": "ux_researcher",
+      "title": "UX Researcher",
+      "disciplineKey": "research",
+      "aliases": [
+        { "alias": "User Researcher" },
+        { "alias": "Research Analyst" },
+        { "alias": "HCD Lead", "contextNote": "Work is studies, synthesis, interviews, usability testing" }
+      ],
+      "hasSalaryData": true
+    },
+    {
+      "key": "content_ux_writer",
+      "title": "Content/UX Writer",
+      "disciplineKey": "content",
+      "aliases": ["UX Writer", "Microcopy Writer"],
+      "hasSalaryData": true
+    },
+    {
+      "key": "delivery_manager",
+      "title": "Delivery Manager",
+      "disciplineKey": "delivery",
+      "aliases": [
+        { "alias": "Scrum Master", "contextNote": "Agile RFP title for delivery work" },
+        { "alias": "Agile Delivery Lead" }
+      ],
+      "hasSalaryData": true
+    },
+    {
+      "key": "technical_lead",
+      "title": "Technical Lead",
+      "disciplineKey": "engineering",
+      "aliases": [
+        { "alias": "Tech Lead" },
+        { "alias": "Engineering Lead" },
+        { "alias": "Lead Developer" },
+        { "alias": "Technical Lead", "contextNote": "Hands-on lead development — code review, mentorship, shipping code" }
+      ],
+      "hasSalaryData": true
+    },
+    {
+      "key": "design_lead",
+      "title": "Design Lead",
+      "disciplineKey": "design",
+      "aliases": ["UX Lead", "Design Director"],
+      "hasSalaryData": true
+    }
+  ],
+
+  "additionalRoles": [
+    {
+      "key": "fullstack_developer",
+      "title": "Full-Stack Developer",
+      "disciplineKey": "engineering",
+      "aliases": ["Fullstack Engineer", "Software Developer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "software_architect",
+      "title": "Software Architect",
+      "disciplineKey": "engineering",
+      "aliases": ["Application Architect", "Technical Architect"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "solutions_architect",
+      "title": "Solutions Architect",
+      "disciplineKey": "engineering",
+      "aliases": [
+        { "alias": "Enterprise Architect" },
+        { "alias": "Cloud Architect" },
+        { "alias": "Technical Lead", "contextNote": "Architecture/technical strategy — system design, ADRs, cross-team technical decisions" }
+      ],
+      "hasSalaryData": false
+    },
+    {
+      "key": "platform_engineer",
+      "title": "Platform Engineer",
+      "disciplineKey": "engineering",
+      "aliases": ["Cloud Platform Engineer", "Infrastructure Developer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "sre",
+      "title": "Site Reliability Engineer",
+      "disciplineKey": "engineering",
+      "aliases": ["SRE", "Reliability Engineer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "visual_designer",
+      "title": "Visual Designer",
+      "disciplineKey": "design",
+      "aliases": ["Graphic Designer", "Brand Designer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "interaction_designer",
+      "title": "Interaction Designer",
+      "disciplineKey": "design",
+      "aliases": ["IxD", "Motion Designer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "service_designer",
+      "title": "Service Designer",
+      "disciplineKey": "research",
+      "aliases": [
+        { "alias": "HCD Lead", "contextNote": "Work is journey maps, service blueprints, workshop facilitation" },
+        { "alias": "Journey Mapper" }
+      ],
+      "hasSalaryData": false
+    },
+    {
+      "key": "research_lead",
+      "title": "Research Lead",
+      "disciplineKey": "research",
+      "aliases": ["Senior HCD Lead", "Research Director"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "user_researcher",
+      "title": "User Researcher",
+      "disciplineKey": "research",
+      "aliases": ["Junior Researcher", "Associate Researcher"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "business_analyst",
+      "title": "Business Analyst",
+      "disciplineKey": "delivery",
+      "aliases": ["BA", "Business Systems Analyst", "Requirements Analyst"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "program_manager",
+      "title": "Program Manager",
+      "disciplineKey": "program-management",
+      "aliases": ["PgM", "Portfolio Manager"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "agile_coach",
+      "title": "Agile Coach",
+      "disciplineKey": "program-management",
+      "aliases": ["Enterprise Agile Coach", "Transformation Lead"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "data_engineer",
+      "title": "Data Engineer",
+      "disciplineKey": "data",
+      "aliases": ["ETL Developer", "Data Platform Engineer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "data_analyst",
+      "title": "Data Analyst",
+      "disciplineKey": "data",
+      "aliases": ["BI Analyst", "Reporting Analyst"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "data_scientist",
+      "title": "Data Scientist",
+      "disciplineKey": "data",
+      "aliases": ["ML Researcher", "Applied Scientist"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "ml_engineer",
+      "title": "ML Engineer",
+      "disciplineKey": "data",
+      "aliases": ["Machine Learning Engineer", "AI Engineer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "security_engineer",
+      "title": "Security Engineer",
+      "disciplineKey": "security",
+      "aliases": ["AppSec Engineer", "Security Developer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "security_analyst",
+      "title": "Security Analyst",
+      "disciplineKey": "security",
+      "aliases": ["SOC Analyst", "Threat Analyst"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "security_architect",
+      "title": "Security Architect",
+      "disciplineKey": "security",
+      "aliases": ["Cybersecurity Architect", "InfoSec Architect"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "content_strategist",
+      "title": "Content Strategist",
+      "disciplineKey": "content",
+      "aliases": ["Content Lead", "Editorial Strategist"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "ux_writer",
+      "title": "UX Writer",
+      "disciplineKey": "content",
+      "aliases": ["Content Designer", "Digital Writer"],
+      "hasSalaryData": false
+    },
+    {
+      "key": "accessibility_specialist",
+      "title": "Accessibility Specialist",
+      "disciplineKey": "accessibility",
+      "aliases": ["A11y Engineer", "508 Compliance Specialist"],
+      "hasSalaryData": false
+    }
+  ],
+
+  "umbrellaAliases": {
+    "HCD Lead": {
+      "description": "HCD Lead maps to THREE catalog roles based on RFP context",
+      "mappings": [
+        { "roleKey": "ux_researcher", "contextNote": "Work is studies, synthesis, interviews, usability testing" },
+        { "roleKey": "product_designer", "contextNote": "Work is wireframes, prototypes, design systems, UI specs" },
+        { "roleKey": "service_designer", "contextNote": "Work is journey maps, service blueprints, workshop facilitation" }
+      ]
+    },
+    "Technical Lead": {
+      "description": "Technical Lead maps to TWO catalog roles based on RFP context",
+      "mappings": [
+        { "roleKey": "solutions_architect", "contextNote": "Architecture/technical strategy — system design, ADRs, cross-team technical decisions" },
+        { "roleKey": "technical_lead", "contextNote": "Hands-on lead development — code review, mentorship, shipping code" }
+      ]
+    },
+    "Senior HCD Lead": {
+      "description": "Senior HCD Lead maps to Research Lead",
+      "mappings": [
+        { "roleKey": "research_lead" }
+      ]
+    }
+  },
+
+  "disciplineBackfillRules": {
+    "devops": {
+      "mapsTo": "engineering",
+      "rule": "All devops discipline rows map to engineering"
+    },
+    "management": {
+      "defaultMapsTo": "program-management",
+      "exceptions": [
+        { "condition": "title contains 'Delivery'", "mapsTo": "delivery" }
+      ],
+      "rule": "Default to program-management; explicit 'Delivery' title maps to delivery"
+    }
+  },
+
+  "totals": {
+    "fftcRolesWithSalaryData": 11,
+    "additionalRolesNeedingSetup": 23,
+    "totalRoles": 34
+  }
+}

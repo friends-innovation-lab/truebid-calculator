@@ -52,6 +52,8 @@ export interface IntelligenceDisciplineRow {
   created_at: string
 }
 
+export type LaborCategoryMatchType = 'exact' | 'alias' | 'fuzzy' | 'unmapped'
+
 export interface IntelligenceLaborRequirementRow {
   id: string
   version_id: string
@@ -63,6 +65,10 @@ export interface IntelligenceLaborRequirementRow {
   is_prescribed: boolean
   confidence: Confidence
   source_text: string | null
+  // Phase 5: Catalog match fields
+  labor_category_id: string | null
+  match_type: LaborCategoryMatchType | null
+  match_confidence: string | null // NUMERIC comes as string from Postgres
   created_at: string
   updated_at: string
 }
@@ -114,6 +120,10 @@ export interface CoercedLaborRequirement {
   isPrescribed: boolean
   confidence: Confidence
   sourceText: string | null
+  // Phase 5: Catalog match fields
+  laborCategoryId: string | null
+  matchType: LaborCategoryMatchType | null
+  matchConfidence: number | null // Coerced from NUMERIC string
 }
 
 export interface CoercedIntelligenceVersion {
@@ -162,6 +172,10 @@ export interface CreateIntelligenceDraftInput {
     isPrescribed?: boolean
     confidence: Confidence
     sourceText?: string
+    // Phase 5: Catalog match fields
+    laborCategoryId?: string
+    matchType?: LaborCategoryMatchType
+    matchConfidence?: number
   }>
 }
 
@@ -198,6 +212,10 @@ export interface UpdateIntelligenceFactsInput {
     isPrescribed?: boolean
     confidence: Confidence
     sourceText?: string
+    // Phase 5: Catalog match fields
+    laborCategoryId?: string
+    matchType?: LaborCategoryMatchType
+    matchConfidence?: number
   }>
 }
 

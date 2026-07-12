@@ -49,6 +49,8 @@ export interface WbsTask {
   rowVersion: number
 }
 
+export type RateSourceType = 'catalog' | 'manual' | 'gsa_schedule' | 'subcontractor'
+
 export interface StaffingAssignment {
   id: string
   tenantId: string
@@ -63,6 +65,15 @@ export interface StaffingAssignment {
   rationale: string | null
   source: StaffingSource
   userModified: boolean
+  // Phase 5: Labor catalog fields
+  laborCategoryId: string | null
+  levelKey: string | null
+  stepIndex: number | null
+  salaryOverrideCents: number | null
+  billRateOverrideCents: number | null
+  profitMarginOverride: number | null
+  rateSource: RateSourceType | null
+  // Timestamps
   createdAt: string
   updatedAt: string
   rowVersion: number
@@ -81,6 +92,14 @@ export interface StaffingInput {
   hours: number
   hoursPerMonth?: number
   rationale?: string
+  // Phase 5: Labor catalog fields
+  laborCategoryId?: string
+  levelKey?: string
+  stepIndex?: number
+  salaryOverrideCents?: number
+  billRateOverrideCents?: number
+  profitMarginOverride?: number
+  rateSource?: RateSourceType
 }
 
 export interface TaskInput {
@@ -166,6 +185,14 @@ export interface AddStaffingAssignmentInput {
   hours: number
   hoursPerMonth?: number
   rationale?: string
+  // Phase 5: Labor catalog fields
+  laborCategoryId?: string
+  levelKey?: string
+  stepIndex?: number
+  salaryOverrideCents?: number
+  billRateOverrideCents?: number
+  profitMarginOverride?: number
+  rateSource?: RateSourceType
 }
 
 export interface RemoveWbsTaskInput {
@@ -188,6 +215,7 @@ export type ValidationViolationType =
   | 'invalid_period'
   | 'sub_missing_name'
   | 'invalid_role_prescribed'  // Role not in prescribed vocabulary (Pillar 2)
+  | 'unmapped_role'            // Role not found in tenant catalog (Phase 5)
 
 export interface ValidationViolation {
   type: ValidationViolationType
@@ -207,12 +235,34 @@ export interface ValidationResult {
 // COMMAND RESULT TYPES
 // =============================================================================
 
+// Phase 5: Catalog resolution result per role
+export interface CatalogResolutionInfo {
+  roleTitle: string
+  matchType: 'exact' | 'alias' | 'fuzzy' | 'unmapped'
+  confidence: number
+  categoryId: string | null
+  categoryKey: string | null
+  aliasUsed?: string
+  contextNote?: string
+}
+
+export interface CatalogResolutionSummary {
+  totalRoles: number
+  exactMatches: number
+  aliasMatches: number
+  fuzzyMatches: number
+  unmappedCount: number
+  roles: CatalogResolutionInfo[]
+}
+
 export interface CreateWbsCandidateResult {
   candidateVersionId: string
   versionNumber: number
   taskCount: number
   assignmentCount: number
   validation: ValidationResult
+  // Phase 5: Catalog resolution info
+  catalogResolution?: CatalogResolutionSummary
 }
 
 export interface AcceptWbsCandidateResult {

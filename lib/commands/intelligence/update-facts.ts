@@ -248,6 +248,10 @@ export function createUpdateIntelligenceFactsCommand(
             appears_in_periods: l.appearsInPeriods ?? [],
             confidence: l.confidence,
             source_text: l.sourceText ?? null,
+            // Phase 5: Catalog match fields
+            labor_category_id: l.laborCategoryId ?? null,
+            match_type: l.matchType ?? null,
+            match_confidence: l.matchConfidence ?? null,
           }))
 
           const { error: insertLaborReqsError } = await supabase

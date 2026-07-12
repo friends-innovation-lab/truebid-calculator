@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server'
 import { computePeriods } from '@/lib/types/contract-intelligence'
 import type { Discipline, Confidence } from '@/lib/types/contract-intelligence'
 import { runCommand, createCreateIntelligenceDraftCommand } from '@/lib/commands'
-import type { FactsJson } from '@/lib/commands/intelligence/types'
+import type { FactsJson, LaborCategoryMatchType } from '@/lib/commands/intelligence/types'
 import {
   contractIntelligenceExtractionSchema,
   contractIntelligenceJsonSchema,
@@ -12,6 +12,8 @@ import {
 } from '@/lib/schemas/contract-intelligence'
 import { prepareSolicitationForExtraction } from '@/lib/ai/truncation'
 import { buildExtractionSystemPrompt, buildExtractionUserPrompt } from '@/lib/ai/prompts/extraction'
+import { resolveTenantContext } from '@/lib/tenancy'
+import { bulkResolveLaborCategories } from '@/lib/commands/labor-catalog'
 
 export async function POST(
   request: Request,
@@ -201,17 +203,59 @@ Please fix these issues and try again. Ensure all required fields are present an
       sourceText: extracted.disciplines.sourceText,
     }))
 
-    // Transform roles to labor requirements
-    const laborRequirements = extracted.roles.map((r) => ({
-      title: r.title,
-      laborCategory: r.laborCategory ?? undefined,
-      hoursPerMonth: r.hoursPerMonth ?? undefined,
-      utilizationPct: r.utilizationPct ?? undefined,
-      appearsInPeriods: r.appearsInPeriods ?? [],
-      isPrescribed: r.isPrescribed ?? false,
-      confidence: r.confidence as Confidence,
-      sourceText: r.sourceText,
-    }))
+    // Phase 5: Resolve role titles against tenant labor catalog
+    let tenantId: string | null = null
+    let catalogResolution: Map<string, {
+      categoryId: string | null
+      matchType: LaborCategoryMatchType
+      confidence: number
+    }> = new Map()
+
+    try {
+      const tenantContext = await resolveTenantContext(supabase)
+      tenantId = tenantContext.tenant.id
+
+      // Bulk resolve all role titles
+      const roleTitles = extracted.roles.map(r => r.title)
+      const resolutionResult = await bulkResolveLaborCategories(supabase, {
+        tenantId,
+        roleTitles,
+      })
+
+      catalogResolution = resolutionResult.matches
+
+      console.log('[extract-contract-intelligence] Catalog resolution:', JSON.stringify({
+        tenantId,
+        totalRoles: roleTitles.length,
+        unmappedCount: resolutionResult.unmappedCount,
+        matchTypes: Object.fromEntries(
+          [...catalogResolution.entries()].map(([title, match]) => [title, match.matchType])
+        ),
+      }))
+    } catch (tenantError) {
+      // If tenant resolution fails, continue without catalog matching
+      // (e.g., during migration or for orphan proposals)
+      console.log('[extract-contract-intelligence] Tenant resolution failed, skipping catalog matching:', tenantError)
+    }
+
+    // Transform roles to labor requirements with catalog match data
+    const laborRequirements = extracted.roles.map((r) => {
+      const match = catalogResolution.get(r.title)
+      return {
+        title: r.title,
+        laborCategory: r.laborCategory ?? undefined,
+        hoursPerMonth: r.hoursPerMonth ?? undefined,
+        utilizationPct: r.utilizationPct ?? undefined,
+        appearsInPeriods: r.appearsInPeriods ?? [],
+        isPrescribed: r.isPrescribed ?? false,
+        confidence: r.confidence as Confidence,
+        sourceText: r.sourceText,
+        // Phase 5: Catalog match fields
+        laborCategoryId: match?.categoryId ?? undefined,
+        matchType: match?.matchType ?? undefined,
+        matchConfidence: match?.confidence ?? undefined,
+      }
+    })
 
     // Extract staffing model
     const staffingModel = extracted.staffingModel?.value ?? 'unclear'
@@ -262,6 +306,17 @@ Please fix these issues and try again. Ensure all required fields are present an
       status,
     }))
 
+    // Phase 5: Compute catalog resolution summary
+    const unmappedRoles = laborRequirements.filter(r => r.matchType === 'unmapped' || !r.matchType)
+    const catalogResolutionSummary = {
+      totalRoles: laborRequirements.length,
+      exactMatches: laborRequirements.filter(r => r.matchType === 'exact').length,
+      aliasMatches: laborRequirements.filter(r => r.matchType === 'alias').length,
+      fuzzyMatches: laborRequirements.filter(r => r.matchType === 'fuzzy').length,
+      unmappedCount: unmappedRoles.length,
+      unmappedTitles: unmappedRoles.map(r => r.title),
+    }
+
     // Return the new version info along with extracted data for immediate UI display
     return NextResponse.json({
       version: {
@@ -273,6 +328,8 @@ Please fix these issues and try again. Ensure all required fields are present an
       periods: periodsInput,
       disciplines,
       laborRequirements,
+      // Phase 5: Catalog resolution info for UI review
+      catalogResolution: catalogResolutionSummary,
       // Include truncation warning if document was truncated
       ...(truncation.wasTruncated && {
         truncationWarning: truncation.warning

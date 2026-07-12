@@ -67,6 +67,10 @@ export function coerceLaborRequirement(row: IntelligenceLaborRequirementRow): Co
     isPrescribed: row.is_prescribed ?? false,
     confidence: row.confidence,
     sourceText: row.source_text,
+    // Phase 5: Catalog match fields
+    laborCategoryId: row.labor_category_id,
+    matchType: row.match_type,
+    matchConfidence: coerceNumeric(row.match_confidence),
   }
 }
 

@@ -142,6 +142,15 @@ export function createUpdateStaffingAssignmentCommand(
           rationale: updated.rationale,
           source: updated.source,
           userModified: updated.user_modified,
+          // Phase 5: Labor catalog fields
+          laborCategoryId: updated.labor_category_id ?? null,
+          levelKey: updated.level_key ?? null,
+          stepIndex: updated.step_index ?? null,
+          salaryOverrideCents: updated.salary_override_cents ?? null,
+          billRateOverrideCents: updated.bill_rate_override_cents ?? null,
+          profitMarginOverride: updated.profit_margin_override ? parseFloat(updated.profit_margin_override) : null,
+          rateSource: updated.rate_source ?? null,
+          // Timestamps
           createdAt: updated.created_at,
           updatedAt: updated.updated_at,
           rowVersion: updated.row_version,

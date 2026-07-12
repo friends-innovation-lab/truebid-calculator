@@ -254,6 +254,10 @@ Each work package must have:
   - Assumptions (what must be true)
   - Dependencies (what must come first)
 
+`
+
+// Dynamic section for available roles - injected based on tenant catalog
+const SYSTEM_PROMPT_ROLES_FALLBACK = `
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 AVAILABLE ROLES
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -278,11 +282,11 @@ Do not invent new role names. If a work package needs a "Security Engineer", map
 CONTRACT-SPECIFIC ROLE FLAGGING
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-If the work requires a role NOT in the standard FFTC labor categories, DO NOT invent a new role name. Instead:
+If the work requires a role NOT in the standard labor categories, DO NOT invent a new role name. Instead:
 
 1. Map to the closest standard role from the list above
 2. Flag it in the task's basisOfEstimate field:
-   "NOTE: This task may benefit from a [Training Specialist / Change Manager / Security Architect / etc.] not in FFTC's standard labor categories. Assigned to [closest role] — recommend reviewing in Roles & Pricing and adding a custom role if needed."
+   "NOTE: This task may benefit from a [Training Specialist / Change Manager / Security Architect / etc.] not in the standard labor categories. Assigned to [closest role] — recommend reviewing in Roles & Pricing and adding a custom role if needed."
 
 Common mappings:
   Security Architect    → DevOps Engineer
@@ -294,8 +298,51 @@ Common mappings:
   Scrum Master          → Delivery Manager
   Solutions Architect   → Back-end Developer`
 
+/**
+ * Build the full system prompt with dynamic roles from tenant catalog.
+ */
+function buildSystemPrompt(catalogRoles: CatalogRole[]): string {
+  if (catalogRoles.length === 0) {
+    return SYSTEM_PROMPT + SYSTEM_PROMPT_ROLES_FALLBACK
+  }
+
+  // Build dynamic roles section from catalog
+  const rolesSection = buildAvailableRolesPrompt(catalogRoles)
+
+  // Build common mappings from catalog aliases
+  const aliasMappings: string[] = []
+  for (const role of catalogRoles) {
+    for (const alias of role.aliases) {
+      if (alias !== role.title) {
+        // Format: Alias → Title
+        const padding = ' '.repeat(Math.max(0, 22 - alias.length))
+        aliasMappings.push(`  ${alias}${padding}→ ${role.title}`)
+      }
+    }
+  }
+
+  const mappingsSection = aliasMappings.length > 0
+    ? `
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CONTRACT-SPECIFIC ROLE FLAGGING
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+If the work requires a role NOT in the catalog above, DO NOT invent a new role name. Instead:
+
+1. Map to the closest standard role from the list above
+2. Flag it in the task's basisOfEstimate field:
+   "NOTE: This task may benefit from a [Training Specialist / etc.] not in the catalog. Assigned to [closest role] — recommend reviewing in Roles & Pricing and adding a custom role if needed."
+
+Known alias mappings:
+${aliasMappings.join('\n')}`
+    : ''
+
+  return SYSTEM_PROMPT + rolesSection + mappingsSection
+}
+
 // =============================================================================
-// Role to Discipline Mapping
+// Role to Discipline Mapping (Fallback when catalog not available)
 // =============================================================================
 
 const ROLE_DISCIPLINE_MAP: Record<string, string> = {
@@ -315,12 +362,128 @@ const ROLE_DISCIPLINE_MAP: Record<string, string> = {
   'Technical Lead': 'Engineering',
 }
 
+// =============================================================================
+// Tenant Catalog Integration (Phase 5)
+// =============================================================================
+
+interface CatalogRole {
+  title: string
+  disciplineKey: string
+  aliases: string[]
+}
+
+/**
+ * Load active labor categories from tenant catalog
+ */
+async function loadTenantCatalogRoles(
+  supabase: ReturnType<typeof createClient> extends Promise<infer T> ? T : never,
+  tenantId: string
+): Promise<CatalogRole[]> {
+  // Load active labor categories with their aliases
+  const { data: categories, error } = await supabase
+    .from('tenant_labor_categories')
+    .select(`
+      id,
+      title,
+      discipline_key,
+      labor_category_aliases(alias)
+    `)
+    .eq('tenant_id', tenantId)
+    .eq('active', true)
+    .order('sort_order', { ascending: true })
+
+  if (error) {
+    console.log('[generate-wbs] Failed to load catalog, using fallback:', error.message)
+    return []
+  }
+
+   
+  return (categories || []).map((cat: any) => ({
+    title: cat.title,
+    disciplineKey: cat.discipline_key,
+    aliases: (cat.labor_category_aliases || []).map((a: { alias: string }) => a.alias),
+  }))
+}
+
+/**
+ * Build discipline map from catalog roles
+ */
+function buildDisciplineMapFromCatalog(roles: CatalogRole[]): Record<string, string> {
+  const map: Record<string, string> = {}
+  for (const role of roles) {
+    // Map title to discipline
+    map[role.title] = role.disciplineKey
+    // Map aliases to discipline
+    for (const alias of role.aliases) {
+      map[alias] = role.disciplineKey
+    }
+  }
+  return map
+}
+
+/**
+ * Build available roles prompt section from catalog
+ */
+function buildAvailableRolesPrompt(roles: CatalogRole[]): string {
+  if (roles.length === 0) {
+    // Fallback to hardcoded list
+    return `
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AVAILABLE ROLES
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Available FFTC roles (use ONLY these 11):
+
+  Back-end Developer
+  Front-end Developer
+  DevOps Engineer
+  QA Engineer
+  Product Manager
+  Product Designer
+  UX Researcher
+  Content/UX Writer
+  Delivery Manager
+  Technical Lead
+  Design Lead
+
+Do not invent new role names. If a work package needs a "Security Engineer", map that to DevOps Engineer. If it needs a "Business Analyst", map that to Product Manager.`
+  }
+
+  // Build from catalog
+  const lines: string[] = []
+  lines.push('')
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  lines.push('AVAILABLE ROLES FROM TENANT CATALOG')
+  lines.push('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+  lines.push('')
+  lines.push(`Available roles (use ONLY these ${roles.length}):`)
+  lines.push('')
+
+  for (const role of roles) {
+    if (role.aliases.length > 0) {
+      lines.push(`  ${role.title} (aliases: ${role.aliases.join(', ')})`)
+    } else {
+      lines.push(`  ${role.title}`)
+    }
+  }
+
+  lines.push('')
+  lines.push('Do not invent new role names. Use exact titles from this list.')
+  lines.push('If the RFP mentions a role not in this list, map it to the closest available role.')
+
+  return lines.join('\n')
+}
+
 /**
  * Map role to discipline, constrained to confirmed disciplines.
  * Falls back to first confirmed discipline if no match.
  */
-function disciplineForRole(role: string, confirmedDisciplines: string[]): string {
-  const mapped = ROLE_DISCIPLINE_MAP[role]
+function disciplineForRole(
+  role: string,
+  confirmedDisciplines: string[],
+  disciplineMap: Record<string, string> = ROLE_DISCIPLINE_MAP
+): string {
+  const mapped = disciplineMap[role]
   if (mapped && confirmedDisciplines.includes(mapped)) {
     return mapped
   }
@@ -333,7 +496,7 @@ function disciplineForRole(role: string, confirmedDisciplines: string[]): string
     if (fuzzy) return fuzzy
   }
   // Last resort: first confirmed discipline
-  return confirmedDisciplines[0] || 'Engineering'
+  return confirmedDisciplines[0] || 'engineering'
 }
 
 /**
@@ -347,7 +510,8 @@ function disciplineForRole(role: string, confirmedDisciplines: string[]): string
 function transformToTaskInputs(
   parsed: ParsedWbsElement[],
   confirmedDisciplines: string[],
-  periodLabels: string[]
+  periodLabels: string[],
+  disciplineMap: Record<string, string> = ROLE_DISCIPLINE_MAP
 ): TaskInput[] {
   const taskInputs: TaskInput[] = []
 
@@ -368,7 +532,7 @@ function transformToTaskInputs(
 
       // Fan out hours per period
       const staffing: StaffingInput[] = []
-      const discipline = disciplineForRole(subtask.suggestedRole, confirmedDisciplines)
+      const discipline = disciplineForRole(subtask.suggestedRole, confirmedDisciplines, disciplineMap)
 
       for (const periodLabel of periodLabels) {
         // Check if this period applies to this task
@@ -458,13 +622,23 @@ export async function POST(
 
   // Resolve tenant context for guard
   let tenantId: string
+  let catalogRoles: CatalogRole[] = []
   try {
     const tenantContext = await resolveTenantContext(supabase)
     tenantId = tenantContext.tenant.id
+
+    // Phase 5: Load tenant catalog roles
+    catalogRoles = await loadTenantCatalogRoles(supabase, tenantId)
+    console.log(`[generate-wbs] Loaded ${catalogRoles.length} catalog roles for tenant ${tenantId}`)
   } catch (error) {
     console.error('[generate-wbs] Tenant resolution failed:', error)
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
+
+  // Build discipline map from catalog (or use fallback)
+  const catalogDisciplineMap = catalogRoles.length > 0
+    ? buildDisciplineMapFromCatalog(catalogRoles)
+    : ROLE_DISCIPLINE_MAP
 
   // Fetch proposal with full data
   const { data: proposal, error: fetchError } = await supabase
@@ -723,7 +897,7 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 32768,
-      system: SYSTEM_PROMPT,
+      system: buildSystemPrompt(catalogRoles),
       tools: [wbsTool],
       tool_choice: { type: 'tool', name: 'generate_wbs' },
       messages: [{ role: 'user', content: userPrompt }],
@@ -767,7 +941,7 @@ loeType: one of: "development" | "configuration" | "integration" | "testing" | "
       const repairMessage = await anthropic.messages.create({
         model: 'claude-sonnet-4-6',
         max_tokens: 32768,
-        system: SYSTEM_PROMPT,
+        system: buildSystemPrompt(catalogRoles),
         tools: [wbsTool],
         tool_choice: { type: 'tool', name: 'generate_wbs' },
         messages: [
@@ -814,8 +988,8 @@ Please fix these issues and regenerate the complete WBS. Ensure all required fie
     // Get period labels from intelligence context
     const periodLabels = periods.map(p => p.name)
 
-    // Transform AI output to TaskInput[] format
-    const taskInputs = transformToTaskInputs(parsed, disciplines, periodLabels)
+    // Transform AI output to TaskInput[] format (using catalog-based discipline map)
+    const taskInputs = transformToTaskInputs(parsed, disciplines, periodLabels, catalogDisciplineMap)
 
     // Create WBS candidate via command (writes to normalized tables, not working_data)
     const result = await createWbsCandidate(supabase, {
@@ -827,12 +1001,19 @@ Please fix these issues and regenerate the complete WBS. Ensure all required fie
 
     console.log(`[generate-wbs] Created candidate v${result.versionNumber}: ${result.taskCount} tasks, ${result.assignmentCount} assignments for proposal ${proposalId}`)
 
+    // Log catalog resolution summary
+    if (result.catalogResolution) {
+      console.log(`[generate-wbs] Catalog resolution: ${result.catalogResolution.exactMatches} exact, ${result.catalogResolution.aliasMatches} alias, ${result.catalogResolution.fuzzyMatches} fuzzy, ${result.catalogResolution.unmappedCount} unmapped`)
+    }
+
     return NextResponse.json({
       candidateVersionId: result.candidateVersionId,
       versionNumber: result.versionNumber,
       taskCount: result.taskCount,
       assignmentCount: result.assignmentCount,
       workPackageCount: parsed.length,
+      // Phase 5: Catalog resolution info for UI review
+      catalogResolution: result.catalogResolution,
     })
 
   } catch (error) {

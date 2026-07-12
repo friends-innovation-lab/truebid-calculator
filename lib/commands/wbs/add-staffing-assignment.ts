@@ -86,6 +86,14 @@ export function createAddStaffingAssignmentCommand(
           rationale: input.rationale ?? null,
           source: 'user_added',
           user_modified: false,
+          // Phase 5: Labor catalog fields
+          labor_category_id: input.laborCategoryId ?? null,
+          level_key: input.levelKey ?? null,
+          step_index: input.stepIndex ?? null,
+          salary_override_cents: input.salaryOverrideCents ?? null,
+          bill_rate_override_cents: input.billRateOverrideCents ?? null,
+          profit_margin_override: input.profitMarginOverride ?? null,
+          rate_source: input.rateSource ?? null,
         })
         .select('*')
         .single()
@@ -110,6 +118,15 @@ export function createAddStaffingAssignmentCommand(
           rationale: assignment.rationale,
           source: assignment.source,
           userModified: assignment.user_modified,
+          // Phase 5: Labor catalog fields
+          laborCategoryId: assignment.labor_category_id,
+          levelKey: assignment.level_key,
+          stepIndex: assignment.step_index,
+          salaryOverrideCents: assignment.salary_override_cents,
+          billRateOverrideCents: assignment.bill_rate_override_cents,
+          profitMarginOverride: assignment.profit_margin_override ? parseFloat(assignment.profit_margin_override) : null,
+          rateSource: assignment.rate_source,
+          // Timestamps
           createdAt: assignment.created_at,
           updatedAt: assignment.updated_at,
           rowVersion: assignment.row_version,

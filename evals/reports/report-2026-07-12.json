@@ -1,6 +1,6 @@
 {
-  "runId": "eval-1783855228906",
-  "timestamp": "2026-07-12T11:20:28.906Z",
+  "runId": "eval-1783876018276",
+  "timestamp": "2026-07-12T17:06:58.276Z",
   "samples": [
     {
       "sampleId": "camp",
@@ -22,22 +22,22 @@
             "expected": "UNKNOWN"
           },
           "periodsCount": {
-            "match": true,
+            "match": false,
             "actual": "3",
-            "expected": "3"
+            "expected": "4"
           },
           "disciplines": {
             "match": true,
-            "actual": "engineering, design, research, product, devops, security (P=0.83 R=0.83)",
+            "actual": "engineering, design, research, product, management, devops, security (P=0.86 R=1.00)",
             "expected": "engineering, design, product, research, management, devops"
           },
           "laborRequirements": {
             "match": false,
-            "actual": "8",
+            "actual": "7",
             "expected": "13"
           }
         },
-        "f1": 0.8333333333333334
+        "f1": 0.6666666666666666
       },
       "disciplineViolations": {
         "violations": [],
@@ -57,7 +57,7 @@
           },
           "vehicle": {
             "match": true,
-            "actual": "GSA MAS",
+            "actual": "GSA MAS / FSS Task Order (FAR Part 8.4)",
             "expected": "GSA Multiple Award Schedule (MAS)"
           },
           "setAside": {
@@ -89,8 +89,8 @@
         "allRoles": [
           "Delivery Manager",
           "Product Manager",
-          "Content/UX Writer",
           "UX Researcher",
+          "Content/UX Writer",
           "Product Designer"
         ]
       },
@@ -98,13 +98,13 @@
     }
   ],
   "summary": {
-    "extractionF1": 0.9166666666666667,
+    "extractionF1": 0.8333333333333333,
     "schemaPassRate": 0.5,
     "disciplineViolationCount": 0,
     "cost": {
-      "inputTokens": 50775,
-      "outputTokens": 27539,
-      "usd": 0.56541
+      "inputTokens": 51671,
+      "outputTokens": 28379,
+      "usd": 0.580698
     }
   }
 }

@@ -62,7 +62,20 @@
         "Human-Centered Design Lead",
         "Senior Product Manager"
       ],
-      "isPrescribed": true
+      "isPrescribed": true,
+      "catalogMatches": {
+        "Human-Centered Design Lead": {
+          "expectedMatchType": "alias",
+          "expectedCategoryKey": "ux_researcher",
+          "aliasUsed": "HCD Lead",
+          "note": "HCD Lead umbrella alias maps to ux_researcher for research-focused work"
+        },
+        "Senior Product Manager": {
+          "expectedMatchType": "fuzzy",
+          "expectedCategoryKey": "product_manager",
+          "note": "Should match product_manager via fuzzy match (Senior prefix)"
+        }
+      }
     },
     "staffingModel": {
       "expected": "prescribed",

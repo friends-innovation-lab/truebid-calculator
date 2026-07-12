@@ -87,6 +87,15 @@ async function loadTasksWithAssignments(
         rationale: a.rationale,
         source: a.source,
         userModified: a.user_modified,
+        // Phase 5: Labor catalog fields
+        laborCategoryId: a.labor_category_id ?? null,
+        levelKey: a.level_key ?? null,
+        stepIndex: a.step_index ?? null,
+        salaryOverrideCents: a.salary_override_cents ?? null,
+        billRateOverrideCents: a.bill_rate_override_cents ?? null,
+        profitMarginOverride: a.profit_margin_override ?? null,
+        rateSource: a.rate_source ?? null,
+        // Timestamps
         createdAt: a.created_at,
         updatedAt: a.updated_at,
         rowVersion: a.row_version,

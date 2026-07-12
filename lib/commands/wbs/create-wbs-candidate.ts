@@ -17,6 +17,7 @@ import {
   loadIntelligenceContext,
   validateWbsCandidate,
   formatValidationErrors,
+  resolveRolesAgainstCatalog,
 } from './validate-wbs-candidate'
 import { getNextVersionNumber } from './guards'
 import type {
@@ -78,10 +79,26 @@ export function createCreateWbsCandidateCommand(
         throw new WbsValidationError(validation.violations)
       }
 
-      // 5. Get next version number
+      // 5. Phase 5: Resolve roles against tenant catalog (informational, not blocking)
+      const catalogResolution = await resolveRolesAgainstCatalog(
+        supabase,
+        intelContext.tenantId,
+        input.tasks
+      )
+
+      // Log catalog resolution for debugging
+      console.log('[CreateWbsCandidate] Catalog resolution:', JSON.stringify({
+        totalRoles: catalogResolution.totalRoles,
+        exactMatches: catalogResolution.exactMatches,
+        aliasMatches: catalogResolution.aliasMatches,
+        fuzzyMatches: catalogResolution.fuzzyMatches,
+        unmappedCount: catalogResolution.unmappedCount,
+      }))
+
+      // 6. Get next version number
       const versionNumber = await getNextVersionNumber(supabase, input.proposalId)
 
-      // 6. Create WBS version
+      // 7. Create WBS version
       const { data: versionData, error: versionError } = await supabase
         .from('wbs_versions')
         .insert({
@@ -103,7 +120,7 @@ export function createCreateWbsCandidateCommand(
       let taskCount = 0
       let assignmentCount = 0
 
-      // 7. Create tasks and assignments
+      // 8. Create tasks and assignments
       for (let sortOrder = 0; sortOrder < input.tasks.length; sortOrder++) {
         const taskInput = input.tasks[sortOrder]
 
@@ -171,6 +188,7 @@ export function createCreateWbsCandidateCommand(
           taskCount,
           assignmentCount,
           validation,
+          catalogResolution,
         },
       }
     },

@@ -139,7 +139,10 @@ describe('Type Coercion', () => {
         appears_in_periods: ['Base Period', 'Option Period 1'],
         confidence: 'high',
         source_text: 'PWS Section 4.2',
-          is_prescribed: false,
+        is_prescribed: false,
+        labor_category_id: null,
+        match_type: null,
+        match_confidence: null,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       }
@@ -165,6 +168,9 @@ describe('Type Coercion', () => {
         confidence: 'low',
         source_text: null,
         is_prescribed: false,
+        labor_category_id: null,
+        match_type: null,
+        match_confidence: null,
         created_at: '2024-01-01T00:00:00Z',
         updated_at: '2024-01-01T00:00:00Z',
       }
@@ -226,8 +232,8 @@ describe('Canonical Serialization', () => {
         { id: 'd1', discipline: 'design', confidence: 'medium', sourceText: 'test' },
       ] as CoercedDiscipline[],
       laborRequirements: [
-        { id: 'l2', title: 'Developer', laborCategory: null, hoursPerMonth: 160, utilizationPct: 1.0, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: null },
-        { id: 'l1', title: 'Analyst', laborCategory: null, hoursPerMonth: 80, utilizationPct: 0.5, appearsInPeriods: [], isPrescribed: false, confidence: 'medium', sourceText: null },
+        { id: 'l2', title: 'Developer', laborCategory: null, hoursPerMonth: 160, utilizationPct: 1.0, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
+        { id: 'l1', title: 'Analyst', laborCategory: null, hoursPerMonth: 80, utilizationPct: 0.5, appearsInPeriods: [], isPrescribed: false, confidence: 'medium', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
       ] as CoercedLaborRequirement[],
     }
 
@@ -243,8 +249,8 @@ describe('Canonical Serialization', () => {
         { id: 'd2', discipline: 'engineering', confidence: 'high', sourceText: null },
       ] as CoercedDiscipline[],
       laborRequirements: [
-        { id: 'l1', title: 'Analyst', laborCategory: null, hoursPerMonth: 80, utilizationPct: 0.5, appearsInPeriods: [], isPrescribed: false, confidence: 'medium', sourceText: null },
-        { id: 'l2', title: 'Developer', laborCategory: null, hoursPerMonth: 160, utilizationPct: 1.0, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: null },
+        { id: 'l1', title: 'Analyst', laborCategory: null, hoursPerMonth: 80, utilizationPct: 0.5, appearsInPeriods: [], isPrescribed: false, confidence: 'medium', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
+        { id: 'l2', title: 'Developer', laborCategory: null, hoursPerMonth: 160, utilizationPct: 1.0, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
       ] as CoercedLaborRequirement[],
     }
 
@@ -299,8 +305,8 @@ describe('Canonical Serialization', () => {
       periods: [] as CoercedPeriod[],
       disciplines: [] as CoercedDiscipline[],
       laborRequirements: [
-        { id: 'l2', title: 'Zebra Manager', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'low', sourceText: null },
-        { id: 'l1', title: 'Alpha Developer', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'low', sourceText: null },
+        { id: 'l2', title: 'Zebra Manager', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'low', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
+        { id: 'l1', title: 'Alpha Developer', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'low', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
       ] as CoercedLaborRequirement[],
     }
 
@@ -497,7 +503,10 @@ describe('Hash Round-Trip', () => {
         appears_in_periods: ['Base Period', 'Option Period 1'],
         confidence: 'high',
         source_text: 'PWS 4.2',
-          is_prescribed: false,
+        is_prescribed: false,
+        labor_category_id: null,
+        match_type: null,
+        match_confidence: null,
         created_at: '2024-01-01T10:00:00Z',
         updated_at: '2024-01-01T10:00:00Z',
       },
@@ -774,7 +783,7 @@ describe('Edge Cases', () => {
       periods: [] as CoercedPeriod[],
       disciplines: [] as CoercedDiscipline[],
       laborRequirements: [
-        { id: 'l1', title: 'Développeur Senior', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: '日本語テスト' },
+        { id: 'l1', title: 'Développeur Senior', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: '日本語テスト', laborCategoryId: null, matchType: null, matchConfidence: null },
       ] as CoercedLaborRequirement[],
     }
 

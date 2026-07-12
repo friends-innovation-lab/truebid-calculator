@@ -10,6 +10,7 @@
  * 3. Every assignment's period_label IN intelligence_periods for this version
  * 4. If sub, subcontractor_name is provided
  * 5. If staffingModel === 'prescribed', role must be in prescribed vocabulary
+ * 6. Phase 5: Catalog resolution for offeror_proposed model (informational, not blocking)
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -17,8 +18,12 @@ import type {
   TaskInput,
   ValidationResult,
   ValidationViolation,
+  CatalogResolutionInfo,
+  CatalogResolutionSummary,
 } from './types'
 import type { StaffingModel } from '../intelligence/types'
+import { bulkResolveLaborCategories } from '../labor-catalog'
+import type { LaborCategoryMatch } from '../labor-catalog/types'
 
 /**
  * Normalize role title for comparison.
@@ -44,6 +49,7 @@ function normalizeRoleTitle(title: string): string {
 }
 
 interface IntelligenceContext {
+  tenantId: string
   disciplines: string[]
   periodLabels: string[]
   staffingModel: StaffingModel
@@ -57,10 +63,10 @@ export async function loadIntelligenceContext(
   supabase: SupabaseClient,
   intelligenceVersionId: string
 ): Promise<IntelligenceContext> {
-  // Load version to get staffing model
+  // Load version to get staffing model and tenant
   const { data: version, error: versionError } = await supabase
     .from('intelligence_versions')
-    .select('staffing_model')
+    .select('staffing_model, tenant_id')
     .eq('id', intelligenceVersionId)
     .single()
 
@@ -100,6 +106,7 @@ export async function loadIntelligenceContext(
   }
 
   return {
+    tenantId: version?.tenant_id as string,
     disciplines: (disciplines || []).map(d => d.discipline),
     periodLabels: (periods || []).map(p => p.name),
     staffingModel: (version?.staffing_model as StaffingModel) ?? 'unclear',
@@ -190,6 +197,85 @@ export function validateWbsCandidate(
   return {
     valid: violations.length === 0,
     violations,
+  }
+}
+
+/**
+ * Phase 5: Resolve all unique role titles against tenant labor catalog.
+ *
+ * Returns catalog resolution summary with match info per role.
+ * This is informational - unmapped roles are allowed for offeror_proposed,
+ * they render as review prompts ("did you mean X?") based on match type.
+ */
+export async function resolveRolesAgainstCatalog(
+  supabase: SupabaseClient,
+  tenantId: string,
+  tasks: TaskInput[]
+): Promise<CatalogResolutionSummary> {
+  // Collect unique role titles
+  const roleTitles = new Set<string>()
+  for (const task of tasks) {
+    for (const staffing of task.staffing) {
+      roleTitles.add(staffing.roleTitle)
+    }
+  }
+
+  const roleTitlesArray = Array.from(roleTitles)
+
+  if (roleTitlesArray.length === 0) {
+    return {
+      totalRoles: 0,
+      exactMatches: 0,
+      aliasMatches: 0,
+      fuzzyMatches: 0,
+      unmappedCount: 0,
+      roles: [],
+    }
+  }
+
+  // Bulk resolve against catalog
+  const resolution = await bulkResolveLaborCategories(supabase, {
+    tenantId,
+    roleTitles: roleTitlesArray,
+  })
+
+  // Build resolution info array
+  const roles: CatalogResolutionInfo[] = []
+  let exactMatches = 0
+  let aliasMatches = 0
+  let fuzzyMatches = 0
+  let unmappedCount = 0
+
+  for (const roleTitle of roleTitlesArray) {
+    const match = resolution.matches.get(roleTitle) as LaborCategoryMatch | undefined
+
+    const info: CatalogResolutionInfo = {
+      roleTitle,
+      matchType: match?.matchType ?? 'unmapped',
+      confidence: match?.confidence ?? 0,
+      categoryId: match?.categoryId ?? null,
+      categoryKey: match?.category?.key ?? null,
+      aliasUsed: match?.aliasUsed,
+      contextNote: match?.contextNote,
+    }
+
+    roles.push(info)
+
+    switch (info.matchType) {
+      case 'exact': exactMatches++; break
+      case 'alias': aliasMatches++; break
+      case 'fuzzy': fuzzyMatches++; break
+      case 'unmapped': unmappedCount++; break
+    }
+  }
+
+  return {
+    totalRoles: roleTitlesArray.length,
+    exactMatches,
+    aliasMatches,
+    fuzzyMatches,
+    unmappedCount,
+    roles,
   }
 }
 

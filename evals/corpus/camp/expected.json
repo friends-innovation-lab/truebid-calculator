@@ -75,7 +75,65 @@
         "DevOps Engineer",
         "QA Engineer"
       ],
-      "isPrescribed": false
+      "isPrescribed": false,
+      "catalogMatches": {
+        "Delivery Manager": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "delivery_manager"
+        },
+        "Product Manager": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "product_manager"
+        },
+        "Design Lead": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "design_lead"
+        },
+        "Product Designer": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "product_designer"
+        },
+        "UX Researcher": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "ux_researcher"
+        },
+        "DoS Subject Matter Expert": {
+          "expectedMatchType": "unmapped",
+          "expectedCategoryKey": "none",
+          "note": "Domain SME not in standard catalog - needs tenant configuration"
+        },
+        "Service Designer": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "service_designer"
+        },
+        "IT Training Specialist": {
+          "expectedMatchType": "unmapped",
+          "expectedCategoryKey": "none",
+          "note": "Training role not in standard catalog - needs tenant configuration"
+        },
+        "Technical Lead": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "technical_lead"
+        },
+        "Frontend Engineer": {
+          "expectedMatchType": "alias",
+          "expectedCategoryKey": "frontend_developer",
+          "aliasUsed": "Frontend Engineer"
+        },
+        "Backend Engineer": {
+          "expectedMatchType": "alias",
+          "expectedCategoryKey": "backend_developer",
+          "aliasUsed": "Backend Engineer"
+        },
+        "DevOps Engineer": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "devops_engineer"
+        },
+        "QA Engineer": {
+          "expectedMatchType": "exact",
+          "expectedCategoryKey": "qa_engineer"
+        }
+      }
     },
     "staffingModel": {
       "expected": "offeror_proposed",

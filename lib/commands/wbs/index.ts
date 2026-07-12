@@ -25,6 +25,7 @@ export {
   loadIntelligenceContext,
   validateWbsCandidate,
   formatValidationErrors,
+  resolveRolesAgainstCatalog,
 } from './validate-wbs-candidate'
 
 // Commands
