@@ -103,6 +103,7 @@ npm run test:e2e:ui   # Playwright with UI
 
 ## Git Workflow
 
+- All work goes through feature branches and PRs. Direct pushes to develop are blocked for everyone, including admin credentials. Lapedra approves merges.
 - Work on `develop` branch only unless explicitly told otherwise
 - Do NOT create new branches without explicit permission
 - Commit after each logical fix with clear messages (e.g., `fix: dashboard proposal title display`)
