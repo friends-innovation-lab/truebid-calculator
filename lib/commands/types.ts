@@ -58,6 +58,8 @@ export type CommandErrorCode =
   | 'INVALID_STATE' // Aggregate in wrong state for operation
   | 'INTERNAL_ERROR' // Unexpected error
   | 'STAFFING_MODEL_UNCLEAR' // Pillar 2: Cannot confirm until staffing model resolved
+  | 'CITATION_INCOMPLETE' // Phase 6B: wbs_estimate lines lack requirement links
+  | 'CONSERVATION_FAILED' // Phase 6B: cost + fee ≠ total (should never happen)
 
 /**
  * Optimistic concurrency conflict details.

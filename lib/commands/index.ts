@@ -213,3 +213,16 @@ export {
   type UpdateChargeCodesInput,
   type UpdateChargeCodesOutput,
 } from './pricing'
+
+// Re-export BOE commands
+export {
+  // Commands
+  createGenerateBOEArtifactCommand,
+  createCreateProposalSnapshotCommand,
+  // Types
+  type GenerateBOEArtifactInput,
+  type GenerateBOEArtifactOutput,
+  type UncitedLineDetail,
+  type CreateProposalSnapshotInput,
+  type CreateProposalSnapshotOutput,
+} from './boe'
