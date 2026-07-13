@@ -132,17 +132,20 @@ export function canonicalize(data: HashableData): string {
   )
 
   // Canonical form includes all hashable fields in alphabetical order
-  // solicitationBrief: null → null (not empty object) for backward compatibility
-  // Existing confirmed versions with solicitation_brief = NULL will hash the same
-  const canonical = {
+  // BACKWARD COMPATIBILITY: solicitationBrief is ONLY included when non-null.
+  // Existing confirmed versions (pre-brief) have no solicitationBrief key in their
+  // canonical form. Adding "solicitationBrief": null would change their hash.
+  const canonical: Record<string, unknown> = {
     disciplines: sortedDisciplines,
     factsJson: sortObjectKeys(data.factsJson),
     laborRequirements: sortedLaborReqs,
     periods: sortedPeriods,
-    solicitationBrief: data.solicitationBrief
-      ? sortObjectKeys(data.solicitationBrief)
-      : null,
     versionId: data.versionId,
+  }
+
+  // Only add solicitationBrief if present (non-null)
+  if (data.solicitationBrief) {
+    canonical.solicitationBrief = sortObjectKeys(data.solicitationBrief)
   }
 
   return JSON.stringify(sortObjectKeys(canonical))
