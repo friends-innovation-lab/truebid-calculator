@@ -1,6 +1,6 @@
 # TrueBid UI Phase — Design Packet (M1)
 
-**Status:** In progress — 3 of 9 contracts drafted and approved
+**Status:** Complete — 9 of 9 contracts drafted (3 approved, 6 pending Lapedra review)
 **Date:** 2026-07-13
 **Owner:** Lapedra; architecture review in Claude chat session
 
@@ -21,21 +21,21 @@ This packet is the complete spec for the M1 UI rebuild. It goes to Claude Design
 Three sections (decided pre-packet; a constraint, not a question):
 
 ### Scope — what the document says
-1. Document set management (upload, classification, precedence) — *contract pending*
+1. Document set management — `contracts/scope-document-set.md` (pending review)
 2. **Extraction review & confirm** — `contracts/scope-extraction-review-confirm.md` ✓
 
 ### Staff — what the work is and who does it
 3. **WBS editor** — `contracts/staff-wbs-editor.md` ✓
-4. Staffing & roles detail (role catalog, assignment detail, rate justification side panel) — *contract pending*
-5. Scenario & pricing view (calc traces, scenario approval) — *contract pending*
+4. Staffing & roles detail — `contracts/staff-staffing-roles-detail.md` (pending review)
+5. Scenario & pricing view — `contracts/staff-scenario-pricing.md` (pending review)
 
 ### Deliver — the immutable record
 6. **BOE generation & artifacts** — `contracts/deliver-boe-generation-artifacts.md` ✓
-7. Snapshot & share management — *contract pending*
+7. Snapshot & share management — `contracts/deliver-snapshot-share.md` (pending review)
 
 ### External (token links, no login)
-8. Director WBS review view — *contract pending*
-9. Accountant read-only BOE view — *contract pending*
+8. Director WBS review — `contracts/external-director-wbs-review.md` (pending review)
+9. Accountant read-only BOE — `contracts/external-accountant-boe.md` (pending review)
 
 Contracts 7–9 largely compose patterns defined in contracts 2, 3, and 6 (badges, gate checklists, trace panels, provenance headers) with reduced command sets.
 
