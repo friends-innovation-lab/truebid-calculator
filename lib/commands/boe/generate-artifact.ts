@@ -65,7 +65,7 @@ interface StaffingAssignmentRow {
     id: string
     wbs_code: string
     title: string
-  }[] | null  // Supabase returns array for joins
+  } | null  // Supabase returns object for many-to-one joins
 }
 
 /**
@@ -217,7 +217,7 @@ export function createGenerateBOEArtifactCommand(
 
         if (assignments) {
           for (const a of assignments) {
-            assignmentMap.set(a.id, a as StaffingAssignmentRow)
+            assignmentMap.set(a.id, a as unknown as StaffingAssignmentRow)
           }
         }
       }
@@ -263,8 +263,7 @@ export function createGenerateBOEArtifactCommand(
         }
 
         const assignment = assignmentMap.get(line.staffing_assignment_id)
-        const wbsTaskArr = assignment?.wbs_task
-        const wbsTask = wbsTaskArr && wbsTaskArr.length > 0 ? wbsTaskArr[0] : null
+        const wbsTask = assignment?.wbs_task ?? null
 
         if (!assignment || !wbsTask) {
           uncitedLines.push({
@@ -329,8 +328,7 @@ export function createGenerateBOEArtifactCommand(
         const assignment = line.staffing_assignment_id
           ? assignmentMap.get(line.staffing_assignment_id)
           : null
-        const wbsTaskArr = assignment?.wbs_task
-        const wbsTask = wbsTaskArr && wbsTaskArr.length > 0 ? wbsTaskArr[0] : null
+        const wbsTask = assignment?.wbs_task ?? null
         const links = wbsTask ? (taskToLinksMap.get(wbsTask.id) || []) : []
 
         // Fee decomposition (penny-conserved)
