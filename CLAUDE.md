@@ -346,6 +346,14 @@ All new persistence uses normalized tables + commands. Existing writers continue
 
 5. **E2E flows must exercise the user's actual path.** An API-level pass does not verify a UI capability. E2E tests must navigate the UI, trigger actions through components, and verify the full flow a user would experience. Testing `/api/foo` directly does not prove the button that calls it works.
 
+6. **Deferred verification is not completion.** If acceptance criteria cannot execute, stop and report the blocker. Do not substitute unit tests for integration proofs and report completion.
+
+### Migration Evidence
+
+1. **All `db-push-remote.sh` output must be logged.** Append migration output to `docs/migration-log.md` at execution time — timestamp, target environment, ref confirmed, migration applied, verification results. Chat context is not a record.
+
+2. **Migration evidence survives session loss.** The migration log in the repo is the authoritative record of what was applied and when.
+
 ### Deployment Reports
 
 1. **Deployment reports must include the commit SHA.** "Deployed" without a SHA is not a report. State both the SHA deployed and where it was verified (e.g., Vercel dashboard, `git log origin/main`).
