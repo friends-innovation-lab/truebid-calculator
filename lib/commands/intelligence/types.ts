@@ -5,6 +5,10 @@
  */
 
 import type { Confidence, Discipline, RateSource } from '@/lib/types/contract-intelligence'
+import type { SolicitationBrief } from '@/lib/schemas/solicitation-brief'
+
+// Re-export for convenience
+export type { SolicitationBrief } from '@/lib/schemas/solicitation-brief'
 
 // =============================================================================
 // DATABASE ROW TYPES
@@ -23,12 +27,22 @@ export interface IntelligenceVersionRow {
   facts_json: FactsJson
   contract_type: string | null
   staffing_model: StaffingModel
+  solicitation_brief: SolicitationBrief | null
   row_version: number
   extracted_at: string
   confirmed_at: string | null
   superseded_at: string | null
   created_at: string
   updated_at: string
+}
+
+export interface FactEvidenceRow {
+  id: string
+  intelligence_version_id: string
+  quote_text: string
+  source_document_id: string | null
+  page_number: number | null
+  created_at: string
 }
 
 export interface IntelligencePeriodRow {
@@ -136,6 +150,7 @@ export interface CoercedIntelligenceVersion {
   factsJson: FactsJson
   contractType: string | null
   staffingModel: StaffingModel
+  solicitationBrief: SolicitationBrief | null
   rowVersion: number
   extractedAt: string
   confirmedAt: string | null
@@ -146,11 +161,38 @@ export interface CoercedIntelligenceVersion {
 // COMMAND INPUT/OUTPUT TYPES
 // =============================================================================
 
+/**
+ * Input for creating fact_evidence rows.
+ * The AI outputs quote strings which are converted to fact_evidence rows.
+ */
+export interface FactEvidenceInput {
+  quoteText: string
+  sourceDocumentId?: string
+  pageNumber?: number
+}
+
+/**
+ * Input for solicitation brief from AI extraction.
+ * Note: AI outputs evidence_quotes (strings) which are converted to
+ * evidence_refs (UUIDs) after creating fact_evidence rows.
+ */
+export interface SolicitationBriefInput {
+  summary: string
+  rationale: string
+  challenges: Array<{
+    title: string
+    description: string
+    evidence_quotes: string[] // AI outputs quotes, we convert to fact_evidence rows
+  }>
+  evaluation_emphasis: string
+}
+
 export interface CreateIntelligenceDraftInput {
   proposalId: string
   factsJson?: FactsJson
   contractType?: string
   staffingModel?: StaffingModel
+  solicitationBriefInput?: SolicitationBriefInput
   periods?: Array<{
     name: string
     months: number

@@ -17,6 +17,7 @@ import type {
   CoercedLaborRequirement,
   CoercedIntelligenceVersion,
   FactsJson,
+  SolicitationBrief,
 } from './types'
 
 // =============================================================================
@@ -85,6 +86,7 @@ export function coerceVersion(row: IntelligenceVersionRow): CoercedIntelligenceV
     factsJson: row.facts_json,
     contractType: row.contract_type,
     staffingModel: row.staffing_model ?? 'unclear',
+    solicitationBrief: row.solicitation_brief ?? null,
     rowVersion: row.row_version,
     extractedAt: row.extracted_at,
     confirmedAt: row.confirmed_at,
@@ -116,6 +118,7 @@ interface HashableData {
   periods: CoercedPeriod[]
   disciplines: CoercedDiscipline[]
   laborRequirements: CoercedLaborRequirement[]
+  solicitationBrief: SolicitationBrief | null
 }
 
 export function canonicalize(data: HashableData): string {
@@ -128,11 +131,17 @@ export function canonicalize(data: HashableData): string {
     a.title.localeCompare(b.title)
   )
 
+  // Canonical form includes all hashable fields in alphabetical order
+  // solicitationBrief: null → null (not empty object) for backward compatibility
+  // Existing confirmed versions with solicitation_brief = NULL will hash the same
   const canonical = {
     disciplines: sortedDisciplines,
     factsJson: sortObjectKeys(data.factsJson),
     laborRequirements: sortedLaborReqs,
     periods: sortedPeriods,
+    solicitationBrief: data.solicitationBrief
+      ? sortObjectKeys(data.solicitationBrief)
+      : null,
     versionId: data.versionId,
   }
 
@@ -236,6 +245,7 @@ export async function loadAndHashIntelligence(
     periods,
     disciplines,
     laborRequirements,
+    solicitationBrief: version.solicitationBrief,
   })
 
   return {

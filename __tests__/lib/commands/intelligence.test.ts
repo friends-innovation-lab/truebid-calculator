@@ -195,6 +195,7 @@ describe('Type Coercion', () => {
         facts_json: { documentType: { value: 'RFP', confidence: 'high' } },
         contract_type: 'FFP',
         staffing_model: 'unclear',
+        solicitation_brief: null,
         row_version: 3,
         extracted_at: '2024-01-01T10:00:00Z',
         confirmed_at: '2024-01-01T11:00:00Z',
@@ -235,6 +236,7 @@ describe('Canonical Serialization', () => {
         { id: 'l2', title: 'Developer', laborCategory: null, hoursPerMonth: 160, utilizationPct: 1.0, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
         { id: 'l1', title: 'Analyst', laborCategory: null, hoursPerMonth: 80, utilizationPct: 0.5, appearsInPeriods: [], isPrescribed: false, confidence: 'medium', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
       ] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const data2 = {
@@ -252,6 +254,7 @@ describe('Canonical Serialization', () => {
         { id: 'l1', title: 'Analyst', laborCategory: null, hoursPerMonth: 80, utilizationPct: 0.5, appearsInPeriods: [], isPrescribed: false, confidence: 'medium', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
         { id: 'l2', title: 'Developer', laborCategory: null, hoursPerMonth: 160, utilizationPct: 1.0, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
       ] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const canonical1 = canonicalize(data1)
@@ -270,6 +273,7 @@ describe('Canonical Serialization', () => {
       ] as CoercedPeriod[],
       disciplines: [] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const canonical = canonicalize(data)
@@ -289,6 +293,7 @@ describe('Canonical Serialization', () => {
         { id: 'd1', discipline: 'engineering', confidence: 'high', sourceText: null },
       ] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const canonical = canonicalize(data)
@@ -308,6 +313,7 @@ describe('Canonical Serialization', () => {
         { id: 'l2', title: 'Zebra Manager', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'low', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
         { id: 'l1', title: 'Alpha Developer', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'low', sourceText: null, laborCategoryId: null, matchType: null, matchConfidence: null },
       ] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const canonical = canonicalize(data)
@@ -334,6 +340,7 @@ describe('Hash Computation', () => {
         { id: 'd1', discipline: 'engineering', confidence: 'high', sourceText: null },
       ] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const hash1 = await computeHash(data)
@@ -350,6 +357,7 @@ describe('Hash Computation', () => {
       periods: [] as CoercedPeriod[],
       disciplines: [] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const data2 = {
@@ -358,6 +366,7 @@ describe('Hash Computation', () => {
       periods: [] as CoercedPeriod[],
       disciplines: [] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const hash1 = await computeHash(data1)
@@ -372,6 +381,7 @@ describe('Hash Computation', () => {
       periods: [] as CoercedPeriod[],
       disciplines: [] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const data1 = {
@@ -396,6 +406,7 @@ describe('Hash Computation', () => {
       factsJson: {} as FactsJson,
       disciplines: [] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const data1 = {
@@ -448,6 +459,7 @@ describe('Hash Round-Trip', () => {
       },
       contract_type: 'T&M',
       staffing_model: 'unclear',
+      solicitation_brief: null,
       row_version: 1,
       extracted_at: '2024-01-01T10:00:00Z',
       confirmed_at: '2024-01-01T11:00:00Z',
@@ -524,6 +536,7 @@ describe('Hash Round-Trip', () => {
       periods: periods1,
       disciplines: disciplines1,
       laborRequirements: laborReqs1,
+      solicitationBrief: version1.solicitationBrief,
     })
 
     // "Cold reload" - simulate loading from DB again
@@ -538,6 +551,7 @@ describe('Hash Round-Trip', () => {
       periods: periods2,
       disciplines: disciplines2,
       laborRequirements: laborReqs2,
+      solicitationBrief: version2.solicitationBrief,
     })
 
     // Critical assertion: hashes must match
@@ -556,6 +570,7 @@ describe('Hash Round-Trip', () => {
       facts_json: { contractType: { value: 'FFP', confidence: 'high' } },
       contract_type: 'FFP',
       staffing_model: 'unclear',
+      solicitation_brief: null,
       row_version: 1,
       extracted_at: '2024-01-01T10:00:00Z',
       confirmed_at: '2024-01-01T11:00:00Z',
@@ -572,6 +587,7 @@ describe('Hash Round-Trip', () => {
       periods: [],
       disciplines: [],
       laborRequirements: [],
+      solicitationBrief: version.solicitationBrief,
     })
 
     // Simulate tampering (someone changed the contract type)
@@ -587,6 +603,7 @@ describe('Hash Round-Trip', () => {
       periods: [],
       disciplines: [],
       laborRequirements: [],
+      solicitationBrief: tamperedVersion.solicitationBrief,
     })
 
     // Tampering detection
@@ -751,6 +768,7 @@ describe('Edge Cases', () => {
       periods: [] as CoercedPeriod[],
       disciplines: [] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const hash = await computeHash(data)
@@ -768,6 +786,7 @@ describe('Edge Cases', () => {
         { id: 'd1', discipline: 'engineering', confidence: 'high', sourceText: 'Quote: "test" & <special>' },
       ] as CoercedDiscipline[],
       laborRequirements: [] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const hash = await computeHash(data)
@@ -785,6 +804,7 @@ describe('Edge Cases', () => {
       laborRequirements: [
         { id: 'l1', title: 'Développeur Senior', laborCategory: null, hoursPerMonth: null, utilizationPct: null, appearsInPeriods: [], isPrescribed: false, confidence: 'high', sourceText: '日本語テスト', laborCategoryId: null, matchType: null, matchConfidence: null },
       ] as CoercedLaborRequirement[],
+      solicitationBrief: null,
     }
 
     const hash = await computeHash(data)

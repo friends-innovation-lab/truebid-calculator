@@ -91,3 +91,18 @@ export {
 
 // Diff utility
 export { computeWbsDiff } from './compute-diff'
+
+// Proposed link commands
+export {
+  acceptProposedLink,
+  createAcceptProposedLinkCommand,
+  ProposedLinkNotFoundError,
+  ProposedLinkNotProposedError,
+} from './accept-proposed-link'
+
+export {
+  rejectProposedLink,
+  createRejectProposedLinkCommand,
+  RejectLinkNotFoundError,
+  RejectLinkNotProposedError,
+} from './reject-proposed-link'

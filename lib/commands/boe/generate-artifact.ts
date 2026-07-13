@@ -223,6 +223,9 @@ export function createGenerateBOEArtifactCommand(
       }
 
       // 7. Load requirement links for WBS tasks
+      // CRITICAL: Only count ACCEPTED links for citation completeness
+      // Proposed links are not verified by user and must not satisfy the citation gate
+      // Rejected links are explicitly declined and do not count
       const taskIds = [...new Set(
         [...assignmentMap.values()]
           .map(a => a.wbs_task_id)
@@ -235,6 +238,7 @@ export function createGenerateBOEArtifactCommand(
           .from('requirement_links')
           .select('id, wbs_task_id')
           .in('wbs_task_id', taskIds)
+          .eq('status', 'accepted') // Only accepted links satisfy citation gate
 
         if (reqLinks) {
           for (const link of reqLinks as RequirementLinkRow[]) {

@@ -4,6 +4,7 @@
  */
 
 import { z } from 'zod'
+import { solicitationBriefJsonSchema } from './solicitation-brief'
 
 // Confidence level enum
 export const confidenceSchema = z.enum(['high', 'medium', 'low'])
@@ -58,6 +59,21 @@ export const extractedRoleSchema = z.object({
   sourceText: z.string().describe('Exact quote from document')
 })
 
+// Solicitation brief challenge schema (AI outputs evidence_quotes, not evidence_refs)
+const extractedChallengeSchema = z.object({
+  title: z.string().describe('Short label for the challenge (2-5 words)'),
+  description: z.string().describe('2-3 sentences describing the challenge'),
+  evidence_quotes: z.array(z.string()).min(1).describe('Verbatim quotes from document supporting this challenge')
+})
+
+// Solicitation brief schema for extraction (uses evidence_quotes)
+const extractedSolicitationBriefSchema = z.object({
+  summary: z.string().describe('1-2 sentence summary of what the government wants'),
+  rationale: z.string().describe('Why this procurement matters to the agency'),
+  challenges: z.array(extractedChallengeSchema).min(1).describe('Key technical or delivery challenges (2-4 items)'),
+  evaluation_emphasis: z.string().describe('What criteria will matter most in evaluation')
+})
+
 // Main extraction schema - the AI output structure
 export const contractIntelligenceExtractionSchema = z.object({
   documentType: z.object({
@@ -93,7 +109,8 @@ export const contractIntelligenceExtractionSchema = z.object({
     confidence: confidenceSchema,
     reasoning: z.string().describe('One sentence explaining why this staffing model was determined')
   }).describe('Whether RFP prescribes specific roles (closed vocabulary) or allows offeror-proposed staffing'),
-  roles: z.array(extractedRoleSchema).describe('Labor requirements from document')
+  roles: z.array(extractedRoleSchema).describe('Labor requirements from document'),
+  solicitationBrief: extractedSolicitationBriefSchema.describe('Structured brief describing what the government wants')
 })
 
 // Type inference from schema
@@ -201,7 +218,8 @@ export const contractIntelligenceJsonSchema = {
         required: ['title', 'isPrescribed', 'confidence', 'sourceText']
       },
       description: 'Labor requirements extracted from document'
-    }
+    },
+    solicitationBrief: solicitationBriefJsonSchema
   },
-  required: ['documentType', 'vehicle', 'contractType', 'setAside', 'rateSource', 'basePeriodMonths', 'optionPeriodMonths', 'disciplines', 'staffingModel', 'roles']
+  required: ['documentType', 'vehicle', 'contractType', 'setAside', 'rateSource', 'basePeriodMonths', 'optionPeriodMonths', 'disciplines', 'staffingModel', 'roles', 'solicitationBrief']
 } as const
