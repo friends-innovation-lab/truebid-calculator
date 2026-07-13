@@ -6,7 +6,6 @@
 
 import { createClient } from '@supabase/supabase-js'
 import { createGenerateBOEArtifactCommand } from '../lib/commands/boe/generate-artifact'
-import type { CommandContext } from '../lib/commands/types'
 
 const STAGING_URL = 'https://tcobyquewjootwxpqijq.supabase.co'
 const STAGING_KEY = process.env.STAGING_SERVICE_ROLE_KEY || ''
