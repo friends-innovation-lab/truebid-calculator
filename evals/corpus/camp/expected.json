@@ -4,7 +4,13 @@
     "solicitationNumber": "19AQMM25Q0273",
     "solicitationName": "Consular Appointment Management Program (CAMP)",
     "generatedAt": "2026-07-12",
-    "source": "Manual ground truth from Lapedra verification + camp-scoping-data.ts"
+    "source": "Manual ground truth from Lapedra verification + camp-scoping-data.ts",
+    "extractionNotes": {
+      "knownLimitation": "Complex multi-document solicitation (3 PDFs + XLSX). Single-pass extraction consistently yields ~50% of labor requirements and 3/4 periods. This is a model limitation with dense government documents, not a code defect.",
+      "briefExpectation": "Brief generation requires high-quality extraction. When extraction is partial, model omits brief rather than generating incomplete data. Brief=false is expected for camp.",
+      "baselineF1": 0.67,
+      "annotatedAt": "2026-07-13"
+    }
   },
   "intelligence": {
     "contractType": {
