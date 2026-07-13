@@ -120,15 +120,21 @@ describe('CIT: Citation Completeness', () => {
   test('CIT1: UncitedLineDetail type has required fields', () => {
     const uncitedLine: UncitedLineDetail = {
       lineId: 'line-123',
+      lineType: 'wbs_estimate',
       wbsCode: '1.1',
       taskTitle: 'Development',
       roleTitle: 'Software Engineer',
+      periodLabel: 'Base Year',
+      missingLinkage: 'no_requirement_links',
     }
 
     expect(uncitedLine.lineId).toBeDefined()
+    expect(uncitedLine.lineType).toBeDefined()
     expect(uncitedLine.wbsCode).toBeDefined()
     expect(uncitedLine.taskTitle).toBeDefined()
     expect(uncitedLine.roleTitle).toBeDefined()
+    expect(uncitedLine.periodLabel).toBeDefined()
+    expect(uncitedLine.missingLinkage).toBeDefined()
   })
 
   test('CIT2: Empty citations array is valid structure', () => {
@@ -466,14 +472,14 @@ describe('SNAP: Proposal Snapshot', () => {
 // ============================================================================
 
 describe('GATE: Generation Gates', () => {
-  test('GATE1: GenerateBOEArtifactInput requires proposalId and scenarioId', () => {
+  test('GATE1: GenerateBOEArtifactInput requires proposalId and pricingScenarioId', () => {
     const input: GenerateBOEArtifactInput = {
       proposalId: 'proposal-123',
-      scenarioId: 'scenario-456',
+      pricingScenarioId: 'scenario-456',
     }
 
     expect(input.proposalId).toBeDefined()
-    expect(input.scenarioId).toBeDefined()
+    expect(input.pricingScenarioId).toBeDefined()
   })
 
   test('GATE2: Citation completeness is enforced at command level', () => {
@@ -564,16 +570,22 @@ describe('INT: Integration Types', () => {
   test('INT2: UncitedLineDetail provides debugging info', () => {
     const uncited: UncitedLineDetail = {
       lineId: 'line-1',
+      lineType: 'wbs_estimate',
       wbsCode: '1.1.1',
       taskTitle: 'Development Sprint 1',
       roleTitle: 'Senior Developer',
+      periodLabel: 'Option Year 1',
+      missingLinkage: 'no_wbs_task',
     }
 
     // All fields useful for debugging
     expect(uncited.lineId).toBeTruthy()
+    expect(uncited.lineType).toBe('wbs_estimate')
     expect(uncited.wbsCode).toMatch(/^\d+\.\d+/)
     expect(uncited.taskTitle).toBeTruthy()
     expect(uncited.roleTitle).toBeTruthy()
+    expect(uncited.periodLabel).toBeTruthy()
+    expect(['no_wbs_task', 'no_requirement_links']).toContain(uncited.missingLinkage)
   })
 
   test('INT3: Artifact content validates with Zod schema', () => {
