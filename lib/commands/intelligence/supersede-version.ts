@@ -18,6 +18,8 @@ import type {
   IntelligencePeriodRow,
   IntelligenceDisciplineRow,
   IntelligenceLaborRequirementRow,
+  FactEvidenceRow,
+  SolicitationBrief,
 } from './types'
 
 /**
@@ -105,6 +107,12 @@ export function createSupersedeIntelligenceVersionCommand(
         .select('*')
         .eq('version_id', activeVersionRow.id)
 
+      // Load fact evidence from active version
+      const { data: factEvidence } = await supabase
+        .from('fact_evidence')
+        .select('*')
+        .eq('intelligence_version_id', activeVersionRow.id)
+
       // Create new draft version
       const nextVersionNumber = activeVersionRow.version_number + 1
 
@@ -113,6 +121,7 @@ export function createSupersedeIntelligenceVersionCommand(
       // - facts_json: JSONB containing documentType, vehicle, contractType, setAside, rateSource
       // - contract_type: denormalized contract type
       // - staffing_model: 'prescribed' | 'offeror_proposed' | 'unclear'
+      // - solicitation_brief: set later after remapping evidence_refs
       const { data: newVersion, error: newVersionError } = await supabase
         .from('intelligence_versions')
         .insert({
@@ -123,6 +132,7 @@ export function createSupersedeIntelligenceVersionCommand(
           facts_json: activeVersionRow.facts_json,
           contract_type: activeVersionRow.contract_type,
           staffing_model: activeVersionRow.staffing_model, // BUG #2 FIX: was missing
+          // solicitation_brief: set after evidence remapping below
           row_version: 1,
         })
         .select('id, version_number, status')
@@ -230,6 +240,67 @@ export function createSupersedeIntelligenceVersionCommand(
               message: laborReqsError.message,
             },
           }
+        }
+      }
+
+      // Copy fact_evidence rows AND remap evidence_refs in solicitation_brief
+      // CRITICAL: Without remapping, the superseded version's evidence_refs would point
+      // to fact_evidence rows belonging to the old version, breaking cascade isolation.
+      const evidenceIdMap = new Map<string, string>()
+
+      if (factEvidence && factEvidence.length > 0) {
+        const typedEvidence = factEvidence as FactEvidenceRow[]
+
+        for (const e of typedEvidence) {
+          const { data: newEvidence, error: evidenceError } = await supabase
+            .from('fact_evidence')
+            .insert({
+              intelligence_version_id: newVersion.id,
+              quote_text: e.quote_text,
+              source_document_id: e.source_document_id,
+              page_number: e.page_number,
+            })
+            .select('id')
+            .single()
+
+          if (evidenceError || !newEvidence) {
+            console.error('[SupersedeIntelligenceVersion] Fact evidence copy error:', evidenceError)
+            await supabase.from('intelligence_versions').delete().eq('id', newVersion.id)
+            return {
+              success: false,
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: evidenceError?.message ?? 'Failed to copy fact evidence',
+              },
+            }
+          }
+
+          // Track old ID → new ID mapping for remapping evidence_refs
+          evidenceIdMap.set(e.id, newEvidence.id)
+        }
+      }
+
+      // Copy solicitation_brief with remapped evidence_refs
+      if (activeVersionRow.solicitation_brief) {
+        const oldBrief = activeVersionRow.solicitation_brief as SolicitationBrief
+
+        // Remap evidence_refs in each challenge to point to new fact_evidence IDs
+        const remappedBrief: SolicitationBrief = {
+          ...oldBrief,
+          challenges: oldBrief.challenges.map((c) => ({
+            ...c,
+            evidence_refs: c.evidence_refs.map((oldId) => evidenceIdMap.get(oldId) ?? oldId),
+          })),
+        }
+
+        const { error: briefUpdateError } = await supabase
+          .from('intelligence_versions')
+          .update({ solicitation_brief: remappedBrief })
+          .eq('id', newVersion.id)
+
+        if (briefUpdateError) {
+          console.error('[SupersedeIntelligenceVersion] Brief update error:', briefUpdateError)
+          // Don't fail - the version was created, brief update is secondary
         }
       }
 

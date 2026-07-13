@@ -86,9 +86,31 @@ const contractIntelligenceJsonSchema = {
         },
         required: ['title', 'confidence', 'sourceText']
       }
+    },
+    solicitationBrief: {
+      type: 'object',
+      properties: {
+        summary: { type: 'string', description: '1-2 sentence summary' },
+        rationale: { type: 'string', description: 'Why this matters to agency' },
+        challenges: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              title: { type: 'string' },
+              description: { type: 'string' },
+              evidence_quotes: { type: 'array', items: { type: 'string' }, minItems: 1 }
+            },
+            required: ['title', 'description', 'evidence_quotes']
+          },
+          minItems: 1
+        },
+        evaluation_emphasis: { type: 'string' }
+      },
+      required: ['summary', 'rationale', 'challenges', 'evaluation_emphasis']
     }
   },
-  required: ['documentType', 'vehicle', 'contractType', 'setAside', 'rateSource', 'basePeriodMonths', 'optionPeriodMonths', 'disciplines', 'roles']
+  required: ['documentType', 'vehicle', 'contractType', 'setAside', 'rateSource', 'basePeriodMonths', 'optionPeriodMonths', 'disciplines', 'roles', 'solicitationBrief']
 }
 
 // Types
@@ -134,6 +156,16 @@ interface ExtractionResult {
     optionPeriodMonths?: number[]
     disciplines?: { required: string[] }
     roles?: Array<{ title: string }>
+    solicitationBrief?: {
+      summary: string
+      rationale: string
+      challenges: Array<{
+        title: string
+        description: string
+        evidence_quotes: string[]
+      }>
+      evaluation_emphasis: string
+    }
   } | null
   parseError?: string
   usage: { input_tokens: number; output_tokens: number }
@@ -452,6 +484,101 @@ function computeDisciplineViolations(
   return { violations, count: violations.length, allRoles: [...new Set(allRoles)] }
 }
 
+/**
+ * Normalize whitespace for quote verification.
+ * BC-4: Basic normalized-whitespace substring check.
+ */
+function normalizeWhitespace(text: string): string {
+  return text
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase()
+}
+
+/**
+ * Check if a quote appears in the source document.
+ * BC-4: Normalized-whitespace substring check.
+ */
+function verifyQuote(quote: string, sourceDocument: string): boolean {
+  const normalizedQuote = normalizeWhitespace(quote)
+  const normalizedSource = normalizeWhitespace(sourceDocument)
+  return normalizedSource.includes(normalizedQuote)
+}
+
+interface BriefQualityResult {
+  hasBrief: boolean
+  structureValid: boolean
+  challengeCount: number
+  totalQuotes: number
+  verifiedQuotes: number
+  unverifiedQuotes: string[]
+  quoteVerificationRate: number
+}
+
+/**
+ * Compute brief quality metrics.
+ * BC-4: Quote verification is IN the eval, not deferred.
+ */
+function computeBriefQuality(
+  result: ExtractionResult,
+  solicitationText: string
+): BriefQualityResult {
+  const emptyResult: BriefQualityResult = {
+    hasBrief: false,
+    structureValid: false,
+    challengeCount: 0,
+    totalQuotes: 0,
+    verifiedQuotes: 0,
+    unverifiedQuotes: [],
+    quoteVerificationRate: 0,
+  }
+
+  if (!result.parsed?.solicitationBrief) {
+    return emptyResult
+  }
+
+  const brief = result.parsed.solicitationBrief
+
+  // Check structure validity
+  const structureValid = !!(
+    brief.summary &&
+    brief.rationale &&
+    brief.challenges &&
+    brief.challenges.length >= 1 &&
+    brief.evaluation_emphasis
+  )
+
+  // Count challenges and quotes
+  const challengeCount = brief.challenges?.length || 0
+  let totalQuotes = 0
+  let verifiedQuotes = 0
+  const unverifiedQuotes: string[] = []
+
+  for (const challenge of brief.challenges || []) {
+    for (const quote of challenge.evidence_quotes || []) {
+      totalQuotes++
+      if (verifyQuote(quote, solicitationText)) {
+        verifiedQuotes++
+      } else {
+        // BC-4: Flag for manual review instead of failing
+        unverifiedQuotes.push(`[${challenge.title}]: "${quote.slice(0, 100)}..."`)
+      }
+    }
+  }
+
+  const quoteVerificationRate = totalQuotes > 0 ? verifiedQuotes / totalQuotes : 0
+
+  return {
+    hasBrief: true,
+    structureValid,
+    challengeCount,
+    totalQuotes,
+    verifiedQuotes,
+    unverifiedQuotes,
+    quoteVerificationRate,
+  }
+}
+
 // ============================================================================
 // MAIN
 // ============================================================================
@@ -528,6 +655,7 @@ async function main(): Promise<void> {
     sampleId: string
     extraction: ReturnType<typeof computeExtractionMetrics>
     disciplineViolations: ReturnType<typeof computeDisciplineViolations>
+    briefQuality: BriefQualityResult
     schemaParseSuccess: boolean
   }> = []
 
@@ -542,6 +670,11 @@ async function main(): Promise<void> {
     const extractionMetrics = computeExtractionMetrics(extractionResult, sample.expected)
     console.log('  Extraction F1:', extractionMetrics.f1.toFixed(2))
 
+    // Compute brief quality (BC-4)
+    const briefQuality = computeBriefQuality(extractionResult, sample.solicitationText)
+    console.log('  Brief present:', briefQuality.hasBrief)
+    console.log('  Quote verification rate:', (briefQuality.quoteVerificationRate * 100).toFixed(0) + '%')
+
     // Run WBS generation
     const wbsResult = await runWbsEval(client, sample)
     totalInputTokens += wbsResult.usage.input_tokens
@@ -555,6 +688,7 @@ async function main(): Promise<void> {
       sampleId: sample.id,
       extraction: extractionMetrics,
       disciplineViolations,
+      briefQuality,
       schemaParseSuccess: !extractionResult.parseError && !wbsResult.parseError
     })
   }
@@ -582,6 +716,29 @@ async function main(): Promise<void> {
   console.log('\nSCHEMA VALIDATION')
   const schemaPassRate = results.filter(r => r.schemaParseSuccess).length / results.length
   console.log(`  Pass Rate: ${(schemaPassRate * 100).toFixed(0)}%`)
+
+  console.log('\nBRIEF QUALITY (BC-4: Quote verification)')
+  for (const r of results) {
+    console.log(`\n  [${r.sampleId}]`)
+    console.log(`    Has brief: ${r.briefQuality.hasBrief}`)
+    console.log(`    Structure valid: ${r.briefQuality.structureValid}`)
+    console.log(`    Challenges: ${r.briefQuality.challengeCount}`)
+    console.log(`    Quotes: ${r.briefQuality.verifiedQuotes}/${r.briefQuality.totalQuotes} verified (${(r.briefQuality.quoteVerificationRate * 100).toFixed(0)}%)`)
+    if (r.briefQuality.unverifiedQuotes.length > 0) {
+      console.log(`    Unverified (flagged for manual review):`)
+      for (const q of r.briefQuality.unverifiedQuotes.slice(0, 3)) {
+        console.log(`      - ${q}`)
+      }
+      if (r.briefQuality.unverifiedQuotes.length > 3) {
+        console.log(`      ... and ${r.briefQuality.unverifiedQuotes.length - 3} more`)
+      }
+    }
+  }
+
+  const totalBriefs = results.filter(r => r.briefQuality.hasBrief).length
+  const avgQuoteRate = results.reduce((sum, r) => sum + r.briefQuality.quoteVerificationRate, 0) / results.length
+  console.log(`\n  Briefs generated: ${totalBriefs}/${results.length}`)
+  console.log(`  Average quote verification rate: ${(avgQuoteRate * 100).toFixed(0)}%`)
 
   console.log('\nDISCIPLINE VIOLATIONS (raw generation, before validator)')
   for (const r of results) {
@@ -613,6 +770,11 @@ async function main(): Promise<void> {
       extractionF1: results.reduce((sum, r) => sum + r.extraction.f1, 0) / results.length,
       schemaPassRate,
       disciplineViolationCount: totalViolations,
+      briefQuality: {
+        briefsGenerated: totalBriefs,
+        avgQuoteVerificationRate: avgQuoteRate,
+        totalUnverifiedQuotes: results.reduce((sum, r) => sum + r.briefQuality.unverifiedQuotes.length, 0),
+      },
       cost: { inputTokens: totalInputTokens, outputTokens: totalOutputTokens, usd: costUsd }
     }
   }

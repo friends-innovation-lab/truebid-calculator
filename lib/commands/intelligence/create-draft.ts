@@ -13,6 +13,7 @@ import { ValidationError, NotFoundError } from '../errors'
 import type {
   CreateIntelligenceDraftInput,
   CreateIntelligenceDraftOutput,
+  SolicitationBrief,
 } from './types'
 
 /**
@@ -178,6 +179,80 @@ export function createCreateIntelligenceDraftCommand(
         }
       }
 
+      // Insert solicitation brief and fact evidence if provided
+      // AI outputs evidence_quotes (strings) which are converted to fact_evidence rows
+      // and stored as evidence_refs (UUIDs) in the brief
+      let finalBrief: SolicitationBrief | null = null
+
+      if (input.solicitationBriefInput) {
+        const briefInput = input.solicitationBriefInput
+
+        // Process challenges: create fact_evidence rows for each quote
+        const challengesWithRefs: SolicitationBrief['challenges'] = []
+
+        for (const challenge of briefInput.challenges) {
+          const evidenceRefs: string[] = []
+
+          // Insert fact_evidence rows for each quote
+          for (const quote of challenge.evidence_quotes) {
+            const { data: evidenceRow, error: evidenceError } = await supabase
+              .from('fact_evidence')
+              .insert({
+                intelligence_version_id: version.id,
+                quote_text: quote,
+              })
+              .select('id')
+              .single()
+
+            if (evidenceError || !evidenceRow) {
+              console.error('[CreateIntelligenceDraft] Fact evidence insert error:', evidenceError)
+              await supabase.from('intelligence_versions').delete().eq('id', version.id)
+              return {
+                success: false,
+                error: {
+                  code: 'INTERNAL_ERROR',
+                  message: evidenceError?.message ?? 'Failed to create fact evidence',
+                },
+              }
+            }
+
+            evidenceRefs.push(evidenceRow.id)
+          }
+
+          challengesWithRefs.push({
+            title: challenge.title,
+            description: challenge.description,
+            evidence_refs: evidenceRefs,
+          })
+        }
+
+        // Build the final brief with evidence_refs instead of evidence_quotes
+        finalBrief = {
+          summary: briefInput.summary,
+          rationale: briefInput.rationale,
+          challenges: challengesWithRefs,
+          evaluation_emphasis: briefInput.evaluation_emphasis,
+        }
+
+        // Update the version with the brief
+        const { error: briefUpdateError } = await supabase
+          .from('intelligence_versions')
+          .update({ solicitation_brief: finalBrief })
+          .eq('id', version.id)
+
+        if (briefUpdateError) {
+          console.error('[CreateIntelligenceDraft] Brief update error:', briefUpdateError)
+          await supabase.from('intelligence_versions').delete().eq('id', version.id)
+          return {
+            success: false,
+            error: {
+              code: 'INTERNAL_ERROR',
+              message: briefUpdateError.message,
+            },
+          }
+        }
+      }
+
       // Write audit event
       const auditEventId = await writeAuditEvent(supabase, {
         tenantId,
@@ -195,6 +270,8 @@ export function createCreateIntelligenceDraftCommand(
           periodsCount: input.periods?.length ?? 0,
           disciplinesCount: input.disciplines?.length ?? 0,
           laborRequirementsCount: input.laborRequirements?.length ?? 0,
+          hasSolicitationBrief: !!finalBrief,
+          challengesCount: finalBrief?.challenges.length ?? 0,
         },
         correlationId: context.correlationId,
       })

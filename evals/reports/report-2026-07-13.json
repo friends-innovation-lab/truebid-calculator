@@ -1,0 +1,133 @@
+{
+  "runId": "eval-1783984050858",
+  "timestamp": "2026-07-13T23:07:30.858Z",
+  "samples": [
+    {
+      "sampleId": "camp",
+      "extraction": {
+        "fieldScores": {
+          "contractType": {
+            "match": true,
+            "actual": "T&M",
+            "expected": "T&M"
+          },
+          "vehicle": {
+            "match": true,
+            "actual": "GSA MAS 54151S",
+            "expected": "GSA Multiple Award Schedule (MAS)"
+          },
+          "setAside": {
+            "match": true,
+            "actual": "UNKNOWN",
+            "expected": "UNKNOWN"
+          },
+          "periodsCount": {
+            "match": false,
+            "actual": "3",
+            "expected": "4"
+          },
+          "disciplines": {
+            "match": true,
+            "actual": "engineering, design, research, product, devops, security (P=0.83 R=0.83)",
+            "expected": "engineering, design, product, research, management, devops"
+          },
+          "laborRequirements": {
+            "match": false,
+            "actual": "6",
+            "expected": "13"
+          }
+        },
+        "f1": 0.6666666666666666
+      },
+      "disciplineViolations": {
+        "violations": [],
+        "count": 0,
+        "allRoles": []
+      },
+      "briefQuality": {
+        "hasBrief": false,
+        "structureValid": false,
+        "challengeCount": 0,
+        "totalQuotes": 0,
+        "verifiedQuotes": 0,
+        "unverifiedQuotes": [],
+        "quoteVerificationRate": 0
+      },
+      "schemaParseSuccess": false
+    },
+    {
+      "sampleId": "pm-hcd",
+      "extraction": {
+        "fieldScores": {
+          "contractType": {
+            "match": true,
+            "actual": "FFP",
+            "expected": "FFP"
+          },
+          "vehicle": {
+            "match": true,
+            "actual": "GSA MAS",
+            "expected": "GSA Multiple Award Schedule (MAS)"
+          },
+          "setAside": {
+            "match": true,
+            "actual": "WOSB",
+            "expected": "WOSB (requires: SF-1449, skipped)"
+          },
+          "periodsCount": {
+            "match": true,
+            "actual": "4",
+            "expected": "4"
+          },
+          "disciplines": {
+            "match": true,
+            "actual": "product, research (P=1.00 R=1.00)",
+            "expected": "product, research"
+          },
+          "laborRequirements": {
+            "match": true,
+            "actual": "2",
+            "expected": "2"
+          }
+        },
+        "f1": 1
+      },
+      "disciplineViolations": {
+        "violations": [],
+        "count": 0,
+        "allRoles": [
+          "Delivery Manager",
+          "Product Manager",
+          "UX Researcher"
+        ]
+      },
+      "briefQuality": {
+        "hasBrief": true,
+        "structureValid": true,
+        "challengeCount": 4,
+        "totalQuotes": 8,
+        "verifiedQuotes": 7,
+        "unverifiedQuotes": [
+          "[Multi-Stakeholder Alignment Complexity]: \"Scheduled (bi-weekly) and ad hoc communications support to all FPAC business leadership from OCIO, P...\""
+        ],
+        "quoteVerificationRate": 0.875
+      },
+      "schemaParseSuccess": true
+    }
+  ],
+  "summary": {
+    "extractionF1": 0.8333333333333333,
+    "schemaPassRate": 0.5,
+    "disciplineViolationCount": 0,
+    "briefQuality": {
+      "briefsGenerated": 1,
+      "avgQuoteVerificationRate": 0.4375,
+      "totalUnverifiedQuotes": 1
+    },
+    "cost": {
+      "inputTokens": 52425,
+      "outputTokens": 29136,
+      "usd": 0.594315
+    }
+  }
+}

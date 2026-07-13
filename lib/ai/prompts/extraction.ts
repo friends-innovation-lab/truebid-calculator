@@ -66,7 +66,20 @@ STAFFING MODEL EXTRACTION RULES — CRITICAL:
    - No named Key Personnel requirements
 3. staffingModel = 'unclear' when neither signal is present or language is ambiguous
 4. For each role, set isPrescribed = true ONLY if the role is explicitly named in the RFP (Key Personnel, required position)
-5. Inferred roles (derived from scope of work, not explicitly named) get isPrescribed = false`
+5. Inferred roles (derived from scope of work, not explicitly named) get isPrescribed = false
+
+SOLICITATION BRIEF — REQUIRED:
+Generate a structured brief that describes what the government wants:
+
+1. **Summary** (1-2 sentences): What capability or service is being procured
+2. **Rationale** (1-2 sentences): Why this matters to the agency (mission context)
+3. **Challenges** (2-4 items): Key technical or delivery challenges, each with:
+   - Title: short label (2-5 words)
+   - Description: 2-3 sentences explaining the challenge
+   - Evidence: Quote VERBATIM passages from the document that indicate this challenge
+4. **Evaluation Emphasis** (1-2 sentences): What criteria will matter most in evaluation
+
+For each challenge, you MUST include at least one verbatim quote from the document. These quotes become evidence records.`
 }
 
 /**
