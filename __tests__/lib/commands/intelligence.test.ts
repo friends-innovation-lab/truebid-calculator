@@ -1227,3 +1227,328 @@ describe('ConfirmIntelligenceVersion staffing model gate', () => {
     }
   })
 })
+
+// =============================================================================
+// HASH STABILITY GOLDEN-FILE TEST
+// =============================================================================
+// This test pins the canonical JSON output byte-exact. Any change that modifies
+// the canonical form of existing data WILL break this test. This is intentional.
+//
+// APPEND-ONLY INVARIANT (2026-07-14):
+// Canonical serialization is append-only. Existing fields' serialization never
+// changes; new fields are omit-when-absent.
+//
+// Phase 2 field set (frozen forever, nulls included):
+//   - periods: id, name, months, cumulativeMonthsEnd, gsaRateYear, sortOrder
+//   - disciplines: id, discipline, confidence, sourceText
+//   - laborRequirements: id, title, laborCategory, hoursPerMonth, utilizationPct,
+//                        appearsInPeriods, confidence, sourceText
+//   - factsJson, versionId
+//
+// Post-Phase-2 fields (omit when absent/default):
+//   - laborRequirements: isPrescribed (omit if false), laborCategoryId, matchType,
+//                        matchConfidence (omit if null)
+//   - solicitationBrief (omit if null)
+//
+// RULE (from CLAUDE.md): Any change touching hash-utils or canonical serialization
+// requires the golden-file test to pass unchanged, and stored-vs-recomputed
+// verification against all confirmed versions on staging before merge.
+
+describe('Hash Stability Golden-File', () => {
+  /**
+   * Golden fixture: A version with NO brief and NO Phase-5 fields populated.
+   * This represents pre-Phase-5 confirmed versions (Phase 2 era).
+   *
+   * CRITICAL: Phase 2 nulls (laborCategory, hoursPerMonth, utilizationPct) are
+   * INCLUDED in the canonical form, not omitted. This is the frozen Phase 2
+   * serialization format.
+   */
+  const goldenFixturePhase2: {
+    versionId: string
+    factsJson: FactsJson
+    periods: CoercedPeriod[]
+    disciplines: CoercedDiscipline[]
+    laborRequirements: CoercedLaborRequirement[]
+    solicitationBrief: null
+  } = {
+    versionId: '564a64a7-88a5-44e5-9a1e-7f3d12f2e76b',
+    factsJson: {
+      contractType: { value: 'FFP', confidence: 'high' },
+      documentType: { value: 'PWS', confidence: 'high' },
+      rateSource: { value: 'gsa_mas', confidence: 'high' },
+      setAside: { value: 'WOSB', confidence: 'low' },
+      vehicle: { value: 'GSA MAS', confidence: 'high' },
+    },
+    periods: [
+      {
+        id: '945f1f5c-2b64-4e36-abd7-14cc20905b9a',
+        name: 'Base Period',
+        months: 7,
+        cumulativeMonthsEnd: 7,
+        gsaRateYear: 1,
+        sortOrder: 0,
+      },
+      {
+        id: '17c92623-9956-4535-8051-d99fe9e687c2',
+        name: 'Option Period 1',
+        months: 3,
+        cumulativeMonthsEnd: 10,
+        gsaRateYear: 1,
+        sortOrder: 1,
+      },
+    ],
+    disciplines: [
+      {
+        id: 'f7b45fa2-fc69-40d9-bbf5-ac310d80b6c0',
+        discipline: 'product',
+        confidence: 'high',
+        sourceText: 'Product management required',
+      },
+      {
+        id: 'e06178f7-af72-4647-ace2-bfd3582a6439',
+        discipline: 'research',
+        confidence: 'high',
+        sourceText: 'User research required',
+      },
+    ],
+    laborRequirements: [
+      {
+        id: 'ca50ee8e-8674-4adf-a923-113d04f08ec1',
+        title: 'Human-Centered Design Lead',
+        laborCategory: null, // Phase 2: INCLUDED as null
+        hoursPerMonth: null, // Phase 2: INCLUDED as null
+        utilizationPct: 0.5, // Phase 2: INCLUDED
+        appearsInPeriods: ['Base Period', 'Option Period 1'],
+        isPrescribed: false, // Post-Phase-2: OMITTED (false → absent)
+        confidence: 'high',
+        sourceText: 'HCD Lead required',
+        laborCategoryId: null, // Post-Phase-2: OMITTED (null → absent)
+        matchType: null, // Post-Phase-2: OMITTED
+        matchConfidence: null, // Post-Phase-2: OMITTED
+      },
+      {
+        id: 'b1234567-1234-1234-1234-123456789012',
+        title: 'Senior Product Manager',
+        laborCategory: null, // Phase 2: INCLUDED as null
+        hoursPerMonth: null, // Phase 2: INCLUDED as null
+        utilizationPct: null, // Phase 2: INCLUDED as null
+        appearsInPeriods: ['Base Period'],
+        isPrescribed: false, // Post-Phase-2: OMITTED
+        confidence: 'high',
+        sourceText: 'PM required',
+        laborCategoryId: null, // Post-Phase-2: OMITTED
+        matchType: null, // Post-Phase-2: OMITTED
+        matchConfidence: null, // Post-Phase-2: OMITTED
+      },
+    ],
+    solicitationBrief: null, // Post-Phase-2: OMITTED (null → absent)
+  }
+
+  /**
+   * GOLDEN CANONICAL OUTPUT (Phase 2 Format)
+   *
+   * This is the byte-exact canonical JSON that Phase 2 era versions produce.
+   *
+   * CRITICAL serialization rules:
+   * - Phase 2 fields: nulls INCLUDED (laborCategory, hoursPerMonth, utilizationPct)
+   * - Post-Phase-2 fields: OMITTED when absent/default
+   * - No solicitationBrief key (null → absent for post-Phase-2 field)
+   * - No isPrescribed key (false → absent for post-Phase-2 field)
+   * - No laborCategoryId, matchType, matchConfidence keys (null → absent)
+   *
+   * If this test fails, hash stability for existing confirmed versions is BROKEN.
+   */
+  const GOLDEN_CANONICAL_PHASE2 = '{"disciplines":[{"confidence":"high","discipline":"product","id":"f7b45fa2-fc69-40d9-bbf5-ac310d80b6c0","sourceText":"Product management required"},{"confidence":"high","discipline":"research","id":"e06178f7-af72-4647-ace2-bfd3582a6439","sourceText":"User research required"}],"factsJson":{"contractType":{"confidence":"high","value":"FFP"},"documentType":{"confidence":"high","value":"PWS"},"rateSource":{"confidence":"high","value":"gsa_mas"},"setAside":{"confidence":"low","value":"WOSB"},"vehicle":{"confidence":"high","value":"GSA MAS"}},"laborRequirements":[{"appearsInPeriods":["Base Period","Option Period 1"],"confidence":"high","hoursPerMonth":null,"id":"ca50ee8e-8674-4adf-a923-113d04f08ec1","laborCategory":null,"sourceText":"HCD Lead required","title":"Human-Centered Design Lead","utilizationPct":0.5},{"appearsInPeriods":["Base Period"],"confidence":"high","hoursPerMonth":null,"id":"b1234567-1234-1234-1234-123456789012","laborCategory":null,"sourceText":"PM required","title":"Senior Product Manager","utilizationPct":null}],"periods":[{"cumulativeMonthsEnd":7,"gsaRateYear":1,"id":"945f1f5c-2b64-4e36-abd7-14cc20905b9a","months":7,"name":"Base Period","sortOrder":0},{"cumulativeMonthsEnd":10,"gsaRateYear":1,"id":"17c92623-9956-4535-8051-d99fe9e687c2","months":3,"name":"Option Period 1","sortOrder":1}],"versionId":"564a64a7-88a5-44e5-9a1e-7f3d12f2e76b"}'
+
+  it('canonical output is byte-identical to golden file (Phase 2 version)', () => {
+    const actual = canonicalize(goldenFixturePhase2)
+    expect(actual).toBe(GOLDEN_CANONICAL_PHASE2)
+  })
+
+  it('Phase 2 nulls are INCLUDED, post-Phase-2 nulls are OMITTED', () => {
+    const canonical = canonicalize(goldenFixturePhase2)
+    const parsed = JSON.parse(canonical)
+
+    // Post-Phase-2: solicitationBrief should NOT exist (null → omitted)
+    expect(parsed.solicitationBrief).toBeUndefined()
+
+    const laborReq = parsed.laborRequirements[0]
+
+    // Phase 2 fields: nulls ARE INCLUDED
+    expect(laborReq.laborCategory).toBeNull()
+    expect(laborReq.hoursPerMonth).toBeNull()
+
+    // Phase 2 fields: non-null values ARE INCLUDED
+    expect(laborReq.utilizationPct).toBe(0.5)
+    expect(laborReq.confidence).toBe('high')
+    expect(laborReq.appearsInPeriods).toEqual(['Base Period', 'Option Period 1'])
+
+    // Post-Phase-2 fields: OMITTED when false/null
+    expect(laborReq.isPrescribed).toBeUndefined()
+    expect(laborReq.laborCategoryId).toBeUndefined()
+    expect(laborReq.matchType).toBeUndefined()
+    expect(laborReq.matchConfidence).toBeUndefined()
+  })
+
+  it('NEGATIVE CONTROL: version WITH brief hashes differently', async () => {
+    const withBrief = {
+      ...goldenFixturePhase2,
+      solicitationBrief: {
+        summary: 'Test summary',
+        rationale: 'Test rationale',
+        challenges: [
+          {
+            title: 'Challenge 1',
+            description: 'Description',
+            evidence_refs: ['ref-1'],
+          },
+        ],
+        evaluation_emphasis: 'Test emphasis',
+      },
+    }
+
+    const withoutBriefCanonical = canonicalize(goldenFixturePhase2)
+    const withBriefCanonical = canonicalize(withBrief)
+
+    // Canonicals must be DIFFERENT
+    expect(withBriefCanonical).not.toBe(withoutBriefCanonical)
+
+    // Brief version should INCLUDE solicitationBrief
+    expect(withBriefCanonical).toContain('solicitationBrief')
+    expect(withoutBriefCanonical).not.toContain('solicitationBrief')
+
+    // Hashes must be DIFFERENT
+    const hashWithout = await computeHash(goldenFixturePhase2)
+    const hashWith = await computeHash(withBrief)
+    expect(hashWith).not.toBe(hashWithout)
+  })
+
+  it('NEGATIVE CONTROL: version WITH meaningful Phase-5 fields hashes differently', async () => {
+    const withPhase5 = {
+      ...goldenFixturePhase2,
+      laborRequirements: goldenFixturePhase2.laborRequirements.map((lr) => ({
+        ...lr,
+        isPrescribed: true, // Non-default, will be included
+        laborCategoryId: 'cat-123', // Non-null, will be included
+        matchType: 'exact' as const, // Non-null, will be included
+        matchConfidence: 0.95, // Non-null, will be included
+      })),
+    }
+
+    const withoutPhase5Canonical = canonicalize(goldenFixturePhase2)
+    const withPhase5Canonical = canonicalize(withPhase5)
+
+    // Canonicals must be DIFFERENT
+    expect(withPhase5Canonical).not.toBe(withoutPhase5Canonical)
+
+    // Phase-5 version should INCLUDE these fields
+    expect(withPhase5Canonical).toContain('isPrescribed')
+    expect(withPhase5Canonical).toContain('laborCategoryId')
+    expect(withPhase5Canonical).toContain('matchType')
+    expect(withPhase5Canonical).toContain('matchConfidence')
+
+    // Hashes must be DIFFERENT
+    const hashWithout = await computeHash(goldenFixturePhase2)
+    const hashWith = await computeHash(withPhase5)
+    expect(hashWith).not.toBe(hashWithout)
+  })
+
+  /**
+   * Second golden fixture: A version WITH post-Phase-2 fields populated.
+   * This represents versions confirmed after Phase 5 with meaningful new fields.
+   */
+  const goldenFixturePostPhase5: {
+    versionId: string
+    factsJson: FactsJson
+    periods: CoercedPeriod[]
+    disciplines: CoercedDiscipline[]
+    laborRequirements: CoercedLaborRequirement[]
+    solicitationBrief: {
+      summary: string
+      rationale: string
+      challenges: { title: string; description: string; evidence_refs: string[] }[]
+      evaluation_emphasis: string
+    }
+  } = {
+    versionId: 'post-phase-5-test-version',
+    factsJson: {
+      contractType: { value: 'T&M', confidence: 'high' },
+      documentType: { value: 'RFP', confidence: 'high' },
+    },
+    periods: [
+      {
+        id: 'period-1',
+        name: 'Base Period',
+        months: 12,
+        cumulativeMonthsEnd: 12,
+        gsaRateYear: 1,
+        sortOrder: 0,
+      },
+    ],
+    disciplines: [
+      {
+        id: 'disc-1',
+        discipline: 'engineering',
+        confidence: 'high',
+        sourceText: 'Engineering required',
+      },
+    ],
+    laborRequirements: [
+      {
+        id: 'labor-1',
+        title: 'Senior Engineer',
+        laborCategory: 'LCAT-ENG-01', // Phase 2: non-null
+        hoursPerMonth: 160, // Phase 2: non-null
+        utilizationPct: 1.0, // Phase 2: non-null
+        appearsInPeriods: ['Base Period'],
+        isPrescribed: true, // Post-Phase-2: INCLUDED (true)
+        confidence: 'high',
+        sourceText: 'Engineer required',
+        laborCategoryId: 'cat-uuid-123', // Post-Phase-2: INCLUDED (non-null)
+        matchType: 'exact' as const, // Post-Phase-2: INCLUDED (non-null)
+        matchConfidence: 0.95, // Post-Phase-2: INCLUDED (non-null)
+      },
+    ],
+    solicitationBrief: {
+      summary: 'Engineering support for cloud migration',
+      rationale: 'Agency needs modern infrastructure',
+      challenges: [
+        {
+          title: 'Legacy integration',
+          description: 'Must integrate with legacy systems',
+          evidence_refs: ['evidence-1', 'evidence-2'],
+        },
+      ],
+      evaluation_emphasis: 'Technical approach and past performance',
+    },
+  }
+
+  /**
+   * GOLDEN CANONICAL OUTPUT (Post-Phase-5 Format)
+   *
+   * This includes all Phase 2 fields AND post-Phase-2 fields when present.
+   */
+  const GOLDEN_CANONICAL_POST_PHASE5 = '{"disciplines":[{"confidence":"high","discipline":"engineering","id":"disc-1","sourceText":"Engineering required"}],"factsJson":{"contractType":{"confidence":"high","value":"T&M"},"documentType":{"confidence":"high","value":"RFP"}},"laborRequirements":[{"appearsInPeriods":["Base Period"],"confidence":"high","hoursPerMonth":160,"id":"labor-1","isPrescribed":true,"laborCategory":"LCAT-ENG-01","laborCategoryId":"cat-uuid-123","matchConfidence":0.95,"matchType":"exact","sourceText":"Engineer required","title":"Senior Engineer","utilizationPct":1}],"periods":[{"cumulativeMonthsEnd":12,"gsaRateYear":1,"id":"period-1","months":12,"name":"Base Period","sortOrder":0}],"solicitationBrief":{"challenges":[{"description":"Must integrate with legacy systems","evidence_refs":["evidence-1","evidence-2"],"title":"Legacy integration"}],"evaluation_emphasis":"Technical approach and past performance","rationale":"Agency needs modern infrastructure","summary":"Engineering support for cloud migration"},"versionId":"post-phase-5-test-version"}'
+
+  it('canonical output is byte-identical to golden file (post-Phase-5 version)', () => {
+    const actual = canonicalize(goldenFixturePostPhase5)
+    expect(actual).toBe(GOLDEN_CANONICAL_POST_PHASE5)
+  })
+
+  it('post-Phase-5 version includes all new fields', () => {
+    const canonical = canonicalize(goldenFixturePostPhase5)
+    const parsed = JSON.parse(canonical)
+
+    // solicitationBrief IS present
+    expect(parsed.solicitationBrief).toBeDefined()
+    expect(parsed.solicitationBrief.summary).toBe('Engineering support for cloud migration')
+
+    const laborReq = parsed.laborRequirements[0]
+
+    // Post-Phase-2 fields ARE present
+    expect(laborReq.isPrescribed).toBe(true)
+    expect(laborReq.laborCategoryId).toBe('cat-uuid-123')
+    expect(laborReq.matchType).toBe('exact')
+    expect(laborReq.matchConfidence).toBe(0.95)
+  })
+})

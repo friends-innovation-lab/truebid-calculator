@@ -98,6 +98,24 @@ export function coerceVersion(row: IntelligenceVersionRow): CoercedIntelligenceV
 // CANONICAL SERIALIZATION
 // =============================================================================
 // Keys must be sorted recursively for deterministic JSON output.
+//
+// APPEND-ONLY INVARIANT (2026-07-14):
+// Canonical serialization is append-only. Existing fields' serialization never
+// changes; new fields are omit-when-absent.
+//
+// Phase 2 field set (frozen forever, nulls included):
+//   - periods: id, name, months, cumulativeMonthsEnd, gsaRateYear, sortOrder
+//   - disciplines: id, discipline, confidence, sourceText
+//   - laborRequirements: id, title, laborCategory, hoursPerMonth, utilizationPct,
+//                        appearsInPeriods, confidence, sourceText
+//   - factsJson, versionId
+//
+// Post-Phase-2 fields (omit when absent/default):
+//   - laborRequirements: isPrescribed (omit if false), laborCategoryId, matchType,
+//                        matchConfidence (omit if null)
+//   - solicitationBrief (omit if null)
+//
+// Any change to this file requires the golden-file test to pass unchanged.
 
 function sortObjectKeys(obj: unknown): unknown {
   if (obj === null || obj === undefined) return obj
@@ -110,6 +128,85 @@ function sortObjectKeys(obj: unknown): unknown {
     sorted[key] = sortObjectKeys((obj as Record<string, unknown>)[key])
   }
   return sorted
+}
+
+/**
+ * Hashable representation of a period (Phase 2 frozen).
+ * All fields included exactly as Phase 2 serialized them.
+ */
+interface HashablePeriod {
+  id: string
+  name: string
+  months: number
+  cumulativeMonthsEnd: number
+  gsaRateYear: number
+  sortOrder: number
+}
+
+/**
+ * Hashable representation of a discipline (Phase 2 frozen).
+ * All fields included exactly as Phase 2 serialized them.
+ */
+interface HashableDiscipline {
+  id: string
+  discipline: string
+  confidence: string
+  sourceText: string | null
+}
+
+/**
+ * Hashable representation of a labor requirement.
+ * Phase 2 fields are always present (nulls included).
+ * Post-Phase-2 fields are conditionally added.
+ */
+interface HashableLaborRequirement {
+  id: string
+  title: string
+  laborCategory: string | null        // Phase 2: always present
+  hoursPerMonth: number | null        // Phase 2: always present
+  utilizationPct: number | null       // Phase 2: always present
+  appearsInPeriods: string[]          // Phase 2: always present
+  confidence: string                  // Phase 2: always present
+  sourceText: string | null           // Phase 2: always present
+  // Post-Phase-2: conditionally present
+  isPrescribed?: true                 // Only when true (omit false)
+  laborCategoryId?: string            // Only when non-null
+  matchType?: string                  // Only when non-null
+  matchConfidence?: number            // Only when non-null
+}
+
+/**
+ * Convert coerced labor requirement to hashable form.
+ * Phase 2 fields always included; post-Phase-2 fields omitted when absent/default.
+ */
+function toHashableLaborRequirement(lr: CoercedLaborRequirement): HashableLaborRequirement {
+  // Phase 2 frozen field set (always present, nulls included)
+  const hashable: HashableLaborRequirement = {
+    id: lr.id,
+    title: lr.title,
+    laborCategory: lr.laborCategory,
+    hoursPerMonth: lr.hoursPerMonth,
+    utilizationPct: lr.utilizationPct,
+    appearsInPeriods: lr.appearsInPeriods,
+    confidence: lr.confidence,
+    sourceText: lr.sourceText,
+  }
+
+  // Post-Phase-2 fields: only add when meaningful
+  if (lr.isPrescribed === true) {
+    hashable.isPrescribed = true
+  }
+  if (lr.laborCategoryId != null) {
+    hashable.laborCategoryId = lr.laborCategoryId
+  }
+  if (lr.matchType != null) {
+    hashable.matchType = lr.matchType
+  }
+  if (lr.matchConfidence != null) {
+    hashable.matchConfidence = lr.matchConfidence
+  }
+
+  return hashable
 }
 
 interface HashableData {
@@ -131,18 +228,38 @@ export function canonicalize(data: HashableData): string {
     a.title.localeCompare(b.title)
   )
 
-  // Canonical form includes all hashable fields in alphabetical order
-  // solicitationBrief: null → null (not empty object) for backward compatibility
-  // Existing confirmed versions with solicitation_brief = NULL will hash the same
-  const canonical = {
-    disciplines: sortedDisciplines,
-    factsJson: sortObjectKeys(data.factsJson),
-    laborRequirements: sortedLaborReqs,
-    periods: sortedPeriods,
-    solicitationBrief: data.solicitationBrief
-      ? sortObjectKeys(data.solicitationBrief)
-      : null,
+  // Convert to hashable forms
+  const hashablePeriods: HashablePeriod[] = sortedPeriods.map((p) => ({
+    id: p.id,
+    name: p.name,
+    months: p.months,
+    cumulativeMonthsEnd: p.cumulativeMonthsEnd,
+    gsaRateYear: p.gsaRateYear,
+    sortOrder: p.sortOrder,
+  }))
+
+  const hashableDisciplines: HashableDiscipline[] = sortedDisciplines.map((d) => ({
+    id: d.id,
+    discipline: d.discipline,
+    confidence: d.confidence,
+    sourceText: d.sourceText,
+  }))
+
+  const hashableLaborReqs = sortedLaborReqs.map(toHashableLaborRequirement)
+
+  // Assemble canonical object
+  // Phase 2 fields always present; post-Phase-2 fields conditionally added
+  const canonical: Record<string, unknown> = {
+    disciplines: hashableDisciplines,
+    factsJson: data.factsJson,
+    laborRequirements: hashableLaborReqs,
+    periods: hashablePeriods,
     versionId: data.versionId,
+  }
+
+  // Post-Phase-2: solicitationBrief only when present
+  if (data.solicitationBrief != null) {
+    canonical.solicitationBrief = data.solicitationBrief
   }
 
   return JSON.stringify(sortObjectKeys(canonical))

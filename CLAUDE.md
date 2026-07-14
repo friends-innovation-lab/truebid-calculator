@@ -369,6 +369,27 @@ Deployment completion is claimed ONLY by citing the green attestation run (link 
 
 Test results in any report cite the results file or CI run. Counts are copied from reporter output, never typed.
 
+### Canonical Serialization (Hash Stability)
+
+**Canonical serialization is append-only. Existing fields' serialization never changes; new fields are omit-when-absent.**
+
+The confirmation hash for `intelligence_versions` is computed from canonical JSON. This serialization format is frozen:
+
+**Phase 2 field set (frozen forever, nulls included):**
+- periods: id, name, months, cumulativeMonthsEnd, gsaRateYear, sortOrder
+- disciplines: id, discipline, confidence, sourceText
+- laborRequirements: id, title, laborCategory, hoursPerMonth, utilizationPct, appearsInPeriods, confidence, sourceText
+- factsJson, versionId
+
+**Post-Phase-2 fields (omit when absent/default):**
+- laborRequirements: isPrescribed (omit if false), laborCategoryId, matchType, matchConfidence (omit if null)
+- solicitationBrief (omit if null)
+
+**Rules:**
+1. Any change to `lib/commands/intelligence/hash-utils.ts` requires the golden-file test (`__tests__/lib/commands/intelligence.test.ts` → "Hash Stability Golden-File") to pass unchanged.
+2. Before merging changes to canonical serialization: run stored-vs-recomputed hash verification against all confirmed versions on staging.
+3. New fields added in future phases follow the omit-when-absent rule: default/null values are omitted, meaningful values are included.
+
 ### AI Eval Harness
 
 **Any prompt, schema, or model change in the active AI pipeline requires an eval run.**
