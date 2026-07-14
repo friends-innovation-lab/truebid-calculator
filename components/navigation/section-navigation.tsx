@@ -66,6 +66,28 @@ const TAB_TO_VIEW: Record<string, { section: SectionId; view: ViewId }> = {
   'export': { section: 'deliver', view: 'deliver-review' },
 }
 
+// Map view IDs to their parent sections (for URL ?view= param)
+const VIEW_TO_SECTION: Record<ViewId, SectionId> = {
+  // Scope
+  'solicitation': 'scope',
+  'strategy': 'scope',
+  'requirements': 'scope',
+  // Staff
+  'wbs-elements': 'staff',
+  'roles-pricing': 'staff',
+  'pricing': 'staff',
+  'team': 'staff',
+  'labor-loading': 'staff',
+  // Write
+  'outline': 'write',
+  'technical-editor': 'write',
+  // Deliver
+  'deliver-boe': 'deliver',
+  'deliver-review': 'deliver',
+  'deliver-export': 'deliver',
+  'deliver-share': 'deliver',
+}
+
 // ==================== MAIN COMPONENT ====================
 
 export function SectionNavigation() {
@@ -101,7 +123,12 @@ export function SectionNavigation() {
     }
     const viewParam = searchParams.get('view')
     if (viewParam) {
-      setActiveView(viewParam as ViewId)
+      const typedView = viewParam as ViewId
+      setActiveView(typedView)
+      // Also set the correct section for this view
+      if (VIEW_TO_SECTION[typedView]) {
+        setActiveSection(VIEW_TO_SECTION[typedView])
+      }
     }
   }, [searchParams])
 

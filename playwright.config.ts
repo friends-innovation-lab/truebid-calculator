@@ -1,7 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
+import path from 'path'
 
 const baseURL = process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000'
 const isRemote = baseURL !== 'http://localhost:3000'
+const authFile = path.join(__dirname, '.playwright/.auth/user.json')
 
 export default defineConfig({
   testDir: './e2e',
@@ -15,9 +17,19 @@ export default defineConfig({
     trace: 'on-first-retry',
   },
   projects: [
+    // Setup project for authentication
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
+    // Main tests depend on setup
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: authFile,
+      },
+      dependencies: ['setup'],
     },
   ],
   // Skip webServer when running against remote (staging/prod)

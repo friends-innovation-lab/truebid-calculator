@@ -60,3 +60,4 @@ supabase/.temp/
 
 # Database backups - NEVER commit
 backups/
+.playwright/
