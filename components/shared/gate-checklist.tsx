@@ -121,6 +121,7 @@ export function GateChecklist({
           isBlocked && 'bg-gray-100 text-gray-500 hover:bg-gray-100 cursor-not-allowed'
         )}
         variant={isBlocked ? 'outline' : 'default'}
+        data-testid="approve-button"
       >
         {loading ? (
           <>
