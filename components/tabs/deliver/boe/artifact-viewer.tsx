@@ -22,11 +22,11 @@ interface ArtifactViewerProps {
 export function ArtifactViewer({ artifact, citations }: ArtifactViewerProps) {
   const content = artifact.content
 
-  // Extract sections
-  const wbsEstimatesSection = content.sections.find(
+  // Extract sections (guard against undefined content.sections during load)
+  const wbsEstimatesSection = content?.sections?.find(
     (s) => s.sectionType === 'wbs_estimates'
   )
-  const laborLoadingSection = content.sections.find(
+  const laborLoadingSection = content?.sections?.find(
     (s) => s.sectionType === 'labor_loading_summary'
   )
 
@@ -50,7 +50,7 @@ export function ArtifactViewer({ artifact, citations }: ArtifactViewerProps) {
       {wbsEstimatesSection?.lines && wbsEstimatesSection.lines.length > 0 && (
         <ArtifactEstimatesTable
           lines={wbsEstimatesSection.lines}
-          rateConfig={content.rateConfig}
+          rateConfig={content?.rateConfig}
           citations={citations}
           title="WBS Estimates"
           onCitationClick={handleCitationClick}
@@ -61,7 +61,7 @@ export function ArtifactViewer({ artifact, citations }: ArtifactViewerProps) {
       {laborLoadingSection?.lines && laborLoadingSection.lines.length > 0 && (
         <ArtifactEstimatesTable
           lines={laborLoadingSection.lines}
-          rateConfig={content.rateConfig}
+          rateConfig={content?.rateConfig}
           citations={citations}
           title="Labor Loading Summary"
           onCitationClick={handleCitationClick}
@@ -69,10 +69,12 @@ export function ArtifactViewer({ artifact, citations }: ArtifactViewerProps) {
       )}
 
       {/* Totals Summary */}
-      <ArtifactTotalsSummary
-        totals={content.totals}
-        conservation={content.conservation}
-      />
+      {content && (
+        <ArtifactTotalsSummary
+          totals={content.totals}
+          conservation={content.conservation}
+        />
+      )}
     </div>
   )
 }
