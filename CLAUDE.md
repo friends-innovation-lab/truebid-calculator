@@ -388,6 +388,10 @@ Deployment completion is claimed ONLY by citing the green attestation run (link 
 
 Test results in any report cite the results file or CI run. Counts are copied from reporter output, never typed.
 
+### Acceptance Reports
+
+An acceptance report may only be written after its commands have executed in this session. If verification is pending, the report must say **PENDING** — a report describing unexecuted verification as complete is fabrication, per the existing rule.
+
 ### Canonical Serialization (Hash Stability)
 
 **Canonical serialization is append-only. Existing fields' serialization never changes; new fields are omit-when-absent.**

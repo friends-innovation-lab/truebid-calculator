@@ -100,6 +100,16 @@ supabase db diff        # Generate migration from schema changes
 
 Staging mirrors production structure but uses sanitized data. It receives deployments from `develop` branch.
 
+### Staging Deployment URL
+
+| Field | Value |
+|-------|-------|
+| **Stable URL** | `https://truebid-calculator-git-develop-friends-innovation-lab.vercel.app` |
+| **Supabase Project** | `tcobyquewjootwxpqijq` (truebid-staging) |
+| **Branch** | `develop` |
+
+**Note:** Deployment-hash URLs (e.g., `truebid-calculator-i5mra0cvn-...`) require a separate Vercel login. Use the stable `git-develop` URL above for consistent session continuity.
+
 ### Staging Database Operations
 
 Always use explicit `--db-url` to prevent wrong-database accidents:
