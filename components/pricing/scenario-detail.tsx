@@ -90,7 +90,7 @@ export function ScenarioDetail({
   const effectiveRateConfig = rateConfig || rateConfigSnapshot
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-testid="scenario-detail">
       {/* Staleness notice */}
       {scenario.isStale && (
         <StalenessNotice

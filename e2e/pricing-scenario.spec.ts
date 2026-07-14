@@ -126,23 +126,21 @@ test.describe('Scenario & Pricing', () => {
     })
   })
 
-  test.describe('T5: Empty/Disabled (Test Fixture)', () => {
+  test.describe('T5: Empty/Disabled (PM-HCD)', () => {
     test('no confirmed intelligence shows state 1 with link to Scope', async ({ page }) => {
-      // TODO: Need a fixture proposal with no confirmed intelligence
-      // For now, this test documents the expected behavior
-
-      // await navigateToPricing(page, TEST_CONFIG.fixtureProposalId)
+      // PM-HCD (490ea2dd) has no confirmed intelligence, no WBS, no scenarios
+      await navigateToPricing(page, '490ea2dd-6a5b-417a-b121-919477f4df82')
 
       // Verify empty state appears
-      // const emptyState = page.locator('[data-testid="empty-state-pricing"]')
-      // await expect(emptyState).toBeVisible()
+      const emptyState = page.locator('[data-testid="empty-state-pricing"]')
+      await expect(emptyState).toBeVisible()
 
       // Verify prerequisite is shown as unmet
-      // await expect(page.getByText('Confirm intelligence in Scope')).toBeVisible()
+      await expect(page.getByText('Confirm intelligence in Scope')).toBeVisible()
 
       // Verify link to Scope exists
-      // const scopeLink = page.getByRole('button', { name: 'Go to Scope' })
-      // await expect(scopeLink).toBeVisible()
+      const scopeLink = page.getByRole('button', { name: 'Go to Scope' })
+      await expect(scopeLink).toBeVisible()
     })
   })
 })

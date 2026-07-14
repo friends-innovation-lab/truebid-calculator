@@ -48,7 +48,7 @@ export function PricingLineRow({
   }
 
   return (
-    <div className="border-b border-gray-100 last:border-b-0">
+    <div className="border-b border-gray-100 last:border-b-0" data-testid="pricing-line-row">
       {/* Row header - clickable to expand */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
@@ -86,17 +86,17 @@ export function PricingLineRow({
         </span>
 
         {/* Hours */}
-        <span className="w-20 text-sm tabular-nums text-right">
+        <span className="w-20 text-sm tabular-nums text-right" data-testid="line-hours">
           {formatNumber(line.hours)} hrs
         </span>
 
         {/* Bill Rate */}
-        <span className="w-24 text-sm tabular-nums text-right">
+        <span className="w-24 text-sm tabular-nums text-right" data-testid="line-bill-rate">
           {formatCurrency(line.fullyBurdened)}
         </span>
 
         {/* Extended Cost */}
-        <span className="w-28 text-sm font-medium tabular-nums text-right">
+        <span className="w-28 text-sm font-medium tabular-nums text-right" data-testid="line-extended-cost">
           {formatCurrency(line.extendedCost)}
         </span>
       </button>
