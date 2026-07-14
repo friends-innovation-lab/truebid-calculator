@@ -120,9 +120,9 @@ test.describe('Scenario & Pricing', () => {
       // 3. Verify totals are still from the original approval (not recomputed)
       // 4. Click "Create New Scenario" and verify new scenario is created
 
-      const stalenessNotice = page.locator('[data-testid="staleness-notice"]')
-      // Test will pass if staleness notice exists OR if setup creates the condition
-      // For now, just verify the component renders when appropriate
+      // TODO: Verify staleness notice appears when fixture is available
+      // const stalenessNotice = page.locator('[data-testid="staleness-notice"]')
+      // await expect(stalenessNotice).toBeVisible()
     })
   })
 
