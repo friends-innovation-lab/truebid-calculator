@@ -3,7 +3,7 @@
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 
-export type ScenarioStatus = 'draft' | 'approved' | 'superseded'
+export type ScenarioStatus = 'draft' | 'approved' | 'superseded' | 'generated'
 
 interface StatusBadgeProps {
   status: ScenarioStatus
@@ -31,6 +31,10 @@ export function StatusBadge({ status, className }: StatusBadgeProps) {
     superseded: {
       label: 'Superseded',
       className: 'border-solid border-gray-300 bg-gray-50 text-gray-500 line-through',
+    },
+    generated: {
+      label: 'Generated',
+      className: 'border-solid border-green-500 bg-green-50 text-green-700',
     },
   }
 

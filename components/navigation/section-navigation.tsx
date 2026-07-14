@@ -21,6 +21,7 @@ import { RolesPricing } from '@/components/tabs/staff/roles-pricing'
 import { Team } from '@/components/tabs/staff/team'
 import { LaborLoading } from '@/components/tabs/staff/labor-loading'
 import { RateJustificationTab } from '@/components/tabs/rate-justification-tab'
+import { DeliverBoeGenerationPage } from '@/components/tabs/deliver/boe'
 import { DeliverReview } from '@/components/tabs/deliver/deliver-review'
 import { DeliverExport } from '@/components/tabs/deliver/deliver-export'
 import { DeliverShare } from '@/components/tabs/deliver/deliver-share'
@@ -49,6 +50,7 @@ type ViewId =
   | 'outline'
   | 'technical-editor'
   // Deliver
+  | 'deliver-boe'
   | 'deliver-review'
   | 'deliver-export'
   | 'deliver-share'
@@ -133,6 +135,7 @@ export function SectionNavigation() {
       'pricing': 'roles',
       'team': 'teaming-partners',
       'labor-loading': 'estimate',
+      'deliver-boe': 'export',
       'deliver-review': 'export',
       'deliver-export': 'export',
       'deliver-share': 'export',
@@ -246,6 +249,9 @@ export function SectionNavigation() {
         )}
 
         {/* DELIVER views */}
+        {activeView === 'deliver-boe' && activeSection === 'deliver' && (
+          <DeliverBoeGenerationPage />
+        )}
         {activeView === 'deliver-review' && activeSection === 'deliver' && (
           <DeliverReview />
         )}
