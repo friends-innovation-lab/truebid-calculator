@@ -22,6 +22,7 @@ import {
   Download,
   Share2,
   DollarSign,
+  FileCheck,
 } from 'lucide-react'
 
 // Icon rail items for each section
@@ -69,6 +70,7 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
     {
       label: 'Deliver',
       items: [
+        { id: 'deliver-boe', label: 'BOE Artifacts', icon: FileCheck },
         { id: 'deliver-review', label: 'Review', icon: ClipboardCheck },
         { id: 'deliver-export', label: 'Export', icon: Download },
         { id: 'deliver-share', label: 'Share', icon: Share2 },
@@ -82,7 +84,7 @@ const SECTION_DEFAULT_VIEWS: Record<SectionId, string> = {
   scope: 'solicitation',
   staff: 'wbs-elements',
   write: 'outline',
-  deliver: 'deliver-review',
+  deliver: 'deliver-boe',
 }
 
 interface ProposalLayoutProps {
