@@ -30,6 +30,7 @@ import { Requirements } from '@/components/tabs/scope/requirements'
 import { ProposalOutlinePage } from '@/components/tabs/write/proposal-outline'
 import { WriteContent } from '@/components/tabs/write/write-content'
 import { TechnicalVolume } from '@/components/tabs/write/technical-volume'
+import { ScenarioPricingPage } from '@/components/pricing/scenario-pricing-page'
 
 // ==================== TYPES ====================
 
@@ -41,6 +42,7 @@ type ViewId =
   // Staff
   | 'wbs-elements'
   | 'roles-pricing'
+  | 'pricing'
   | 'team'
   | 'labor-loading'
   // Write
@@ -128,6 +130,7 @@ export function SectionNavigation() {
       'requirements': 'estimate',
       'wbs-elements': 'estimate',
       'roles-pricing': 'roles',
+      'pricing': 'roles',
       'team': 'teaming-partners',
       'labor-loading': 'estimate',
       'deliver-review': 'export',
@@ -210,6 +213,9 @@ export function SectionNavigation() {
         )}
         {activeView === 'roles-pricing' && activeSection === 'staff' && (
           <RolesPricing />
+        )}
+        {activeView === 'pricing' && activeSection === 'staff' && (
+          <ScenarioPricingPage />
         )}
         {activeView === 'team' && activeSection === 'staff' && (
           <Team />

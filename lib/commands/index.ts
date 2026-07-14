@@ -202,6 +202,7 @@ export {
   type PricingScenarioStatus,
   type SalarySource,
   type ProfitSource,
+  type PricingLineType,
   type PricingScenarioSummary,
   type PricingLine,
   type ScenarioTotals,
