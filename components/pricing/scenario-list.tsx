@@ -56,6 +56,8 @@ export function ScenarioList({
             'w-full flex items-center gap-4 p-4 text-left hover:bg-gray-50 transition-colors',
             selectedId === scenario.id && 'bg-blue-50 hover:bg-blue-50'
           )}
+          data-testid="scenario-card"
+          data-status={scenario.status}
         >
           {/* Label and status */}
           <div className="flex-1 min-w-0">

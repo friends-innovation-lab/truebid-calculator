@@ -67,7 +67,7 @@ export function SummaryHeader({
       <div className="flex items-baseline justify-between mb-4">
         <div>
           <p className="text-sm text-muted-foreground">Contract Total</p>
-          <p className="text-3xl font-bold tabular-nums">{formatCurrency(total)}</p>
+          <p className="text-3xl font-bold tabular-nums" data-testid="summary-header-total">{formatCurrency(total)}</p>
         </div>
 
         {/* Approval signature */}

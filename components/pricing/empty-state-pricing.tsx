@@ -38,7 +38,7 @@ export function EmptyStatePricing({
   const canCreateScenario = hasConfirmedIntelligence && hasActiveWBS
 
   return (
-    <Card className="p-8 text-center">
+    <Card className="p-8 text-center" data-testid="empty-state-pricing">
       <div className="w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
         <Calculator className="w-6 h-6 text-gray-400" />
       </div>

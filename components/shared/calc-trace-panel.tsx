@@ -89,6 +89,7 @@ export function CalcTracePanel({
         isPreview && 'border-dashed border-amber-400 bg-amber-50/30',
         className
       )}
+      data-testid="calc-trace-panel"
     >
       {/* Preview warning banner */}
       {isPreview && (
