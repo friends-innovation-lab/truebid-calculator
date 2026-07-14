@@ -241,6 +241,23 @@ Indirect rates (fringe, overhead, G&A) have ONE source of truth: the `company_se
 
 **Settings API is never cached.** The `/api/companies/settings` endpoint returns `Cache-Control: no-store` to ensure reads always reflect the latest database state.
 
+### Pricing Scenario Single-Source Principle
+
+**All pricing totals derive from `SUM(pricing_lines.extended_cost)`, computed server-side from the same rows the response returns.**
+
+1. **No separate SUM() query.** The `/api/proposals/[id]/pricing/[scenarioId]/lines` route fetches lines, then computes totals by reducing over those rows. Never a parallel `SELECT SUM(...)` that could diverge.
+
+2. **Conservation check.** Before approval, the client verifies:
+   ```typescript
+   const clientSumCents = Math.round(lines.reduce((sum, l) => sum + l.extendedCost, 0) * 100)
+   return clientSumCents === totals.totalCents  // Integer cents, exact match
+   ```
+   If this fails, the approval gate blocks. No tolerance, no rounding forgiveness.
+
+3. **No per-line cost/fee validation at this layer.** The conservation check validates the aggregate only. Individual line arithmetic is validated at compute time, not at approval time.
+
+4. **Totals flow one direction.** Server → `totals.totalCents` → client verification → SummaryHeader display. Never client-computed totals displayed as authoritative.
+
 ### Multi-Tenancy (`lib/tenancy/`)
 
 Tenant context resolution for multi-company support.

@@ -21,6 +21,7 @@ import {
   ClipboardCheck,
   Download,
   Share2,
+  DollarSign,
 } from 'lucide-react'
 
 // Icon rail items for each section
@@ -49,6 +50,7 @@ const SECTION_GROUPS: Record<SectionId, SidebarGroup[]> = {
       items: [
         { id: 'wbs-elements', label: 'Scope of Work', icon: Layers },
         { id: 'roles-pricing', label: 'Roles & Pricing', icon: Users },
+        { id: 'pricing', label: 'Scenario & Pricing', icon: DollarSign },
         { id: 'team', label: 'Team', icon: Building2 },
         { id: 'labor-loading', label: 'Labor Loading', icon: Grid3X3 },
       ],
