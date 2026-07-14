@@ -178,3 +178,102 @@ RETURNING id, status, resolved_at, resolved_at IS NOT NULL as auto_stamped;
 -- Result: status=accepted, resolved_at=2026-07-13 22:58:51.400024+00, auto_stamped=t
 ```
 ✅ PASS
+
+---
+
+## 2026-07-14 — Migrations 061-063: Extraction UI Prep (PRODUCTION)
+
+**Timestamp:** 2026-07-14T12:55:00Z
+**Target:** PRODUCTION (`qtotsijebcpddipmzstb`)
+**Migrations:**
+- `061_solicitation_brief.sql` — fact_evidence table + solicitation_brief column
+- `062_proposed_requirement_links.sql` — requirement_link status enum + transition trigger
+- `063_fix_fact_evidence_trigger.sql` — dedicated trigger function for fact_evidence
+
+**Operator:** Claude Code (authorized by Lapedra)
+**CI Run:** `29333570731` (PR #10 commit `b4d65db`)
+**Connection:** Via IPv4 pooler (`aws-1-us-east-1.pooler.supabase.com`) due to IPv6 routing issues
+
+### Typed-Ref Confirmation (Verbatim)
+
+```
+==========================================
+  PRODUCTION MIGRATION via Node.js
+==========================================
+
+Target: qtotsijebcpddipmzstb (PRODUCTION)
+
+Typed-ref confirmation: qtotsijebcpddipmzstb
+Confirmation accepted.
+```
+
+### Script Output
+
+```
+Connecting to database...
+Connected successfully.
+
+Checking migration status...
+Found 61 existing migrations.
+Last applied: wbs_versions
+
+[APPLY] 061_solicitation_brief.sql...
+[SUCCESS] 061_solicitation_brief.sql
+[APPLY] 062_proposed_requirement_links.sql...
+[SUCCESS] 062_proposed_requirement_links.sql
+[APPLY] 063_fix_fact_evidence_trigger.sql...
+[SUCCESS] 063_fix_fact_evidence_trigger.sql
+
+==========================================
+  MIGRATION COMPLETE
+==========================================
+```
+
+### Post-Migration Verification
+
+**1. fact_evidence table:**
+```
+EXISTS: YES
+```
+
+**2. solicitation_brief column on intelligence_versions:**
+```
+EXISTS: YES
+TYPE: jsonb
+```
+
+**3. status column on requirement_links:**
+```
+EXISTS: YES
+TYPE: USER-DEFINED (requirement_link_status enum)
+DEFAULT: 'accepted'::requirement_link_status
+```
+
+**4. Triggers present:**
+```sql
+SELECT tgname FROM pg_trigger
+WHERE tgname LIKE '%fact_evidence%' OR tgname LIKE '%requirement_link%';
+```
+Result:
+```
+- enforce_requirement_link_status_transition
+- enforce_fact_evidence_parent_draft
+```
+
+**5. Negative proof (requirement_links status transition):**
+```
+No accepted links exist on prod - negative proof skipped.
+(Only 2 proposals visible, no WBS/requirement_links generated yet)
+```
+
+**6. Health check:**
+```json
+{
+  "db": "ok",
+  "proposals_visible": 2,
+  "version": "421bd6bbdda396be2fb56e9584cbb6d2065853c3",
+  "timestamp": "2026-07-14T12:57:00.468Z"
+}
+```
+
+✅ All verifications pass
