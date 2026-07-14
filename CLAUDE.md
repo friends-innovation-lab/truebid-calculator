@@ -306,6 +306,8 @@ These rules exist because `supabase db reset --linked` wiped production on 2026-
 
 5. **Destructive/schema-changing commands require explicit go.** Any destructive or schema-changing command against a remote database requires the user's explicit go in the same session, restated, not carried over from a previous session.
 
+6. **`scripts/db-push-remote.sh` is the ONLY path for remote DB writes.** If it fails for any reason — network, DNS, host rejection — STOP and report the failure. Building, modifying, or substituting an alternate connection path to staging or production is prohibited without explicit prior authorization. Reports must never present an unauthorized path's output in the authorized path's format.
+
 **Environment references:** See `docs/ENVIRONMENTS.md` for verified project refs and connection strings.
 
 ### Migration Coding Standards
