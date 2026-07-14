@@ -277,3 +277,64 @@ No accepted links exist on prod - negative proof skipped.
 ```
 
 ✅ All verifications pass
+
+---
+
+## 2026-07-14 — Migration 064: Enable Missing RLS (STAGING)
+
+**Timestamp:** 2026-07-14T~15:30:00Z
+**Target:** STAGING (`tcobyquewjootwxpqijq`)
+**Migration:** `064_enable_missing_rls.sql`
+**Operator:** Claude Code (authorized by Lapedra)
+**Branch:** `fix/e2e-testids-and-staging-config`
+**Connection:** Via IPv4 pooler (`aws-1-us-east-2.pooler.supabase.com`)
+
+### Context
+
+Supabase security advisor flagged 4 tables with RLS disabled (ERROR level):
+- `compliance_items`
+- `content_library`
+- `boe_share_links`
+- `backfill_rate_snapshot`
+
+Plus `sensitive_columns_exposed` on `boe_share_links.token`.
+
+### Script Output
+
+```
+==========================================
+  REMOTE DATABASE MIGRATION
+==========================================
+
+Target host: aws-1-us-east-2.pooler.supabase.com
+Connection:  pooler
+
+Environment: STAGING
+Project Ref: tcobyquewjootwxpqijq
+
+Command to execute:
+  supabase db push --db-url "[REDACTED]"
+
+Pending migrations:
+  064_enable_missing_rls.sql
+
+Confirmation accepted. Executing migration...
+Applying migration 064_enable_missing_rls.sql...
+Finished supabase db push.
+
+Migration complete.
+```
+
+### Policies Created
+
+| Table | Policy | Access Pattern |
+|-------|--------|----------------|
+| `compliance_items` | `compliance_items_tenant_isolation` | Tenant isolation via proposal → company → tenant |
+| `content_library` | `content_library_tenant_isolation` | Company → tenant membership |
+| `boe_share_links` | `boe_share_links_owner_access` | Tenant isolation for authenticated users |
+| `boe_share_links` | `boe_share_links_public_token` | Public SELECT for active, non-expired tokens |
+| `backfill_rate_snapshot` | `backfill_rate_snapshot_tenant_isolation` | Direct tenant_id → membership |
+
+### Verification
+
+Pending: Confirm RLS ERRORs cleared in Supabase dashboard after cache refresh.
