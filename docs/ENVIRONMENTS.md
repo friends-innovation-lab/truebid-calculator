@@ -19,8 +19,9 @@ This document describes the three deployment environments, their configurations,
 | **Project Ref** | `qtotsijebcpddipmzstb` |
 | **Project Name** | `truebid-production` |
 | **Region** | `us-east-1` |
-| **Database Host** | `db.qtotsijebcpddipmzstb.supabase.co` |
-| **Pooler URL** | `postgresql://postgres.qtotsijebcpddipmzstb@aws-1-us-east-1.pooler.supabase.com:5432/postgres` |
+| **Database Host (direct)** | `db.qtotsijebcpddipmzstb.supabase.co` |
+| **Pooler Host** | `aws-1-us-east-1.pooler.supabase.com` |
+| **Pooler URL (session)** | `postgresql://postgres.qtotsijebcpddipmzstb:[PASSWORD]@aws-1-us-east-1.pooler.supabase.com:5432/postgres` |
 
 ### Staging
 
@@ -29,8 +30,26 @@ This document describes the three deployment environments, their configurations,
 | **Project Ref** | `tcobyquewjootwxpqijq` |
 | **Project Name** | `truebid-staging` |
 | **Region** | `us-east-2` |
-| **Database Host** | `db.tcobyquewjootwxpqijq.supabase.co` |
-| **Pooler URL** | `postgresql://postgres.tcobyquewjootwxpqijq@aws-1-us-east-2.pooler.supabase.com:5432/postgres` |
+| **Database Host (direct)** | `db.tcobyquewjootwxpqijq.supabase.co` |
+| **Pooler Host** | `aws-1-us-east-2.pooler.supabase.com` |
+| **Pooler URL (session)** | `postgresql://postgres.tcobyquewjootwxpqijq:[PASSWORD]@aws-1-us-east-2.pooler.supabase.com:5432/postgres` |
+
+### Connection Path Selection
+
+The guarded migration script (`scripts/db-push-remote.sh`) accepts two connection paths:
+
+| Path | Host Format | Ref Extraction | Use Case |
+|------|-------------|----------------|----------|
+| **Direct** | `db.REF.supabase.co` | From hostname | Default when IPv6 routing available |
+| **Pooler** | `aws-N-REGION.pooler.supabase.com` | From username (`postgres.REF`) | When direct host unreachable (IPv6) |
+
+**Rule:** The script accepts direct or pooler connections it can verify; anything else is rejected, and rejection means stop-and-report.
+
+**IPv6 Constraint:** Supabase direct database hosts (`db.*.supabase.co`) resolve to IPv6 only. If your development machine lacks IPv6 routing capability, use the session pooler URL instead. The pooler hosts resolve to IPv4.
+
+**Session vs Transaction Pooler:**
+- **Session pooler (port 5432):** Use for migrations. Supports prepared statements and multi-statement DDL.
+- **Transaction pooler (port 6543):** Do NOT use for migrations. PgBouncer transaction mode breaks session-dependent operations.
 
 ## Local Development
 
