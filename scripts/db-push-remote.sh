@@ -10,6 +10,14 @@
 # 3. Validates host against docs/ENVIRONMENTS.md refs table
 # 4. Refuses if supabase/.temp/ exists (linked project)
 # 5. Requires typing target ref to confirm
+#
+# Connection paths:
+# - Direct: db.REF.supabase.co (extracts ref from hostname)
+# - Pooler: aws-*.pooler.supabase.com (extracts ref from username: postgres.REF)
+#
+# IMPORTANT: Use session pooler (port 5432), NOT transaction pooler (port 6543).
+# Migrations require session semantics for prepared statements and multi-statement DDL.
+# The transaction pooler uses PgBouncer in transaction mode which breaks these operations.
 
 set -euo pipefail
 
@@ -17,10 +25,15 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 ENVIRONMENTS_FILE="$REPO_ROOT/docs/ENVIRONMENTS.md"
 
+# Known environment refs (source of truth: docs/ENVIRONMENTS.md)
+PROD_REF="qtotsijebcpddipmzstb"
+STAGING_REF="tcobyquewjootwxpqijq"
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
 error() {
@@ -62,45 +75,69 @@ Run: rm -rf supabase/.temp/
 Then retry this script with explicit --db-url."
 fi
 
-# Extract host from URL
+# Extract host and username from URL
 # URL format: postgresql://user:pass@host:port/db or postgresql://user@host:port/db
 HOST=$(echo "$DB_URL" | sed -E 's|.*@([^:/]+).*|\1|')
+USERNAME=$(echo "$DB_URL" | sed -E 's|.*://([^:@]+)[:@].*|\1|')
 
 if [[ -z "$HOST" ]]; then
     error "Could not extract host from database URL."
 fi
 
-echo ""
-echo "=========================================="
-echo "  REMOTE DATABASE MIGRATION"
-echo "=========================================="
-echo ""
-echo "Target host: $HOST"
-echo ""
+# Determine connection type and extract project ref
+CONNECTION_TYPE=""
+PROJECT_REF=""
+ENV_NAME=""
+
+# Check if this is a direct connection (db.REF.supabase.co)
+if [[ "$HOST" =~ ^db\.([a-z0-9]+)\.supabase\.co$ ]]; then
+    CONNECTION_TYPE="direct"
+    PROJECT_REF="${BASH_REMATCH[1]}"
+
+# Check if this is a pooler connection (aws-*.pooler.supabase.com)
+elif [[ "$HOST" =~ ^aws-[0-9]+-[a-z]+-[a-z]+-[0-9]+\.pooler\.supabase\.com$ ]]; then
+    CONNECTION_TYPE="pooler"
+
+    # Extract ref from username (postgres.REF format)
+    if [[ "$USERNAME" =~ ^postgres\.([a-z0-9]+)$ ]]; then
+        PROJECT_REF="${BASH_REMATCH[1]}"
+    else
+        error "Pooler connection requires username in format 'postgres.REF'.
+
+Got username: '$USERNAME'
+Expected format: postgres.qtotsijebcpddipmzstb (or other known ref)
+
+The project ref must be embedded in the username for pooler connections."
+    fi
+
+else
+    error "Host '$HOST' is not a recognized Supabase connection.
+
+Accepted connection types:
+  - Direct: db.REF.supabase.co
+  - Pooler: aws-N-REGION.pooler.supabase.com (with postgres.REF username)
+
+Verify your --db-url is correct."
+fi
+
+# Validate project ref against known environments
+if [[ "$PROJECT_REF" == "$PROD_REF" ]]; then
+    ENV_NAME="PRODUCTION"
+elif [[ "$PROJECT_REF" == "$STAGING_REF" ]]; then
+    ENV_NAME="STAGING"
+else
+    error "Project ref '$PROJECT_REF' does not match any known environment.
+
+Known environments:
+  - Production: $PROD_REF
+  - Staging: $STAGING_REF
+
+If this is a new environment, add it to docs/ENVIRONMENTS.md first."
+fi
 
 # Check if ENVIRONMENTS.md exists
 if [[ ! -f "$ENVIRONMENTS_FILE" ]]; then
     error "docs/ENVIRONMENTS.md not found. Cannot verify target."
-fi
-
-# Determine environment from host
-ENV_NAME=""
-PROJECT_REF=""
-
-if echo "$HOST" | grep -q "qtotsijebcpddipmzstb"; then
-    ENV_NAME="PRODUCTION"
-    PROJECT_REF="qtotsijebcpddipmzstb"
-elif echo "$HOST" | grep -q "tcobyquewjootwxpqijq"; then
-    ENV_NAME="STAGING"
-    PROJECT_REF="tcobyquewjootwxpqijq"
-else
-    error "Host '$HOST' does not match any known environment in docs/ENVIRONMENTS.md.
-
-Known environments:
-  - Production: qtotsijebcpddipmzstb
-  - Staging: tcobyquewjootwxpqijq
-
-Verify your --db-url is correct."
 fi
 
 # Verify the ref exists in ENVIRONMENTS.md
@@ -110,6 +147,15 @@ if ! grep -q "$PROJECT_REF" "$ENVIRONMENTS_FILE"; then
 The environments file may be out of date, or the URL is incorrect."
 fi
 
+# Print banner
+echo ""
+echo "=========================================="
+echo "  REMOTE DATABASE MIGRATION"
+echo "=========================================="
+echo ""
+echo "Target host: $HOST"
+echo -e "Connection:  ${CYAN}$CONNECTION_TYPE${NC}"
+echo ""
 echo -e "${YELLOW}Environment: $ENV_NAME${NC}"
 echo -e "${YELLOW}Project Ref: $PROJECT_REF${NC}"
 echo ""
