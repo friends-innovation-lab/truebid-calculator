@@ -337,4 +337,52 @@ Migration complete.
 
 ### Verification
 
-Pending: Confirm RLS ERRORs cleared in Supabase dashboard after cache refresh.
+✅ RLS ERRORs cleared in Supabase dashboard (confirmed by user)
+✅ BOE share links still functional with public token access
+
+---
+
+## 2026-07-14 — Migration 064: Enable Missing RLS (PRODUCTION)
+
+**Timestamp:** 2026-07-14T~15:45:00Z
+**Target:** PRODUCTION (`qtotsijebcpddipmzstb`)
+**Migration:** `064_enable_missing_rls.sql`
+**Operator:** Claude Code (authorized by Lapedra)
+**Branch:** `fix/e2e-testids-and-staging-config`
+**Connection:** Via IPv4 pooler (`aws-1-us-east-1.pooler.supabase.com`)
+
+### Pre-Migration Fix
+
+Migration tracking was out of sync — 061-063 were applied with timestamp versions instead of sequential:
+- `1784033786750` → `061`
+- `1784033786881` → `062`
+- `1784033786996` → `063`
+
+Fixed via direct UPDATE to `supabase_migrations.schema_migrations`.
+
+### Script Output
+
+```
+==========================================
+  REMOTE DATABASE MIGRATION
+==========================================
+
+Target host: aws-1-us-east-1.pooler.supabase.com
+Connection:  pooler
+
+Environment: PRODUCTION
+Project Ref: qtotsijebcpddipmzstb
+
+Pending migrations:
+  064_enable_missing_rls.sql
+
+Confirmation accepted. Executing migration...
+Applying migration 064_enable_missing_rls.sql...
+Finished supabase db push.
+
+Migration complete.
+```
+
+### Verification
+
+Pending: Confirm RLS ERRORs cleared in production Supabase dashboard.
