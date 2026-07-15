@@ -77,6 +77,14 @@ interface RequirementLinkRow {
 }
 
 /**
+ * Intelligence labor requirement row for role title lookup.
+ */
+interface IntelligenceLaborRequirementRow {
+  id: string
+  title: string
+}
+
+/**
  * Compute SHA-256 hash of content.
  */
 function computeContentHash(content: BOEArtifactContent): string {
@@ -222,6 +230,26 @@ export function createGenerateBOEArtifactCommand(
         }
       }
 
+      // 6b. For labor_loading lines, load intelligence labor requirements for role titles
+      const laborLoadingLines = lines.filter(l => l.line_type === 'labor_loading')
+      const laborReqIds = laborLoadingLines
+        .map(l => l.intelligence_labor_requirement_id)
+        .filter((id): id is string => id !== null)
+
+      const laborReqMap = new Map<string, IntelligenceLaborRequirementRow>()
+      if (laborReqIds.length > 0) {
+        const { data: laborReqs } = await supabase
+          .from('intelligence_labor_requirements')
+          .select('id, title')
+          .in('id', laborReqIds)
+
+        if (laborReqs) {
+          for (const req of laborReqs) {
+            laborReqMap.set(req.id, req as IntelligenceLaborRequirementRow)
+          }
+        }
+      }
+
       // 7. Load requirement links for WBS tasks
       // CRITICAL: Only count ACCEPTED links for citation completeness
       // Proposed links are not verified by user and must not satisfy the citation gate
@@ -335,16 +363,29 @@ export function createGenerateBOEArtifactCommand(
         const wbsTask = assignment?.wbs_task ?? null
         const links = wbsTask ? (taskToLinksMap.get(wbsTask.id) || []) : []
 
+        // For labor_loading lines, get role title from intelligence labor requirement
+        const laborReq = line.intelligence_labor_requirement_id
+          ? laborReqMap.get(line.intelligence_labor_requirement_id)
+          : null
+
         // Fee decomposition (penny-conserved)
         const costComponent = round2(line.hours * line.cost_before_profit)
         const feeComponent = round2(line.extended_cost - costComponent)
+
+        // Resolve role title: staffing assignment for wbs_estimate, labor requirement for labor_loading
+        // 'Unknown' should be unreachable: wbs_estimate lines have staffing_assignment_id NOT NULL by constraint,
+        // and labor_loading lines have intelligence_labor_requirement_id populated at compute time.
+        // If we ever see 'Unknown', it indicates orphan data (deleted FK target) - a data integrity bug.
+        const roleTitle = assignment?.role_title
+          ?? laborReq?.title
+          ?? (line.line_type === 'labor_loading' ? 'Labor loading' : '[ORPHAN: missing assignment]')
 
         const artifactLine: ArtifactEstimateLine = {
           lineId: line.id,
           lineType: line.line_type,
           wbsCode: wbsTask?.wbs_code || null,
           taskTitle: wbsTask?.title || null,
-          roleTitle: assignment?.role_title || 'Unknown',
+          roleTitle,
           periodLabel: line.period_label,
           hours: line.hours,
           hoursRationale: null,
