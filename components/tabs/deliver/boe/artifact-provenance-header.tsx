@@ -89,7 +89,7 @@ export function ArtifactProvenanceHeader({ artifact }: ArtifactProvenanceHeaderP
         <div className="space-y-1">
           <p className="text-xs font-medium text-muted-foreground">Engine</p>
           <code className="text-xs font-mono bg-white px-2 py-1 rounded border block">
-            v{artifact.engineVersion}
+            {artifact.engineVersion}
           </code>
         </div>
 

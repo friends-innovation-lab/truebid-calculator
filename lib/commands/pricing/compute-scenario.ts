@@ -150,7 +150,7 @@ export function createComputePricingScenarioCommand(
       // 3. Load company settings for rate config
       const { data: settings, error: settingsError } = await supabase
         .from('company_settings')
-        .select('fringe_rate, overhead_rate, ga_rate, profit_targets, row_version')
+        .select('fringe_rate, overhead_rate, ga_rate, profit_targets')
         .eq('tenant_id', tenantId)
         .single()
 
@@ -173,7 +173,7 @@ export function createComputePricingScenarioCommand(
         defaultProfitRate,
         escalationRate: 0.03, // TODO: Make configurable
         snapshotAt: new Date().toISOString(),
-        sourceSettingsRowVersion: settings.row_version,
+        sourceSettingsRowVersion: null, // company_settings doesn't have row_version
       }
 
       // 4. Load all WBS task IDs for the version

@@ -134,7 +134,7 @@ export const ArtifactRateConfigSchema = z.object({
   defaultProfitRate: z.number(),
   escalationRate: z.number(),
   snapshotAt: z.string(), // ISO timestamp
-  sourceSettingsRowVersion: z.number().int(),
+  sourceSettingsRowVersion: z.number().int().nullable(), // null if table lacks row_version
 })
 
 /**
