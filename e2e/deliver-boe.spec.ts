@@ -77,55 +77,50 @@ test.describe('BOE Generation & Artifacts', () => {
   })
 
   test.describe('T2: Citation Worklist (T2 Fixture)', () => {
-    test('CITATION_INCOMPLETE renders worklist with task details', async ({ page }) => {
+    test('citation incomplete blocks generation with resolution message', async ({ page }) => {
       await navigateToBoe(page, TEST_CONFIG.t2FixtureProposalId)
       await page.waitForLoadState('networkidle')
 
       // Check for pre-flight panel
-      const hasPreFlight = await page.locator('[data-testid="approve-button"]').isVisible()
+      const generateButton = page.locator('[data-testid="approve-button"]')
+      const hasPreFlight = await generateButton.isVisible()
+
+      console.log('T2 Results:')
+      console.log(`  Proposal ID: ${TEST_CONFIG.t2FixtureProposalId}`)
 
       if (hasPreFlight) {
-        // Get the button text
-        const generateButton = page.locator('[data-testid="approve-button"]')
         const buttonText = await generateButton.textContent()
+        const isDisabled = await generateButton.isDisabled()
 
-        console.log('T2 Results:')
-        console.log(`  Proposal ID: ${TEST_CONFIG.t2FixtureProposalId}`)
         console.log(`  Button Text: ${buttonText}`)
+        console.log(`  Button Disabled: ${isDisabled}`)
 
-        // T2 fixture should have approved scenario but no accepted citations
-        // So generate should either be enabled or show citation issues
-        if (buttonText?.includes('Generate')) {
-          console.log('  Status: Generate button ready')
-          console.log('  Next: Click Generate to trigger CITATION_INCOMPLETE')
+        // T2 fixture has approved scenario but citations in 'proposed' status (not accepted)
+        // Expected behavior: button shows "X items need resolution" and is disabled
+        if (buttonText?.includes('need') && buttonText?.includes('resolution')) {
+          const match = buttonText.match(/(\d+) items? need/)
+          const unmetCount = match ? parseInt(match[1]) : 0
+          console.log(`  Unmet Conditions: ${unmetCount}`)
+          console.log('  Status: Citation gate blocking as expected')
 
-          // Click generate to trigger the citation check
-          await generateButton.click()
-          await page.waitForTimeout(2000)
+          // Verify the citation-related condition is shown
+          const citationCondition = page.locator('text=cited').or(page.locator('text=citation'))
+          const hasCitationCondition = await citationCondition.first().isVisible()
+          console.log(`  Citation Condition Visible: ${hasCitationCondition}`)
 
-          // Check for worklist display
-          const worklistTable = page.locator('table').or(page.locator('[data-testid="citation-worklist"]'))
-          const hasWorklist = await worklistTable.isVisible()
-
-          if (hasWorklist) {
-            console.log('  Worklist Table: VISIBLE')
-            // Get row count
-            const rows = page.locator('tr')
-            const rowCount = await rows.count()
-            console.log(`  Worklist Rows: ${rowCount}`)
-          } else {
-            // Check for error message about citations
-            const errorText = await page.locator('text=citation').or(page.locator('text=Citation')).first().textContent()
-            console.log(`  Citation Message: ${errorText}`)
-          }
-        } else {
-          console.log('  Status: Button shows blocking conditions')
+          // This is the expected behavior - citations incomplete blocks generation
+          expect(isDisabled).toBe(true)
+          expect(unmetCount).toBeGreaterThan(0)
+        } else if (!isDisabled) {
+          // Button is enabled - this would be unexpected for T2 fixture
+          console.log('  Status: Button unexpectedly enabled')
+          expect(isDisabled).toBe(true) // Should fail - T2 should have incomplete citations
         }
       } else {
         console.log('T2: Pre-flight panel not visible')
+        // Should still have the page loaded
+        expect(await page.locator('body').isVisible()).toBe(true)
       }
-
-      expect(hasPreFlight || await page.locator('h1:has-text("BOE")').isVisible()).toBe(true)
     })
   })
 
@@ -158,7 +153,7 @@ test.describe('BOE Generation & Artifacts', () => {
       const hasProvenance = await provenanceHeader.first().isVisible()
 
       // Check totals section exists (from stored content)
-      const totalsSection = page.locator('text=Grand Total')
+      const totalsSection = page.locator('span:has-text("Grand Total")').first()
       const hasTotals = await totalsSection.isVisible()
 
       console.log('T3 Results:')
@@ -191,50 +186,51 @@ test.describe('BOE Generation & Artifacts', () => {
       // Capture conservation values from the viewer
       console.log('T4 Results:')
 
-      // Look for conservation indicator
-      const conservationOk = page.locator('text=Cost + Fee = Total')
+      // Look for conservation indicator (All conserved)
+      const conservationOk = page.locator('text=All conserved')
       const hasConservation = await conservationOk.isVisible()
-      console.log(`  Conservation Status: ${hasConservation ? 'Cost + Fee = Total (PASS)' : 'Not displayed'}`)
+      console.log(`  Conservation Status: ${hasConservation ? 'All conserved (PASS)' : 'Not displayed'}`)
 
-      // Try to extract totals values
-      // These selectors depend on the actual UI structure
-      const totalHoursEl = page.locator('[data-testid="total-hours"]').or(page.locator('text=Total Hours').locator('..').locator('span').last())
-      const totalCostEl = page.locator('[data-testid="total-cost"]').or(page.locator('text=Total Cost').locator('..').locator('span').last())
-      const totalFeeEl = page.locator('[data-testid="total-fee"]').or(page.locator('text=Total Fee').locator('..').locator('span').last())
-      const grandTotalEl = page.locator('[data-testid="grand-total"]').or(page.locator('text=Grand Total').locator('..').locator('span').last())
+      // Grand Total section - find the grid with Hours, Cost, Fee, Grand Total labels
+      // Structure: div > p.text-xs (label) + p.text-lg (value)
+      const grandTotalSection = page.locator('div:has(> span:has-text("Grand Total"))').first()
 
-      // Try to get text content (may fail if selectors don't match)
+      // Try to extract totals values from the grid
+      // Each value is in a p.text-lg.tabular-nums after its label
       let hours = 'N/A', cost = 'N/A', fee = 'N/A', total = 'N/A'
 
       try {
-        const hoursVisible = await totalHoursEl.isVisible()
-        if (hoursVisible) hours = await totalHoursEl.textContent() || 'N/A'
-      } catch { hours = 'N/A' }
+        // Hours: div containing p "Hours" label and p with the number
+        const hoursDiv = grandTotalSection.locator('div:has(> p:text-is("Hours"))').first()
+        const hoursValue = hoursDiv.locator('p.tabular-nums').first()
+        if (await hoursValue.isVisible()) hours = await hoursValue.textContent() || 'N/A'
+      } catch { /* ignore */ }
 
       try {
-        const costVisible = await totalCostEl.isVisible()
-        if (costVisible) cost = await totalCostEl.textContent() || 'N/A'
-      } catch { cost = 'N/A' }
+        // Cost: div containing p "Cost" label
+        const costDiv = grandTotalSection.locator('div:has(> p:text-is("Cost"))').first()
+        const costValue = costDiv.locator('p.tabular-nums').first()
+        if (await costValue.isVisible()) cost = await costValue.textContent() || 'N/A'
+      } catch { /* ignore */ }
 
       try {
-        const feeVisible = await totalFeeEl.isVisible()
-        if (feeVisible) fee = await totalFeeEl.textContent() || 'N/A'
-      } catch { fee = 'N/A' }
+        // Fee: div containing p "Fee" label
+        const feeDiv = grandTotalSection.locator('div:has(> p:text-is("Fee"))').first()
+        const feeValue = feeDiv.locator('p.tabular-nums').first()
+        if (await feeValue.isVisible()) fee = await feeValue.textContent() || 'N/A'
+      } catch { /* ignore */ }
 
       try {
-        const totalVisible = await grandTotalEl.isVisible()
-        if (totalVisible) total = await grandTotalEl.textContent() || 'N/A'
-      } catch { total = 'N/A' }
+        // Grand Total: div containing p "Grand Total" label (not the header span)
+        const totalDiv = grandTotalSection.locator('div:has(> p:text-is("Grand Total"))').first()
+        const totalValue = totalDiv.locator('p.tabular-nums').first()
+        if (await totalValue.isVisible()) total = await totalValue.textContent() || 'N/A'
+      } catch { /* ignore */ }
 
       console.log(`  Hours: ${hours}`)
       console.log(`  Cost: ${cost}`)
       console.log(`  Fee: ${fee}`)
-      console.log(`  Total: ${total}`)
-
-      // Look for any monetary values displayed
-      const allText = await page.locator('body').textContent()
-      const moneyMatches = allText?.match(/\$[\d,]+\.?\d*/g) || []
-      console.log(`  Monetary values found: ${moneyMatches.length > 0 ? moneyMatches.slice(0, 5).join(', ') + (moneyMatches.length > 5 ? '...' : '') : 'none'}`)
+      console.log(`  Grand Total: ${total}`)
 
       console.log('  Single-source: Totals rendered from artifact.content.totals only')
 

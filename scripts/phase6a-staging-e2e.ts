@@ -131,38 +131,67 @@ function logSection(title: string) {
 async function cleanup() {
   log('\nCleaning up previous test data...')
 
-  // Delete in reverse dependency order - both fixtures
-  await supabase.from('boe_artifacts').delete().eq('tenant_id', TENANT_ID)
-  await supabase.from('pricing_lines').delete().eq('tenant_id', TENANT_ID)
-  await supabase.from('pricing_scenarios').delete().eq('tenant_id', TENANT_ID)
-
-  // Requirement links for main fixture
-  await supabase.from('requirement_links').delete().match({ requirement_id: PROPOSAL_ID })
-  // Requirement links for T2 fixture
+  // Get all requirements for both proposals to delete their links
+  const { data: mainReqs } = await supabase.from('requirements').select('id').eq('proposal_id', PROPOSAL_ID)
   const { data: t2Reqs } = await supabase.from('requirements').select('id').eq('proposal_id', T2_PROPOSAL_ID)
-  if (t2Reqs) {
-    for (const req of t2Reqs) {
-      await supabase.from('requirement_links').delete().eq('requirement_id', req.id)
-    }
+  const allReqIds = [...(mainReqs || []), ...(t2Reqs || [])].map(r => r.id)
+
+  // Delete BOE artifacts by proposal
+  await supabase.from('boe_artifacts').delete().eq('proposal_id', PROPOSAL_ID)
+  await supabase.from('boe_artifacts').delete().eq('proposal_id', T2_PROPOSAL_ID)
+
+  // Delete pricing data by proposal
+  const { data: mainScenarios } = await supabase.from('pricing_scenarios').select('id').eq('proposal_id', PROPOSAL_ID)
+  const { data: t2Scenarios } = await supabase.from('pricing_scenarios').select('id').eq('proposal_id', T2_PROPOSAL_ID)
+  const allScenarioIds = [...(mainScenarios || []), ...(t2Scenarios || [])].map(s => s.id)
+
+  if (allScenarioIds.length > 0) {
+    await supabase.from('pricing_lines').delete().in('pricing_scenario_id', allScenarioIds)
+  }
+  await supabase.from('pricing_scenarios').delete().eq('proposal_id', PROPOSAL_ID)
+  await supabase.from('pricing_scenarios').delete().eq('proposal_id', T2_PROPOSAL_ID)
+
+  // Delete requirement links
+  if (allReqIds.length > 0) {
+    await supabase.from('requirement_links').delete().in('requirement_id', allReqIds)
   }
 
-  await supabase.from('requirements').delete().eq('tenant_id', TENANT_ID)
-  await supabase.from('proposal_charge_codes').delete().eq('tenant_id', TENANT_ID)
-  await supabase.from('staffing_assignments').delete().eq('tenant_id', TENANT_ID)
-  await supabase.from('wbs_tasks').delete().eq('tenant_id', TENANT_ID)
+  // Delete requirements
+  await supabase.from('requirements').delete().eq('proposal_id', PROPOSAL_ID)
+  await supabase.from('requirements').delete().eq('proposal_id', T2_PROPOSAL_ID)
 
-  // Delete all WBS versions
+  // Delete staffing assignments by WBS task
+  const { data: mainTasks } = await supabase.from('wbs_tasks').select('id').eq('wbs_version_id', WBS_VERSION_ID)
+  const { data: t2Tasks } = await supabase.from('wbs_tasks').select('id').eq('wbs_version_id', T2_WBS_VERSION_ID)
+  const allTaskIds = [...(mainTasks || []), ...(t2Tasks || [])].map(t => t.id)
+
+  if (allTaskIds.length > 0) {
+    await supabase.from('staffing_assignments').delete().in('wbs_task_id', allTaskIds)
+  }
+
+  // Delete WBS tasks
+  await supabase.from('wbs_tasks').delete().eq('wbs_version_id', WBS_VERSION_ID)
+  await supabase.from('wbs_tasks').delete().eq('wbs_version_id', T2_WBS_VERSION_ID)
+  await supabase.from('wbs_tasks').delete().eq('wbs_version_id', NEW_WBS_VERSION_ID)
+
+  // Delete WBS versions
   await supabase.from('wbs_versions').delete().eq('id', WBS_VERSION_ID)
   await supabase.from('wbs_versions').delete().eq('id', NEW_WBS_VERSION_ID)
   await supabase.from('wbs_versions').delete().eq('id', T2_WBS_VERSION_ID)
-  await supabase.from('wbs_versions').delete().eq('tenant_id', TENANT_ID)
+  await supabase.from('wbs_versions').delete().eq('proposal_id', PROPOSAL_ID)
+  await supabase.from('wbs_versions').delete().eq('proposal_id', T2_PROPOSAL_ID)
 
+  // Delete intelligence data
   await supabase.from('intelligence_labor_requirements').delete().eq('version_id', INTEL_VERSION_ID)
   await supabase.from('intelligence_labor_requirements').delete().eq('version_id', T2_INTEL_VERSION_ID)
   await supabase.from('intelligence_periods').delete().eq('version_id', INTEL_VERSION_ID)
   await supabase.from('intelligence_periods').delete().eq('version_id', T2_INTEL_VERSION_ID)
-  await supabase.from('intelligence_versions').delete().eq('tenant_id', TENANT_ID)
+  await supabase.from('intelligence_versions').delete().eq('id', INTEL_VERSION_ID)
+  await supabase.from('intelligence_versions').delete().eq('id', T2_INTEL_VERSION_ID)
+  await supabase.from('intelligence_versions').delete().eq('proposal_id', PROPOSAL_ID)
+  await supabase.from('intelligence_versions').delete().eq('proposal_id', T2_PROPOSAL_ID)
 
+  // Finally delete proposals
   await supabase.from('proposals').delete().eq('id', PROPOSAL_ID)
   await supabase.from('proposals').delete().eq('id', T2_PROPOSAL_ID)
 
@@ -175,11 +204,29 @@ async function cleanup() {
 
 async function setupMainFixture() {
   logSection('SETUP: Creating Main E2E Test Fixture')
-  const correlationId = `e2e-main-${Date.now()}`
+  const correlationId = crypto.randomUUID() // Must be valid UUID for audit_events
   const ctx = buildMockCommandContext(correlationId)
 
-  // 1. Create proposal
-  const { error: propError } = await supabase.from('proposals').insert({
+  // 0. Ensure tenant and company_settings exist
+  await supabase.from('tenants').upsert({
+    id: TENANT_ID,
+    name: 'E2E Test Tenant',
+    slug: 'e2e-test',
+    status: 'active',
+    company_id: COMPANY_ID,
+  }, { onConflict: 'id' })
+
+  await supabase.from('company_settings').upsert({
+    tenant_id: TENANT_ID,
+    fringe_rate: 0.2116,
+    overhead_rate: 0.3426,
+    ga_rate: 0.1983,
+    profit_targets: { tm: 0.10, fp: 0.10 },
+    row_version: 1,
+  }, { onConflict: 'tenant_id' })
+
+  // 1. Create proposal (upsert to handle re-runs)
+  const { error: propError } = await supabase.from('proposals').upsert({
     id: PROPOSAL_ID,
     company_id: COMPANY_ID,
     title: 'E2E Phase 6A Test Proposal',
@@ -189,6 +236,7 @@ async function setupMainFixture() {
     status: 'draft',
     due_date: '2026-12-31',
     row_version: 1,
+    active_intelligence_version_id: null, // Clear for re-run
     working_data: {
       proposalSetup: {
         periods: [
@@ -197,11 +245,16 @@ async function setupMainFixture() {
         ],
       },
     },
-  })
+  }, { onConflict: 'id' })
   if (propError) log(`Proposal error: ${propError.message}`)
 
-  // 2. Create intelligence version (draft, with staffing_model set to avoid STAFFING_MODEL_UNCLEAR)
-  const { error: intError } = await supabase.from('intelligence_versions').insert({
+  // 2. Reset intelligence version to draft if it exists (for re-runs)
+  await supabase.from('intelligence_versions')
+    .update({ status: 'draft', confirmation_hash: null, confirmed_at: null })
+    .eq('id', INTEL_VERSION_ID)
+
+  // 2b. Create intelligence version (upsert, with staffing_model set to avoid STAFFING_MODEL_UNCLEAR)
+  const { error: intError } = await supabase.from('intelligence_versions').upsert({
     id: INTEL_VERSION_ID,
     tenant_id: TENANT_ID,
     proposal_id: PROPOSAL_ID,
@@ -212,7 +265,7 @@ async function setupMainFixture() {
     facts_json: { contractType: { value: 'T&M', confidence: 'high' } },
     extracted_at: new Date().toISOString(),
     row_version: 1,
-  })
+  }, { onConflict: 'id' })
   if (intError) log(`Intel error: ${intError.message}`)
 
   // 3. Create intelligence periods
@@ -359,7 +412,8 @@ async function setupMainFixture() {
   ]
 
   const linkIds: string[] = []
-  for (const req of requirements) {
+  for (let i = 0; i < requirements.length; i++) {
+    const req = requirements[i]
     await supabase.from('requirements').insert({
       id: req.id,
       tenant_id: TENANT_ID,
@@ -372,12 +426,14 @@ async function setupMainFixture() {
     })
 
     // Insert link as 'proposed' (per Change 1)
-    const linkId = `link-${req.id.slice(0, 8)}-${Date.now()}`
+    // Use UUID format for link ID
+    // FIX: Each requirement links to its corresponding task (1:1 mapping)
+    const linkId = crypto.randomUUID()
     linkIds.push(linkId)
     await supabase.from('requirement_links').insert({
       id: linkId,
       requirement_id: req.id,
-      wbs_task_id: tasks[0].id,
+      wbs_task_id: tasks[i].id, // Link to corresponding task, not always tasks[0]
       link_source: 'ai',
       status: 'proposed',
       proposed_at: new Date().toISOString(),
@@ -512,7 +568,7 @@ async function setupMainFixture() {
 
 async function setupT2Fixture() {
   logSection('SETUP: Creating T2 Fixture (Citations Incomplete)')
-  const correlationId = `e2e-t2-${Date.now()}`
+  const correlationId = crypto.randomUUID() // Must be valid UUID for audit_events
   const ctx = buildMockCommandContext(correlationId)
 
   // 1. Create proposal
@@ -552,7 +608,7 @@ async function setupT2Fixture() {
   if (intError) log(`T2 Intel error: ${intError.message}`)
 
   // 3. Create intelligence period
-  const t2PeriodId = 't2-period-base-6666'
+  const t2PeriodId = 'e2e88888-8888-8888-8888-888888880003'
   await supabase.from('intelligence_periods').insert({
     id: t2PeriodId,
     version_id: T2_INTEL_VERSION_ID,
@@ -565,7 +621,7 @@ async function setupT2Fixture() {
 
   // 4. Create labor requirement
   await supabase.from('intelligence_labor_requirements').insert({
-    id: 't2-labor-pm-6666',
+    id: 'e2e88888-8888-8888-8888-888888880004',
     version_id: T2_INTEL_VERSION_ID,
     title: 'Project Manager',
     hours_per_month: 160,
@@ -598,7 +654,7 @@ async function setupT2Fixture() {
   if (wbsError) log(`T2 WBS error: ${wbsError.message}`)
 
   // 7. Create WBS task
-  const t2TaskId = 't2-task-pm-6666'
+  const t2TaskId = 'e2e88888-8888-8888-8888-888888880001'
   await supabase.from('wbs_tasks').insert({
     id: t2TaskId,
     tenant_id: TENANT_ID,
@@ -612,7 +668,7 @@ async function setupT2Fixture() {
 
   // 8. Create staffing assignment
   await supabase.from('staffing_assignments').insert({
-    id: 't2-assign-pm-6666',
+    id: 'e2e88888-8888-8888-8888-888888880002',
     tenant_id: TENANT_ID,
     wbs_task_id: t2TaskId,
     role_title: 'Project Manager',
@@ -641,7 +697,7 @@ async function setupT2Fixture() {
   log(`  ✓ T2 WBS activated`)
 
   // 10. Create requirement with link in 'proposed' status (NOT accepted)
-  const t2ReqId = 't2-req-001-6666'
+  const t2ReqId = 'e2e88888-8888-8888-8888-888888880005'
   await supabase.from('requirements').insert({
     id: t2ReqId,
     tenant_id: TENANT_ID,
@@ -655,7 +711,7 @@ async function setupT2Fixture() {
 
   // Insert link as 'proposed' - DO NOT ACCEPT (this is the T2 fixture point)
   await supabase.from('requirement_links').insert({
-    id: 't2-link-001-6666',
+    id: 'e2e88888-8888-8888-8888-888888880006',
     requirement_id: t2ReqId,
     wbs_task_id: t2TaskId,
     link_source: 'ai',
