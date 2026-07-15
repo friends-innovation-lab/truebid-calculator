@@ -21,8 +21,8 @@ export interface RateConfigSnapshot {
   escalationRate: number
   /** Timestamp when snapshot was taken */
   snapshotAt: string
-  /** Row version of company_settings at snapshot time */
-  sourceSettingsRowVersion: number
+  /** Row version of company_settings at snapshot time (null if table lacks row_version) */
+  sourceSettingsRowVersion: number | null
 }
 
 /**
